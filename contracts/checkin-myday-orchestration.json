@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "contract": "MOMNA-E28-CI-B04-R2",
+  "orchestrationVersion": "checkin-myday-orchestration.v1",
+  "owner": "modules.checkin",
+  "myDayOwner": "modules.myday",
+  "sources": {
+    "baseline": "CheckinBaselineContextContract purpose=MY_DAY",
+    "sessions": "CheckinSessionStoreContract",
+    "signals": "CheckinAdjustmentSignalReadContract",
+    "consumption": "CheckinSessionMaintenanceContract",
+    "materialization": "MyDayMaterializationContract"
+  },
+  "finalStates": ["SUBMITTED", "AUTO_FINALIZED"],
+  "mutableStatesExcluded": ["DRAFT", "PARTIAL"],
+  "scenarios": {
+    "MORNING_EVENING": {"MORNING": "0.700000", "EVENING": "0.300000"},
+    "MORNING_ONLY": {"MORNING": "1.000000"},
+    "EVENING_ONLY": {"EVENING": "1.000000"},
+    "BASELINE_ONLY": {}
+  },
+  "formula": "effectiveShare = baseShare * completionRatio; baselineShare = 1 - sum(effectiveShare)",
+  "consumedSemantics": "already-bound final source may remain historical evidence only for the same daily My Day and is never consumed again",
+  "eveningAdjustment": "historical Morning bound to X plus fresh Evening updates X with two-phase 70/30 weighting and consumes only Evening",
+  "idempotency": "orchestration identity excludes consumed/fresh role and session revision so generation-success/consume-failure retry converges",
+  "forbidden": ["raw answers in My Day command", "clarification values", "direct checkin DB reads from My Day", "second scoring engine", "second safety engine", "new persistence"]
+}

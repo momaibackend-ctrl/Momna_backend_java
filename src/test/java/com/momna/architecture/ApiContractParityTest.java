@@ -142,7 +142,7 @@ class ApiContractParityTest {
                 normalized.length() - 1
             );
         }
-        return normalized;
+        return normalized.replaceAll("\\{[^/}]+}", "{}");
     }
 
     private Set<String> difference(

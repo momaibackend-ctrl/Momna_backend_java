@@ -107,10 +107,11 @@ public class UniversalFlowService {
 
         var instance = mutable(userId, instanceId, expectedDefinitionVersion, expectedRevision);
         var definition = FlowDefinitionModel.from(loadDefinition(instance.getDefinitionKey(), instance.getDefinitionVersion()));
-        var step = definition.steps().stream()
+        var activeBefore = activeSteps(definition, instanceId);
+        var step = activeBefore.stream()
             .filter(x -> x.fieldId().equals(fieldId))
             .findFirst()
-            .orElseThrow(() -> new FlowException("INVALID_TRANSITION", "Field is not in flow definition"));
+            .orElseThrow(() -> new FlowException("INVALID_TRANSITION", "Field is not active in flow state"));
 
         var active = answers.findByInstanceIdAndActiveTrueOrderByAnsweredAtAscAnswerIdAsc(instanceId);
         var existing = active.stream().filter(x -> x.getFieldId().equals(fieldId)).findFirst().orElse(null);
@@ -126,11 +127,12 @@ public class UniversalFlowService {
             instanceId, fieldId, payload, FlowAnswerStatus.ANSWERED, operationId, clock.instant()
         ));
 
+        var invalidated = deactivateInactive(definition, instanceId);
         var next = nextStep(definition, instanceId);
         instance.moveTo(next == null ? null : next.stepId(), clock.instant());
         saveVersioned(instance);
 
-        var result = state(instance, false, Set.of());
+        var result = state(instance, false, invalidated);
         saveOperation(instanceId, operationId, result);
         return result;
     }
@@ -152,10 +154,10 @@ public class UniversalFlowService {
 
         var instance = mutable(userId, instanceId, expectedDefinitionVersion, expectedRevision);
         var definition = FlowDefinitionModel.from(loadDefinition(instance.getDefinitionKey(), instance.getDefinitionVersion()));
-        var step = definition.steps().stream()
+        var step = activeSteps(definition, instanceId).stream()
             .filter(x -> x.stepId().equals(stepId))
             .findFirst()
-            .orElseThrow(() -> new FlowException("INVALID_TRANSITION", "Step is not in flow definition"));
+            .orElseThrow(() -> new FlowException("INVALID_TRANSITION", "Step is not active in flow state"));
         if (!step.skippable()) {
             throw new FlowException("INVALID_TRANSITION", "Step is not skippable");
         }
@@ -171,11 +173,12 @@ public class UniversalFlowService {
             instanceId, step.fieldId(), null, FlowAnswerStatus.SKIPPED, operationId, clock.instant()
         ));
 
+        var invalidated = deactivateInactive(definition, instanceId);
         var next = nextStep(definition, instanceId);
         instance.moveTo(next == null ? null : next.stepId(), clock.instant());
         saveVersioned(instance);
 
-        var result = state(instance, false, Set.of());
+        var result = state(instance, false, invalidated);
         saveOperation(instanceId, operationId, result);
         return result;
     }
@@ -197,11 +200,13 @@ public class UniversalFlowService {
         var answered = active.stream().map(FlowAnswerEntity::getFieldId).collect(java.util.stream.Collectors.toSet());
 
         FlowDefinitionModel.Step target = null;
-        for (var step : definition.steps()) {
+        var activeSteps = activeSteps(definition, instanceId);
+        for (var step : activeSteps) {
             if (step.stepId().equals(instance.getCurrentStepId())) break;
             if (answered.contains(step.fieldId())) target = step;
         }
-        if (target == null) target = definition.steps().getFirst();
+        if (target == null && !activeSteps.isEmpty()) target = activeSteps.getFirst();
+        if (target == null) throw new FlowException("INVALID_TRANSITION", "Flow has no active steps");
 
         instance.moveTo(target.stepId(), clock.instant());
         saveVersioned(instance);
@@ -227,7 +232,7 @@ public class UniversalFlowService {
             .map(FlowAnswerEntity::getFieldId)
             .collect(java.util.stream.Collectors.toSet());
 
-        var missing = definition.steps().stream()
+        var missing = activeSteps(definition, instanceId).stream()
             .filter(FlowDefinitionModel.Step::required)
             .filter(x -> !answered.contains(x.fieldId()))
             .map(FlowDefinitionModel.Step::fieldId)
@@ -304,10 +309,53 @@ public class UniversalFlowService {
                 || x.getAnswerStatus() == FlowAnswerStatus.SKIPPED)
             .map(FlowAnswerEntity::getFieldId)
             .collect(java.util.stream.Collectors.toSet());
-        return definition.steps().stream()
+        return activeSteps(definition, instanceId).stream()
             .filter(x -> !resolved.contains(x.fieldId()))
             .findFirst()
             .orElse(null);
+    }
+
+    private List<FlowDefinitionModel.Step> activeSteps(
+        FlowDefinitionModel definition,
+        UUID instanceId
+    ) {
+        var values = activeAnswerPayloads(instanceId);
+        return definition.steps().stream()
+            .filter(step -> FlowConditionEvaluator.matches(
+                definition.conditions().get(step.fieldId()),
+                values
+            ))
+            .toList();
+    }
+
+    private Map<String, Map<String, Object>> activeAnswerPayloads(UUID instanceId) {
+        var values = new LinkedHashMap<String, Map<String, Object>>();
+        for (var answer : answers.findByInstanceIdAndActiveTrueOrderByAnsweredAtAscAnswerIdAsc(instanceId)) {
+            if (answer.getAnswerStatus() == FlowAnswerStatus.ANSWERED && answer.getPayload() != null) {
+                values.put(answer.getFieldId(), answer.getPayload());
+            }
+        }
+        return values;
+    }
+
+    private Set<String> deactivateInactive(
+        FlowDefinitionModel definition,
+        UUID instanceId
+    ) {
+        var activeFields = activeSteps(definition, instanceId).stream()
+            .map(FlowDefinitionModel.Step::fieldId)
+            .collect(java.util.stream.Collectors.toSet());
+        var invalidated = new LinkedHashSet<String>();
+        var now = clock.instant();
+
+        for (var answer : answers.findByInstanceIdAndActiveTrueOrderByAnsweredAtAscAnswerIdAsc(instanceId)) {
+            if (!activeFields.contains(answer.getFieldId())) {
+                answer.deactivate(now);
+                answers.save(answer);
+                invalidated.add(answer.getFieldId());
+            }
+        }
+        return Set.copyOf(invalidated);
     }
 
     private void saveVersioned(FlowInstanceEntity instance) {
@@ -320,7 +368,7 @@ public class UniversalFlowService {
 
     private FlowState state(FlowInstanceEntity instance, boolean replayed, Set<String> invalidated) {
         var definition = FlowDefinitionModel.from(loadDefinition(instance.getDefinitionKey(), instance.getDefinitionVersion()));
-        var current = definition.steps().stream()
+        var current = activeSteps(definition, instance.getInstanceId()).stream()
             .filter(x -> Objects.equals(x.stepId(), instance.getCurrentStepId()))
             .findFirst()
             .orElse(null);

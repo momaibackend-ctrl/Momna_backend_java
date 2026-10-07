@@ -136,6 +136,10 @@ public class DataLifecycleOperationEntity {
     public String getResourceId() { return resourceId; }
     public PrivacyScope getPrivacyScope() { return privacyScope; }
     public Instant getRetentionAnchorAt() { return retentionAnchorAt; }
+    public Instant getValidFrom() { return validFrom; }
+    public Instant getValidUntil() { return validUntil; }
+    public String getTimezoneAtEvent() { return timezoneAtEvent; }
+    public LocalDate getLocalDateAtEvent() { return localDateAtEvent; }
     public String getPolicyKey() { return policyKey; }
     public Integer getPolicyVersion() { return policyVersion; }
     public UUID getDeletionPlanId() { return deletionPlanId; }

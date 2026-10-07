@@ -50,19 +50,20 @@ public class AccountCenterController {
             actor.userId(),
             Instant.now()
         );
-        body.put(
-            "lifecycle",
-            Map.of(
-                "primary",
-                lifecycleSnapshot.primary() == null
-                    ? Map.of()
-                    : lifecycleEntry(lifecycleSnapshot.primary()),
-                "contexts",
-                lifecycleSnapshot.contexts().stream()
-                    .map(this::lifecycleContext)
-                    .toList()
-            )
+        var lifecycleView = new LinkedHashMap<String, Object>();
+        lifecycleView.put(
+            "primary",
+            lifecycleSnapshot.primary() == null
+                ? null
+                : lifecycleEntry(lifecycleSnapshot.primary())
         );
+        lifecycleView.put(
+            "contexts",
+            lifecycleSnapshot.contexts().stream()
+                .map(this::lifecycleContext)
+                .toList()
+        );
+        body.put("lifecycle", lifecycleView);
 
         var current = auth.current(actor);
         body.put("currentSession", session(current, true));

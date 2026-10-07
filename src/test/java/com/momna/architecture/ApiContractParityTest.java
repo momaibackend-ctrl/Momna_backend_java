@@ -63,7 +63,7 @@ class ApiContractParityTest {
         var root = mapper.readTree(Files.readString(path));
         var fields = root.path("paths").fieldNames();
         var result = new LinkedHashSet<String>();
-        fields.forEachRemaining(result::add);
+        fields.forEachRemaining(path -> result.add(normalize(path)));
         return result;
     }
 

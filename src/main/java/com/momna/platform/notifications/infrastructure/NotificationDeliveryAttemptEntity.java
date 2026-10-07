@@ -128,5 +128,16 @@ public class NotificationDeliveryAttemptEntity {
     public Instant getScheduledAt() { return scheduledAt; }
     public int getAttemptNumber() { return attemptNumber; }
     public DeliveryAttemptStatus getStatus() { return status; }
+    public String getContentId() { return contentId; }
+    public String getContentKey() { return contentKey; }
+    public int getContentVersion() { return contentVersion; }
+    public int getContentSchemaVersion() { return contentSchemaVersion; }
+    public String getResolvedLocale() { return resolvedLocale; }
+    public String getLocalePolicyVersion() { return localePolicyVersion; }
+    public String getCountryPolicyVersion() { return countryPolicyVersion; }
+    public String getRetryPolicyVersion() { return retryPolicyVersion; }
+    public String getProviderNeutralCode() { return providerNeutralCode; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public Instant getNextRetryAt() { return nextRetryAt; }
 }

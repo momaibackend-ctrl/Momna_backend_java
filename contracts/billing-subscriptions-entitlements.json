@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "owner": "core.billing",
+  "sourceOfTruth": "SERVER_VERIFIED_ENTITLEMENT_RESOLVER",
+  "identity": {"authenticatedActorOnly": true, "clientSuppliedUserId": "FORBIDDEN"},
+  "models": ["BillingProduct", "PurchaseTransaction", "SubscriptionState", "Entitlement"],
+  "providers": ["APPLE", "GOOGLE"],
+  "providerLiveVerification": "UNVERIFIED_UNTIL_REGISTERED_PROVIDER_CREDENTIALS_ARE_AVAILABLE",
+  "clientHttpHandoff": {
+    "owner": "CORE-API-01",
+    "routes": [
+      {"method": "GET", "path": "/api/v1/me/entitlements"},
+      {"method": "GET", "path": "/api/v1/me/subscription"},
+      {"method": "POST", "path": "/api/v1/me/billing/restore", "idempotencyHeader": "Idempotency-Key"}
+    ]
+  },
+  "security": {"rawReceiptLogging": "FORBIDDEN", "rawTokenLogging": "FORBIDDEN", "cardData": "NOT_SUPPORTED"},
+  "degradedPolicy": {"bounded": true, "unresolvedState": "TEMPORARILY_UNAVAILABLE"}
+}

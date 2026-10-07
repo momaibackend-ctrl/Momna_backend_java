@@ -81,27 +81,27 @@ public class LettuceRedisCache implements ExpiringCache, AutoCloseable {
         requireToken(ownerToken);
         requireTtl(ttl);
         var script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
-        var result = commands.eval(
+        Long result = commands.eval(
             script,
             ScriptOutputType.INTEGER,
             new String[]{key.redisKey(prefix)},
             ownerToken,
             Long.toString(ttl.toMillis())
         );
-        return result != null && result.longValue() == 1L;
+        return result != null && result == 1L;
     }
 
     @Override
     public boolean unlock(CacheKey key, String ownerToken) {
         requireToken(ownerToken);
         var script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
-        var result = commands.eval(
+        Long result = commands.eval(
             script,
             ScriptOutputType.INTEGER,
             new String[]{key.redisKey(prefix)},
             ownerToken
         );
-        return result != null && result.longValue() == 1L;
+        return result != null && result == 1L;
     }
 
     @Override

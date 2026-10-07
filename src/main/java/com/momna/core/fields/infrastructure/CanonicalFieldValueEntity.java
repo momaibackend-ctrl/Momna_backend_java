@@ -89,6 +89,58 @@ public class CanonicalFieldValueEntity {
 
     protected CanonicalFieldValueEntity() {}
 
+    public CanonicalFieldValueEntity(
+        String id,
+        String userId,
+        String fieldId,
+        Map<String, Object> typedValue,
+        String referenceProvider,
+        String referenceId,
+        String sourceType,
+        String sourceId,
+        String flowInstanceId,
+        String purpose,
+        String scopeType,
+        String scopeId,
+        Instant recordedAt,
+        Instant validFrom,
+        Instant validUntil,
+        BigDecimal confidence,
+        boolean confirmedByUser,
+        int definitionVersion,
+        int schemaVersion,
+        String knowledgeState,
+        String privacyClassification,
+        String consentScope,
+        String sensitivityClassification,
+        String appliedMergePolicy
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.fieldId = fieldId;
+        this.typedValue = typedValue;
+        this.referenceProvider = referenceProvider;
+        this.referenceId = referenceId;
+        this.sourceType = sourceType;
+        this.sourceId = sourceId;
+        this.flowInstanceId = flowInstanceId;
+        this.purpose = purpose;
+        this.scopeType = scopeType;
+        this.scopeId = scopeId;
+        this.recordedAt = recordedAt;
+        this.validFrom = validFrom;
+        this.validUntil = validUntil;
+        this.confidence = confidence;
+        this.confirmedByUser = confirmedByUser;
+        this.definitionVersion = definitionVersion;
+        this.schemaVersion = schemaVersion;
+        this.knowledgeState = knowledgeState;
+        this.privacyClassification = privacyClassification;
+        this.consentScope = consentScope;
+        this.sensitivityClassification = sensitivityClassification;
+        this.appliedMergePolicy = appliedMergePolicy;
+    }
+
     public String getId() { return id; }
     public String getUserId() { return userId; }
     public String getFieldId() { return fieldId; }

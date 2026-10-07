@@ -140,6 +140,10 @@ public class DataLifecycleOperationEntity {
     public Integer getPolicyVersion() { return policyVersion; }
     public UUID getDeletionPlanId() { return deletionPlanId; }
     public UUID getRelatedOperationId() { return relatedOperationId; }
+    public String getArtifactBucket() { return artifactBucket; }
+    public String getArtifactKey() { return artifactKey; }
+    public String getArtifactContentType() { return artifactContentType; }
+    public Long getArtifactSizeBytes() { return artifactSizeBytes; }
     public String getErrorCode() { return errorCode; }
     public long getRowVersion() { return rowVersion; }
 
@@ -159,6 +163,13 @@ public class DataLifecycleOperationEntity {
         this.retentionAnchorAt = retentionAnchorAt;
         this.policyKey = policyKey;
         this.policyVersion = policyVersion;
+    }
+
+    public void attachArtifact(String bucket, String key, String contentType, long sizeBytes) {
+        this.artifactBucket = bucket;
+        this.artifactKey = key;
+        this.artifactContentType = contentType;
+        this.artifactSizeBytes = sizeBytes;
     }
 
     public void captureRequestLocalTime(String timezone, LocalDate localDate) {

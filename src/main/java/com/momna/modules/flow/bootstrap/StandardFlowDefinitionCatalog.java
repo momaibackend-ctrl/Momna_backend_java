@@ -15,7 +15,10 @@ public final class StandardFlowDefinitionCatalog {
     ) {}
 
     public static List<Spec> all() {
-        return List.of(router(), cycle(), pregnancy(), perimenopause(), menopause());
+        return List.of(
+            router(), menarche(), cycle(), planning(), pregnancy(),
+            postpartum(), perimenopause(), menopause()
+        );
     }
 
     private static Spec router() {
@@ -48,6 +51,173 @@ public final class StandardFlowDefinitionCatalog {
                 in("onboarding.router.unsure_planning", "no")),
             step("unsure_no_periods", "onboarding.router.unsure_no_periods", false, true,
                 in("onboarding.router.unsure_cycle_changing", "no"))
+        ));
+    }
+
+    private static Spec menarche() {
+        return spec("period-onboarding-menarche", 1, FlowType.PERIOD_ONBOARDING, "MENARCHE", "PERIOD_ONBOARDING", List.of(
+            step("goal", "onboarding.menarche.goal", true, true),
+            step("body_feel", "onboarding.menarche.body_feel", true, true),
+            step("changes", "onboarding.menarche.changes", true, true,
+                in("transition:onboarding.router.menarche_status", "not_started", "very_recent")),
+            step("first_period_worry", "onboarding.menarche.first_period_worry", true, true,
+                in("transition:onboarding.router.menarche_status", "not_started")),
+            step("first_experience", "onboarding.menarche.first_experience", true, true,
+                in("transition:onboarding.router.menarche_status", "very_recent", "within_two_years")),
+            step("last_period", "onboarding.menarche.last_period", true, true,
+                in("transition:onboarding.router.menarche_status", "very_recent", "within_two_years")),
+            step("period_pattern", "onboarding.menarche.period_pattern", true, true,
+                in("transition:onboarding.router.menarche_status", "very_recent", "within_two_years")),
+            step("symptoms", "onboarding.menarche.symptoms", true, true,
+                in("transition:onboarding.router.menarche_status", "very_recent", "within_two_years")),
+            step("impact", "onboarding.menarche.impact", true, true,
+                in("transition:onboarding.router.menarche_status", "very_recent", "within_two_years")),
+            step("products", "onboarding.menarche.products", true, true),
+            step("day_context", "onboarding.menarche.day_context", true, true),
+            step("toilet_access", "onboarding.menarche.toilet_access", true, true),
+            step("notifications", "onboarding.menarche.notifications", true, true),
+            step("trusted_adult", "onboarding.menarche.trusted_adult", true, true),
+            step("health_talk", "onboarding.menarche.health_talk", true, true),
+            step("health_context", "onboarding.menarche.health_context", false, true),
+            step("sleep", "onboarding.menarche.sleep", true, true),
+            step("activity", "onboarding.menarche.activity", true, true),
+            step("emotions", "onboarding.menarche.emotions", true, true),
+            step("body_image", "onboarding.menarche.body_image", false, true),
+            step("free_time", "onboarding.menarche.free_time", true, true),
+            step("relationship", "onboarding.menarche.relationship", false, true),
+            step("relationship_safety", "onboarding.menarche.relationship_safety", false, true,
+                in("onboarding.menarche.relationship", "yes", "starting")),
+            step("sex_active", "onboarding.menarche.sex_active", false, true,
+                numberGte("context:age", "18")),
+            step("sex_comfort", "onboarding.menarche.sex_comfort", false, true,
+                all(numberGte("context:age", "18"), in("onboarding.menarche.sex_active", "yes", "sometimes"))),
+            step("behavior", "onboarding.menarche.behavior", true, true),
+            step("tone", "onboarding.menarche.tone", true, true)
+        ));
+    }
+
+    private static Spec planning() {
+        return spec("period-onboarding-planning", 1, FlowType.PERIOD_ONBOARDING, "PLANNING", "PERIOD_ONBOARDING", List.of(
+            step("stage", "onboarding.planning.stage", true, true),
+            step("duration", "onboarding.planning.duration", true, true,
+                in("onboarding.planning.stage", "actively_trying")),
+            step("lmp", "onboarding.planning.lmp", true, true),
+            step("regularity", "onboarding.planning.regularity", true, true),
+            step("tracking", "onboarding.planning.tracking", true, true),
+            step("care", "onboarding.planning.care", true, true),
+            step("preg_history", "onboarding.planning.preg_history", false, true),
+            step("history_details", "onboarding.planning.history_details", false, true,
+                not(selectedAny("onboarding.planning.preg_history", "no"))),
+            step("fertility", "onboarding.planning.fertility", false, true),
+            step("treatment", "onboarding.planning.treatment", true, true),
+            step("treatment_expected_date", "onboarding.planning.treatment_expected_date", false, true,
+                selectedAny("onboarding.planning.treatment", "ovulation_induction", "iui", "ivf_icsi", "embryo_transfer_prep")),
+            step("meds", "onboarding.planning.meds", true, true),
+            step("conditions", "onboarding.planning.conditions", false, true),
+            step("family_context", "onboarding.planning.family_context", false, true),
+            step("family_details", "onboarding.planning.family_details", false, true,
+                in("onboarding.planning.family_context", "testing_complete", "testing_scheduled", "next_step_undecided")),
+            step("partner", "onboarding.planning.partner", false, true),
+            step("donor_material", "onboarding.planning.donor_material", false, true),
+            step("partner_involvement", "onboarding.planning.partner_involvement", false, true,
+                in("onboarding.planning.partner", "steady_partner", "partner_not_living_together")),
+            step("partner_health", "onboarding.planning.partner_health", false, true,
+                all(
+                    in("onboarding.planning.partner", "steady_partner", "partner_not_living_together"),
+                    in("onboarding.planning.stage", "actively_trying")
+                )),
+            step("sex_freq", "onboarding.planning.sex_freq", false, true,
+                all(
+                    in("onboarding.planning.partner", "steady_partner", "partner_not_living_together"),
+                    not(selectedAny("onboarding.planning.treatment", "iui", "ivf_icsi", "embryo_transfer_prep"))
+                )),
+            step("intimacy", "onboarding.planning.intimacy", false, true,
+                all(
+                    in("onboarding.planning.partner", "steady_partner", "partner_not_living_together"),
+                    not(selectedAny("onboarding.planning.treatment", "iui", "ivf_icsi", "embryo_transfer_prep"))
+                )),
+            step("support", "onboarding.planning.support", false, true),
+            step("occupation", "onboarding.planning.occupation", false, true),
+            step("occupation_detail", "onboarding.planning.occupation_detail", false, true,
+                in("onboarding.planning.occupation", "enter_job")),
+            step("work_nature", "onboarding.planning.work_nature", true, true),
+            step("sleep", "onboarding.planning.sleep", true, true),
+            step("lifestyle", "onboarding.planning.lifestyle", false, true),
+            step("mental", "onboarding.planning.mental", true, true),
+            step("pressure", "onboarding.planning.pressure", true, true),
+            step("health_behavior", "onboarding.planning.health_behavior", true, true),
+            step("rest", "onboarding.planning.rest", true, true),
+            step("behavior", "onboarding.planning.behavior", true, true),
+            step("tone", "onboarding.planning.tone", true, true)
+        ));
+    }
+
+    private static Spec postpartum() {
+        return spec("period-onboarding-postpartum", 2, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
+            step("birth_date", "onboarding.postpartum.birth_date", true, true),
+            step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, false,
+                absent("onboarding.postpartum.birth_date")),
+            step("multiples", "onboarding.postpartum.multiples", true, true),
+            step("child_status", "onboarding.postpartum.child_status", true, true),
+            step("child_count_exact", "onboarding.postpartum.child_count_exact", false, true,
+                in("onboarding.postpartum.multiples", "more_than_three")),
+            step("child_reference", "onboarding.postpartum.child_reference", false, true,
+                all(
+                    notIn("onboarding.postpartum.multiples", "one_baby"),
+                    notIn("onboarding.postpartum.child_status", "loss")
+                )),
+            step("child_status_by_child", "onboarding.postpartum.child_status_by_child", false, true,
+                all(
+                    notIn("onboarding.postpartum.multiples", "one_baby"),
+                    notIn("onboarding.postpartum.child_status", "all_home")
+                )),
+            step("mixed_loss_support", "onboarding.postpartum.mixed_loss_support", false, true,
+                all(
+                    anyMatchIn("onboarding.postpartum.child_status_by_child", "deceased"),
+                    anyMatchIn("onboarding.postpartum.child_status_by_child", "home", "hospital", "both", "not_with_me")
+                )),
+            step("hospital_access", "onboarding.postpartum.hospital_access", false, true,
+                any(
+                    in("onboarding.postpartum.child_status", "some_hospital", "split_time"),
+                    anyMatchIn("onboarding.postpartum.child_status_by_child", "hospital", "both")
+                )),
+            step("gestation", "onboarding.postpartum.gestation", true, true),
+            step("delivery", "onboarding.postpartum.delivery", true, true),
+            step("delivery_by_child", "onboarding.postpartum.delivery_by_child", false, true,
+                all(
+                    notIn("onboarding.postpartum.multiples", "one_baby"),
+                    in("onboarding.postpartum.delivery", "other_combination")
+                )),
+            step("complications", "onboarding.postpartum.complications", false, true),
+            step("current_care", "onboarding.postpartum.current_care", false, true),
+            step("physical", "onboarding.postpartum.physical", true, true),
+            step("feeding", "onboarding.postpartum.feeding", false, true,
+                notIn("onboarding.postpartum.child_status", "loss")),
+            step("feeding_issues", "onboarding.postpartum.feeding_issues", false, true,
+                notIn("onboarding.postpartum.child_status", "loss")),
+            step("medications", "onboarding.postpartum.medications", false, true),
+            step("followup", "onboarding.postpartum.followup", true, true),
+            step("sleep", "onboarding.postpartum.sleep", true, true),
+            step("night_help", "onboarding.postpartum.night_help", false, true),
+            step("other_children", "onboarding.postpartum.other_children", false, true),
+            step("daily_load", "onboarding.postpartum.daily_load", true, true),
+            step("work", "onboarding.postpartum.work", false, true),
+            step("mental", "onboarding.postpartum.mental", true, true),
+            step("functioning", "onboarding.postpartum.functioning", true, true),
+            step("bonding", "onboarding.postpartum.bonding", false, true,
+                notIn("onboarding.postpartum.child_status", "loss")),
+            step("safety", "onboarding.postpartum.safety", true, true),
+            step("support_network", "onboarding.postpartum.support_network", true, true),
+            step("partner", "onboarding.postpartum.partner", false, true),
+            step("partner_load", "onboarding.postpartum.partner_load", false, true,
+                in("onboarding.postpartum.partner", "live_together", "not_living_together")),
+            step("intimacy_status", "onboarding.postpartum.intimacy_status", false, true),
+            step("intimacy_comfort", "onboarding.postpartum.intimacy_comfort", false, true,
+                in("onboarding.postpartum.intimacy_status", "yes_regularly", "sometimes", "not_yet_worried")),
+            step("next_pregnancy", "onboarding.postpartum.next_pregnancy", false, true),
+            step("rest", "onboarding.postpartum.rest", true, true),
+            step("behavior", "onboarding.postpartum.behavior", true, true),
+            step("tone", "onboarding.postpartum.tone", true, true)
         ));
     }
 
@@ -242,6 +412,35 @@ public final class StandardFlowDefinitionCatalog {
 
     private static Map<String, Object> in(String field, String... values) {
         return leaf(field, "IN", null, values);
+    }
+
+    private static Map<String, Object> notIn(String field, String... values) {
+        return leaf(field, "NOT_IN", null, values);
+    }
+
+    private static Map<String, Object> absent(String field) {
+        return leaf(field, "ABSENT", null);
+    }
+
+    private static Map<String, Object> numberGte(String field, String value) {
+        return leaf(field, "NUMBER_GTE", value);
+    }
+
+    private static Map<String, Object> all(Map<String, Object>... conditions) {
+        return Map.of("type", "ALL", "items", List.of(conditions));
+    }
+
+    private static Map<String, Object> any(Map<String, Object>... conditions) {
+        return Map.of("type", "ANY", "items", List.of(conditions));
+    }
+
+    private static Map<String, Object> anyMatchIn(String collectionField, String... values) {
+        var nested = leaf("element", "IN", null, values);
+        return Map.of(
+            "type", "ANY_MATCH",
+            "collectionFieldId", collectionField,
+            "elementRule", nested
+        );
     }
 
     private static Map<String, Object> selectedAny(String field, String... values) {

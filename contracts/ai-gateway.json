@@ -1,0 +1,28 @@
+{
+  "contract":"AI_GATEWAY_CONTRACT_GATE",
+  "schemaVersion":1,
+  "exposure":"INTERNAL_ONLY",
+  "owner":"platform.ai",
+  "publicEntry":"com.momna.platform.ai.contract.AiGateway",
+  "operations":[{
+    "name":"execute",
+    "input":"AiRequest",
+    "output":"AiResponse",
+    "async":true,
+    "idempotency":"subject + request dimensions + idempotencyKey",
+    "errors":["PURPOSE_MISMATCH","CONTEXT_NOT_FOUND","CONTEXT_VERSION_MISMATCH","PRIVACY_OR_SAFETY_DENIED","PROMPT_NOT_FOUND","PROMPT_VERSION_NOT_FOUND","MODEL_POLICY_NOT_FOUND","MODEL_POLICY_VERSION_NOT_FOUND","INVALID_PROMPT_VARIABLES","OUTPUT_VALIDATOR_NOT_FOUND","OUTPUT_VALIDATION_FAILED","PROVIDER_UNAVAILABLE","PROVIDER_TIMEOUT","RATE_LIMITED","FALLBACK_EXHAUSTED","BUDGET_EXCEEDED","COST_POLICY_UNKNOWN","CACHE_FAILURE","VALIDATION_ERROR"]
+  }],
+  "models":{"registry":"versioned allowlist","selection":"logical policy -> ordered provider/model candidates","providerSdkExposure":"FORBIDDEN","versionDimensions":["modelPolicyKey","modelPolicyVersion","candidateRef"]},
+  "prompts":{"registry":"versioned","featureReference":"promptKey + resolved/explicit promptVersion","templates":"registered only","inputValidation":"typed requiredVariables","outputValidation":"registered schema kind + outputSchemaVersion + optional registered custom validator key/version"},
+  "outputValidators":{"registry":"versioned allowlist","reference":"validator key + validator version","providerNeutral":true,"missing":"FAIL_CLOSED_BEFORE_CACHE_OR_PROVIDER","rejection":"MALFORMED_OUTPUT","fallback":"handled only by CanonicalAiGateway bounded malformed-output fallback"},
+  "context":{"source":"Context Platform snapshot only","requiredDimensions":["snapshotId","snapshotVersion","purpose","purposeVersion","contextSchemaVersion","outputSchemaVersion","fingerprint"],"rawFullProfile":"FORBIDDEN"},
+  "policyOrdering":["resolve Context Platform snapshot","Privacy/Consent + Safety authorize","resolve registered prompt/model/output validator","cache lookup","provider invocation","built-in output validation","custom output validation when configured","cost accounting","cache write"],
+  "validation":{"input":"registered purpose/context/prompt/model policy and exact prompt variables; referenced custom validator must exist","output":"deterministic registered built-in schema plus optional registered custom validator","malformedOutput":"REJECT_OR_BOUNDED_FALLBACK"},
+  "cache":{"platformBoundary":"platform.cache.ExpiringCacheContract","semanticCache":"policy enabled only","contentStorage":"explicit allow only","ttl":"required when enabled","isolation":["subject","purpose","context fingerprint/version","prompt key/version","model policy/version","output schema version","output validator key/version when configured","privacy policy version","safety policy version"],"durableSourceOfTruth":false},
+  "cost":{"unit":"USD_MICROS","usage":"input/output/total tokens","accounting":"per provider result","limits":["per request cost","per request tokens","subject-purpose window cost"],"unknownOrUnboundedPolicy":"FAIL_CLOSED"},
+  "fallback":{"bounded":true,"categories":["TIMEOUT","RATE_LIMIT","PROVIDER_UNAVAILABLE","MALFORMED_OUTPUT"],"nonRetryable":["privacy/safety deny","input validation","unregistered policy/prompt/output validator"],"mustNotBroadenScope":true},
+  "privacySafety":{"beforeProvider":true,"beforeCacheUse":true,"fallbackMayBypass":false,"deterministicSafetyMayBeDowngraded":false},
+  "observability":{"allowed":["request/trace technical ids","purpose","prompt/model policy versions","output validator key/version","candidate ref","cache status","fallback reason","usage/cost","technical error code"],"forbidden":["raw prompt","rendered variables","context payload","provider response content","credentials","sensitive user content"]},
+  "providerAdapters":{"ownership":"platform.ai only","featureDirectProviderCalls":"FORBIDDEN","publicProviderSdkTypes":"FORBIDDEN"},
+  "requiredGateTests":["contract sections present","registered prompt/model versions","registered custom validator key/version","purpose/context mismatch","deny-before-provider","input/output validation","custom validator fail-closed and malformed fallback","cache isolation/versioning including validator ref","budget and cost accounting","bounded fallback","idempotent replay","provider bypass architecture scan"]
+}

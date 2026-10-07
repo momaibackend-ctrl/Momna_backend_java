@@ -63,6 +63,8 @@ public class S3StorageConfiguration {
         var buckets = new LinkedHashSet<String>();
         if (!diaryBucket.isBlank()) buckets.add(diaryBucket);
         if (!medicalBucket.isBlank()) buckets.add(medicalBucket);
+        buckets.add("momna-lifecycle-archive");
+        buckets.add("momna-lifecycle-export");
         return new S3PrivateObjectStorage(s3, presigner, authorization, metadata, buckets);
     }
 }

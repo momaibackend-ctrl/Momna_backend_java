@@ -23,6 +23,30 @@ public class LifecycleContextEntity {
 
     protected LifecycleContextEntity() {}
 
+    public LifecycleContextEntity(
+        String id,
+        String userId,
+        String contextType,
+        Instant validFrom,
+        Instant validTo,
+        String source,
+        double confidence
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.contextType = contextType;
+        this.validFrom = validFrom;
+        this.validTo = validTo;
+        this.source = source;
+        this.confidence = confidence;
+    }
+
+    public void closeAt(Instant at) {
+        if (validTo == null || at.isBefore(validTo)) {
+            this.validTo = at;
+        }
+    }
+
     public String getId() { return id; }
     public String getUserId() { return userId; }
     public String getContextType() { return contextType; }

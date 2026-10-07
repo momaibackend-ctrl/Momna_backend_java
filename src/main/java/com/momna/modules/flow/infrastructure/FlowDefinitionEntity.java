@@ -39,6 +39,28 @@ public class FlowDefinitionEntity {
 
     protected FlowDefinitionEntity() {}
 
+    public FlowDefinitionEntity(
+        String definitionKey,
+        int definitionVersion,
+        FlowType flowType,
+        String variant,
+        String period,
+        String substage,
+        Map<String, Object> definitionJson,
+        int schemaVersion,
+        Instant publishedAt
+    ) {
+        this.definitionKey = definitionKey;
+        this.definitionVersion = definitionVersion;
+        this.flowType = flowType;
+        this.variant = variant;
+        this.period = period;
+        this.substage = substage;
+        this.definitionJson = definitionJson;
+        this.schemaVersion = schemaVersion;
+        this.publishedAt = publishedAt;
+    }
+
     public String getDefinitionKey() { return definitionKey; }
     public int getDefinitionVersion() { return definitionVersion; }
     public FlowType getFlowType() { return flowType; }

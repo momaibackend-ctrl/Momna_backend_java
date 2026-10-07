@@ -1,0 +1,2860 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Momna Backend Foundation API",
+    "version": "0.6.0",
+    "description": "Foundation runtime plus CORE-API-01 public /api/v1 Core transport. CORE-API-01 exposes runtime-backed Auth/Session, Account Center/Profile, Lifecycle read and Billing/Entitlement contracts while Core application services remain the source of domain truth. Billing access is derived only from server-verified entitlements.",
+    "x-core-evidence-manifest": "docs/evidence/core-backend-manifest.md",
+    "x-module-contract-catalog": "contracts/module-contracts.json",
+    "x-runtime-environment-contract": "contracts/runtime-environment.json",
+    "x-final-contract-registry": "contracts/final-contract-registry.json",
+    "x-authentication-session-contract": "contracts/authentication-session-security.json",
+    "x-billing-subscriptions-entitlements-contract": "contracts/billing-subscriptions-entitlements.json",
+    "x-core-public-api-contract": "contracts/core-public-api.json",
+    "x-authentication-http-status": "CORE_API_01_RUNTIME_EXPOSED",
+    "x-billing-http-status": "CORE_API_01_RUNTIME_EXPOSED",
+    "x-onboarding-public-api-contract": "contracts/onboarding-public-api.json",
+    "x-onboarding-openapi-fragment": "openapi/onboarding-public-v1.json",
+    "x-onboarding-http-status": "ONB_API_01_RUNTIME_EXPOSED"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "getServiceIdentity",
+        "responses": {
+          "200": {
+            "description": "Service identification",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "Momna Backend"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Legacy health endpoint",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "getLiveness",
+        "responses": {
+          "200": {
+            "description": "Process liveness only; never probes dependencies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "All required dependencies ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            }
+          },
+          "503": {
+            "description": "At least one required dependency unavailable, errored or exceeded timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Foundation API version",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "0.6.0"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/email/challenges": {
+      "post": {
+        "operationId": "beginEmailSignIn",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Challenge accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/complete": {
+      "post": {
+        "operationId": "completeEmailSignIn",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "challengeId",
+                  "email",
+                  "code"
+                ],
+                "properties": {
+                  "challengeId": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "deviceLabel": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCredentials"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/providers/exchange": {
+      "post": {
+        "operationId": "exchangeProviderCredential",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCredentials"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refreshCredential"
+                ],
+                "properties": {
+                  "refreshCredential": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rotated session credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCredentials"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/session": {
+      "get": {
+        "operationId": "getCurrentSession",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current safe session projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe session page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedSessions"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAllSessions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sessions revoked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "revokeSession",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session revoked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/logout": {
+      "post": {
+        "operationId": "logout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Current session revoked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/login-identities": {
+      "get": {
+        "operationId": "listLoginIdentities",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe login methods",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SafeLoginIdentity"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "linkLoginIdentity",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Login identity linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeLoginIdentity"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/login-identities/{identityId}": {
+      "delete": {
+        "operationId": "unlinkLoginIdentity",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identityId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Login identity unlinked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/reauthenticate": {
+      "post": {
+        "operationId": "reauthenticate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recent authentication established",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "authenticatedAt"
+                  ],
+                  "properties": {
+                    "authenticatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile": {
+      "get": {
+        "operationId": "getMyProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe profile projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile/preferences": {
+      "patch": {
+        "operationId": "updateMyPreferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile/localization": {
+      "patch": {
+        "operationId": "updateMyLocalization",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalizationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/consents": {
+      "get": {
+        "operationId": "listMyConsents",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consent history page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedConsents"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/consents/{consentType}/grant": {
+      "post": {
+        "operationId": "grantConsent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "consentType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consent record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/consents/{consentType}/withdraw": {
+      "post": {
+        "operationId": "withdrawConsent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "consentType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consent record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/lifecycle": {
+      "get": {
+        "operationId": "getMyLifecycle",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-derived lifecycle projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifecycleSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/lifecycle/history": {
+      "get": {
+        "operationId": "getMyLifecycleHistory",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lifecycle history page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedLifecycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/entitlements": {
+      "get": {
+        "operationId": "getMyEntitlements",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-verified entitlement projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Entitlement"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/subscription": {
+      "get": {
+        "operationId": "getMySubscription",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider-normalized subscription summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/billing/restore": {
+      "post": {
+        "operationId": "restoreMyPurchases",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "provider"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "x-known-values": [
+                      "APPLE",
+                      "GOOGLE"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconciled entitlements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "idempotencyKey",
+                    "items"
+                  ],
+                  "properties": {
+                    "idempotencyKey": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Entitlement"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/me/account-center": {
+      "get": {
+        "operationId": "getAccountCenter",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Display-ready Core Account Center aggregate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCenter"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances": {
+      "post": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Start Lifecycle Router or Period Onboarding",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartOnboardingFlowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FlowState"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}": {
+      "get": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Read authoritative flow state / resume",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FlowState"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}/answers/{fieldId}": {
+      "put": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Submit or change an answer atomically",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          },
+          {
+            "name": "fieldId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitOnboardingAnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FlowState"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}/steps/{stepId}/skip": {
+      "post": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Canonical skip action; existing E17 SKIP action maps here",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          },
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowRevisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FlowState"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}/actions/{actionCode}": {
+      "post": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Execute server-issued action from allowedActions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          },
+          {
+            "name": "actionCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowRevisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/FlowState"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}/complete": {
+      "post": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Complete flow idempotently",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlowRevisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Privacy-safe logical completion result",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingCompletionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/flow-instances/{instanceId}/result": {
+      "get": {
+        "tags": [
+          "Onboarding"
+        ],
+        "summary": "Recover completion result without repeating side effects",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstanceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored logical result",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Trace-Id": {
+                "$ref": "#/components/headers/XTraceId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingCompletionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque-access-credential"
+      }
+    },
+    "parameters": {
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "InstanceId": {
+        "name": "instanceId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Authentication required or invalid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated but operation is not permitted or requires recent authentication",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Requested Core state does not exist",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Optimistic, idempotency or identity conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Required Core/provider dependency temporarily unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Problem": {
+        "description": "Standard safe API problem",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Trace-Id": {
+            "$ref": "#/components/headers/XTraceId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiProblem"
+            }
+          }
+        }
+      },
+      "FlowState": {
+        "description": "Authoritative Flow state",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "X-Trace-Id": {
+            "$ref": "#/components/headers/XTraceId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OnboardingFlowState"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "LivenessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "LIVE"
+          }
+        }
+      },
+      "ReadinessCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status",
+          "timeoutMs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30000
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "NOT_READY"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessCheck"
+            }
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      },
+      "ChallengeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challengeId",
+          "expiresAt",
+          "accepted"
+        ],
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProviderCredentialRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "credential"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "x-known-values": [
+              "APPLE",
+              "GOOGLE"
+            ]
+          },
+          "credential": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          },
+          "nonce": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          },
+          "pkceVerifier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          },
+          "deviceLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SafeSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessionId",
+          "createdAt",
+          "authenticatedAt",
+          "accessExpiresAt",
+          "refreshExpiresAt",
+          "status",
+          "current"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authenticatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accessExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refreshExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "x-known-values": [
+              "ACTIVE",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "deviceLabel": {
+            "type": "string"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SessionCredentials": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accessCredential",
+          "refreshCredential",
+          "session"
+        ],
+        "properties": {
+          "accessCredential": {
+            "type": "string",
+            "writeOnly": false
+          },
+          "refreshCredential": {
+            "type": "string",
+            "writeOnly": false
+          },
+          "session": {
+            "$ref": "#/components/schemas/SafeSession"
+          }
+        }
+      },
+      "SafeLoginIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "identityId",
+          "provider",
+          "createdAt"
+        ],
+        "properties": {
+          "identityId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "x-known-values": [
+              "APPLE",
+              "GOOGLE",
+              "EMAIL"
+            ]
+          },
+          "verifiedEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PagedSessions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeSession"
+            }
+          },
+          "nextOffset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountStatus",
+          "version",
+          "preferences"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "preferredLanguage": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "countryRegion": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone"
+          },
+          "accountStatus": {
+            "type": "string",
+            "x-known-values": [
+              "ACTIVE",
+              "SUSPENDED",
+              "DELETED"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "measurementSystem": {
+                "type": "string"
+              },
+              "unitPreferences": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "notificationPreferences": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "PreferencesUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "measurementSystem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unitPreferences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "notificationPreferences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "expectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "LocalizationUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "preferredLanguage",
+          "locale",
+          "countryRegion",
+          "timezone"
+        ],
+        "properties": {
+          "preferredLanguage": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "countryRegion": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone"
+          },
+          "expectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "ConsentMutation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policyVersion"
+        ],
+        "properties": {
+          "policyVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "ConsentRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "consentType",
+          "policyVersion",
+          "state",
+          "recordedAt"
+        ],
+        "properties": {
+          "consentType": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "x-known-values": [
+              "GRANTED",
+              "WITHDRAWN"
+            ]
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PagedConsents": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentRecord"
+            }
+          },
+          "nextOffset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "LifecycleEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "period",
+          "effectiveFrom",
+          "confidence",
+          "selectedManually"
+        ],
+        "properties": {
+          "period": {
+            "type": "string",
+            "x-known-values": [
+              "MENARCHE",
+              "CYCLE",
+              "PLANNING",
+              "PREGNANCY",
+              "POSTPARTUM",
+              "PERIMENOPAUSE",
+              "MENOPAUSE"
+            ]
+          },
+          "substage": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "selectedManually": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LifecycleSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primary",
+          "contexts"
+        ],
+        "properties": {
+          "primary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LifecycleEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contexts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "contextType",
+                "validFrom",
+                "confidence"
+              ],
+              "properties": {
+                "contextType": {
+                  "type": "string"
+                },
+                "validFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "validTo": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "confidence": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "PagedLifecycle": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifecycleEntry"
+            }
+          },
+          "nextOffset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Entitlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entitlementCode",
+          "status",
+          "validFrom",
+          "sourceType",
+          "reasonCode",
+          "resolvedAt"
+        ],
+        "properties": {
+          "entitlementCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "x-known-values": [
+              "ACTIVE",
+              "INACTIVE",
+              "GRACE",
+              "TEMPORARILY_UNAVAILABLE"
+            ]
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceType": {
+            "type": "string",
+            "x-known-values": [
+              "SUBSCRIPTION",
+              "ONE_TIME_PURCHASE",
+              "PROMO",
+              "ADMIN_GRANT",
+              "MIGRATION"
+            ]
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SubscriptionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cancelAtPeriodEnd",
+          "actions"
+        ],
+        "properties": {
+          "planKey": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "x-known-values": [
+              "TRIAL",
+              "ACTIVE",
+              "GRACE_PERIOD",
+              "BILLING_RETRY",
+              "CANCELLED_ACTIVE_UNTIL_END",
+              "EXPIRED",
+              "REVOKED",
+              "REFUNDED",
+              "NEEDS_RECONCILIATION"
+            ]
+          },
+          "billingPeriodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "billingPeriodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "renewsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "x-known-values": [
+              "APPLE",
+              "GOOGLE"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "x-known-values": [
+                "MANAGE_EXTERNALLY",
+                "RESTORE",
+                "RETRY_SYNC"
+              ]
+            }
+          }
+        }
+      },
+      "AccountCenter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "profile",
+          "lifecycle",
+          "currentSession",
+          "sessions",
+          "loginMethods",
+          "subscription",
+          "entitlements"
+        ],
+        "properties": {
+          "profile": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Profile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/LifecycleSnapshot"
+          },
+          "currentSession": {
+            "$ref": "#/components/schemas/SafeSession"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeSession"
+            }
+          },
+          "loginMethods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeLoginIdentity"
+            }
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/SubscriptionSummary"
+          },
+          "entitlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entitlement"
+            }
+          }
+        }
+      },
+      "MomnaPeriod": {
+        "type": "string",
+        "enum": [
+          "MENARCHE",
+          "CYCLE",
+          "PLANNING",
+          "PREGNANCY",
+          "POSTPARTUM",
+          "PERIMENOPAUSE",
+          "MENOPAUSE"
+        ]
+      },
+      "StartOnboardingFlowRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "flowType"
+        ],
+        "properties": {
+          "flowType": {
+            "type": "string",
+            "enum": [
+              "LIFECYCLE_ROUTER",
+              "PERIOD_ONBOARDING"
+            ]
+          },
+          "period": {
+            "$ref": "#/components/schemas/MomnaPeriod"
+          },
+          "launchRef": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          }
+        }
+      },
+      "SubmitOnboardingAnswerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "expectedRevision"
+        ],
+        "properties": {
+          "value": {},
+          "mode": {
+            "type": "string",
+            "enum": [
+              "SUBMIT",
+              "CHANGE"
+            ]
+          },
+          "expectedDefinitionVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "FlowRevisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedRevision"
+        ],
+        "properties": {
+          "expectedDefinitionVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "manualPeriod": {
+            "$ref": "#/components/schemas/MomnaPeriod"
+          }
+        }
+      },
+      "OnboardingStepView": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "fieldId",
+          "required",
+          "skippable"
+        ],
+        "properties": {
+          "stepId": {
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "componentType": {
+            "type": "string"
+          },
+          "valueType": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "skippable": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "validation": {
+            "type": "object"
+          },
+          "presentation": {
+            "type": "object"
+          },
+          "privacy": {
+            "type": "object"
+          },
+          "safety": {
+            "type": "object"
+          }
+        }
+      },
+      "SafetyDecisionView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "decisionVersion",
+          "allowedActions"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "CLEAR",
+              "CLARIFICATION_REQUIRED",
+              "ACTION_REQUIRED",
+              "BLOCKING"
+            ]
+          },
+          "routeCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisionVersion": {
+            "type": "string"
+          },
+          "toneOverride": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contentKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OnboardingFlowState": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "instanceId",
+          "flowType",
+          "definitionVersion",
+          "status",
+          "revision",
+          "currentStep",
+          "allowedActions"
+        ],
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "flowType": {
+            "type": "string",
+            "enum": [
+              "LIFECYCLE_ROUTER",
+              "PERIOD_ONBOARDING"
+            ]
+          },
+          "period": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MomnaPeriod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "periodSubstage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "definitionVersion": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currentStep": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OnboardingStepView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answeredFieldIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "invalidatedFieldIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "safetyState": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SafetyDecisionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consentState": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OnboardingCompletionResult": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "instanceId"
+        ],
+        "properties": {
+          "resultType": {
+            "type": "string",
+            "enum": [
+              "LIFECYCLE_ROUTER",
+              "PERIOD_ONBOARDING"
+            ]
+          },
+          "instanceId": {
+            "type": "string"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "definitionVersion": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "safeSummary": {
+            "type": "object"
+          },
+          "downstream": {
+            "type": "object"
+          },
+          "contextState": {
+            "type": "string"
+          },
+          "routerProposal": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "safetyState": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SafetyDecisionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ApiProblem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "description": "Request correlation identifier",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "XTraceId": {
+        "description": "Distributed trace correlation identifier",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Onboarding",
+      "description": "Lifecycle Router and seven Period Onboarding flows"
+    }
+  ]
+}

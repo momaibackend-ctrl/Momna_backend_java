@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "exposure": "INTERNAL_ONLY",
+  "catalogVersion": "safety.catalog.v1",
+  "registeredCatalogVersions": ["safety.catalog.v1"],
+  "baselineRuleVersion": "safety.baseline.v1",
+  "registeredRuleVersions": [
+    "safety.baseline.v1",
+    "safety.critical.v1",
+    "safety.clinical.v1",
+    "safety.relationship.v1"
+  ],
+  "decisionContract": {
+    "required": [
+      "decision",
+      "route",
+      "severity",
+      "allowedActions",
+      "ruleVersion",
+      "catalogVersion",
+      "traceId",
+      "source",
+      "fallbackState"
+    ],
+    "decision": ["ALLOW", "REDIRECT", "BLOCK"],
+    "source": ["DETERMINISTIC", "AI_ASSISTED", "FALLBACK"],
+    "fallbackState": [
+      "NOT_APPLICABLE",
+      "CLASSIFIER_NOT_CONFIGURED",
+      "AUTHORIZATION_DENIED",
+      "CLASSIFIER_UNAVAILABLE",
+      "MALFORMED_CLASSIFIER_OUTPUT",
+      "UNREGISTERED_CLASSIFIER_ROUTE"
+    ]
+  },
+  "routes": [
+    {"code": "GENERAL_CONTINUE", "disposition": "ALLOW", "severity": "NONE", "allowedActions": ["CONTINUE"]},
+    {"code": "SAFETY_SUPPORT", "disposition": "REDIRECT", "severity": "HIGH", "allowedActions": ["DEFER_AI", "CONTACT_SUPPORT"]},
+    {"code": "CLINICAL_ESCALATION", "disposition": "REDIRECT", "severity": "HIGH", "allowedActions": ["DEFER_AI", "CONTACT_CLINICIAN"]},
+    {"code": "EMERGENCY_ESCALATION", "disposition": "BLOCK", "severity": "CRITICAL", "allowedActions": ["CONTACT_EMERGENCY_SERVICES"]},
+    {"code": "SAFETY_REVIEW_REQUIRED", "disposition": "REDIRECT", "severity": "MEDIUM", "allowedActions": ["DEFER_AI", "CONTACT_SUPPORT"]}
+  ],
+  "adapters": ["CheckinSafetyAdapter", "CoupleSafetyAdapter", "ScannerSafetyAdapter", "AgentSafetyAdapter"],
+  "validationPolicy": {
+    "unknownRoute": "FAIL_CLOSED",
+    "unknownRuleVersion": "REJECT_CATALOG",
+    "unknownCatalogVersion": "REJECT_CATALOG",
+    "deterministicPrecedence": true,
+    "uiCopyInCatalog": false
+  }
+}

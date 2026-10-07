@@ -169,6 +169,10 @@ public class DataLifecycleOperationEntity {
         this.policyVersion = policyVersion;
     }
 
+    public void linkRelatedOperation(UUID relatedOperationId) {
+        this.relatedOperationId = relatedOperationId;
+    }
+
     public void attachArtifact(String bucket, String key, String contentType, long sizeBytes) {
         this.artifactBucket = bucket;
         this.artifactKey = key;

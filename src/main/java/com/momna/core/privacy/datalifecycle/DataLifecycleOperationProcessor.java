@@ -59,9 +59,10 @@ public class DataLifecycleOperationProcessor {
             switch (operation.getKind()) {
                 case EXPORT -> processExport(operation);
                 case ARCHIVE -> processArchive(operation);
-                case RESTORE, DELETION -> throw new DataLifecycleRetentionService.DataLifecycleException(
+                case RESTORE -> processRestore(operation);
+                case DELETION -> throw new DataLifecycleRetentionService.DataLifecycleException(
                     "DEPENDENCY_UNAVAILABLE",
-                    "Lifecycle operation owner execution is not migrated yet"
+                    "Lifecycle deletion execution is not migrated yet"
                 );
             }
             operation.markSucceeded();
@@ -74,6 +75,68 @@ public class DataLifecycleOperationProcessor {
             operations.saveAndFlush(operation);
             throw failure;
         }
+    }
+
+    private void processRestore(DataLifecycleOperationEntity operation) {
+        if (operation.getRelatedOperationId() == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "VALIDATION_ERROR", "Restore archive reference is missing"
+            );
+        }
+        var manifest = archiveManifests.findById(operation.getRelatedOperationId())
+            .orElseThrow(() -> new DataLifecycleRetentionService.DataLifecycleException(
+                "RESOURCE_NOT_FOUND", "Archive manifest is missing"
+            ));
+        var policy = retention.resolvePolicy(
+            operation.getResourceOwner(),
+            operation.getResourceType(),
+            operation.getPolicyVersion()
+        );
+        if (!policy.isRestoreAllowed()) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "RESTORE_NOT_ALLOWED", "Restore is not allowed by the current retention policy"
+            );
+        }
+        var adapter = owners.get(operation.getResourceOwner());
+        if (adapter == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "DEPENDENCY_UNAVAILABLE", "Lifecycle owner adapter is unavailable"
+            );
+        }
+        var resource = new DataLifecycleOwnerAdapter.Resource(
+            operation.getResourceOwner(),
+            operation.getResourceType(),
+            operation.getResourceId(),
+            operation.getSubjectUserId(),
+            operation.getPrivacyScope(),
+            operation.getRetentionAnchorAt(),
+            operation.getValidFrom(),
+            operation.getValidUntil(),
+            operation.getTimezoneAtEvent(),
+            operation.getLocalDateAtEvent()
+        );
+        var artifact = new DataLifecycleOwnerAdapter.ArtifactRef(
+            manifest.getArtifactBucket(),
+            manifest.getArtifactKey(),
+            manifest.getArtifactContentType(),
+            manifest.getArtifactSizeBytes()
+        );
+        var result = adapter.restore(
+            resource,
+            artifact,
+            operation.getOperationId() + ":restore"
+        );
+        if (!Set.of("APPLIED", "ALREADY_APPLIED").contains(result.status())) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "VALIDATION_ERROR", "Owner did not accept restored state"
+            );
+        }
+        operation.attachArtifact(
+            manifest.getArtifactBucket(),
+            manifest.getArtifactKey(),
+            manifest.getArtifactContentType(),
+            manifest.getArtifactSizeBytes()
+        );
     }
 
     private void processArchive(DataLifecycleOperationEntity operation) {

@@ -29,6 +29,7 @@ public class AuthApplicationService {
     private final CredentialHasher hasher;
     private final OpaqueCredentialGenerator credentials;
     private final ObjectProvider<EmailChallengeDelivery> emailDelivery;
+    private final java.util.Map<AuthProvider, ProviderCredentialVerifier> providerVerifiers;
     private final Clock clock = Clock.systemUTC();
 
     public AuthApplicationService(
@@ -40,7 +41,8 @@ public class AuthApplicationService {
         OutboxEventRepository outbox,
         CredentialHasher hasher,
         OpaqueCredentialGenerator credentials,
-        ObjectProvider<EmailChallengeDelivery> emailDelivery
+        ObjectProvider<EmailChallengeDelivery> emailDelivery,
+        ObjectProvider<ProviderCredentialVerifier> providerVerifiers
     ) {
         this.accounts = accounts;
         this.identities = identities;
@@ -51,6 +53,11 @@ public class AuthApplicationService {
         this.hasher = hasher;
         this.credentials = credentials;
         this.emailDelivery = emailDelivery;
+        this.providerVerifiers = providerVerifiers.orderedStream()
+            .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                ProviderCredentialVerifier::provider,
+                verifier -> verifier
+            ));
     }
 
     @Transactional
@@ -95,6 +102,129 @@ public class AuthApplicationService {
         var identity = identities.findByProviderAndProviderSubject(AuthProvider.EMAIL, email).orElse(null);
         var account = identity == null ? createEmailAccount(email, now) : requireActive(identity.getUserId());
         return createSession(account.getUserId(), now, deviceLabel, UUID.randomUUID().toString());
+    }
+
+    @Transactional
+    public SessionCredentials exchangeProviderCredential(
+        AuthProvider provider,
+        String credential,
+        String state,
+        String nonce,
+        String pkceVerifier,
+        String deviceLabel
+    ) {
+        if (provider == AuthProvider.EMAIL) {
+            throw new AuthException("AUTH_INVALID", "Email uses passwordless challenge flow");
+        }
+        requireText(credential, "credential");
+        var verified = verifyProvider(new ProviderCredentialVerifier.ProviderCredential(
+            provider, credential, state, nonce, pkceVerifier
+        ));
+        var existing = identities.findByProviderAndProviderSubject(
+            verified.provider(), verified.providerSubject()
+        ).orElse(null);
+
+        AuthAccountEntity account;
+        if (existing != null) {
+            account = requireActive(existing.getUserId());
+        } else {
+            account = new AuthAccountEntity(
+                UUID.randomUUID().toString(), AuthAccountStatus.ACTIVE, verified.authenticatedAt()
+            );
+            accounts.save(account);
+            identities.save(new LoginIdentityEntity(
+                UUID.randomUUID().toString(),
+                account.getUserId(),
+                verified.provider(),
+                verified.providerSubject(),
+                verified.verifiedEmail(),
+                verified.authenticatedAt()
+            ));
+            publish("AccountCreated", account.getUserId(), verified.authenticatedAt(), Map.of());
+            publish("LoginIdentityLinked", account.getUserId(), verified.authenticatedAt(), Map.of(
+                "provider", verified.provider().name()
+            ));
+        }
+        return createSession(
+            account.getUserId(), verified.authenticatedAt(), deviceLabel, UUID.randomUUID().toString()
+        );
+    }
+
+    @Transactional
+    public LoginIdentityEntity linkIdentity(
+        AuthenticatedActor actor,
+        AuthProvider provider,
+        String credential,
+        String state,
+        String nonce,
+        String pkceVerifier
+    ) {
+        requireRecent(actor);
+        var verified = verifyProvider(new ProviderCredentialVerifier.ProviderCredential(
+            provider, credential, state, nonce, pkceVerifier
+        ));
+        var existing = identities.findByProviderAndProviderSubject(
+            verified.provider(), verified.providerSubject()
+        ).orElse(null);
+        if (existing != null) {
+            if (existing.getUserId().equals(actor.userId())) {
+                throw new AuthException("IDENTITY_ALREADY_LINKED", "Identity is already linked");
+            }
+            throw new AuthException("IDENTITY_LINK_CONFLICT", "Identity belongs to another account");
+        }
+        var identity = new LoginIdentityEntity(
+            UUID.randomUUID().toString(),
+            actor.userId(),
+            verified.provider(),
+            verified.providerSubject(),
+            verified.verifiedEmail(),
+            clock.instant()
+        );
+        identities.save(identity);
+        publish("LoginIdentityLinked", actor.userId(), clock.instant(), Map.of(
+            "provider", verified.provider().name()
+        ));
+        return identity;
+    }
+
+    @Transactional
+    public void unlinkIdentity(AuthenticatedActor actor, String identityId) {
+        requireRecent(actor);
+        var all = identities.findByUserIdOrderByCreatedAtAscIdentityIdAsc(actor.userId());
+        var target = all.stream()
+            .filter(x -> x.getIdentityId().equals(identityId))
+            .findFirst()
+            .orElseThrow(() -> new AuthException("AUTH_INVALID", "Identity not found"));
+        if (all.size() <= 1) {
+            throw new AuthException("REAUTH_REQUIRED", "Cannot unlink the last login identity");
+        }
+        identities.delete(target);
+        publish("LoginIdentityUnlinked", actor.userId(), clock.instant(), Map.of(
+            "identityId", identityId
+        ));
+    }
+
+    @Transactional(readOnly = true)
+    public AuthenticatedActor reauthenticate(
+        AuthenticatedActor actor,
+        AuthProvider provider,
+        String credential,
+        String state,
+        String nonce,
+        String pkceVerifier
+    ) {
+        var verified = verifyProvider(new ProviderCredentialVerifier.ProviderCredential(
+            provider, credential, state, nonce, pkceVerifier
+        ));
+        var identity = identities.findByProviderAndProviderSubject(
+            verified.provider(), verified.providerSubject()
+        ).orElseThrow(() -> new AuthException("AUTH_INVALID", "Reauthentication failed"));
+        if (!identity.getUserId().equals(actor.userId())) {
+            throw new AuthException("AUTH_INVALID", "Reauthentication failed");
+        }
+        return new AuthenticatedActor(
+            actor.userId(), actor.sessionId(), clock.instant(), actor.issuedAt()
+        );
     }
 
     @Transactional
@@ -210,6 +340,25 @@ public class AuthApplicationService {
     @Transactional(readOnly = true)
     public List<LoginIdentityEntity> listIdentities(AuthenticatedActor actor) {
         return identities.findByUserIdOrderByCreatedAtAscIdentityIdAsc(actor.userId());
+    }
+
+    private ProviderCredentialVerifier.VerifiedProviderIdentity verifyProvider(
+        ProviderCredentialVerifier.ProviderCredential credential
+    ) {
+        if (credential.provider() == AuthProvider.EMAIL) {
+            throw new AuthException("AUTH_INVALID", "Email uses passwordless challenge flow");
+        }
+        var verifier = providerVerifiers.get(credential.provider());
+        if (verifier == null) {
+            throw new AuthException("CORE_API_UNAVAILABLE", "Provider verifier is not configured");
+        }
+        try {
+            return verifier.verify(credential);
+        } catch (AuthException failure) {
+            throw failure;
+        } catch (RuntimeException failure) {
+            throw new AuthException("AUTH_INVALID", "Provider credential verification failed");
+        }
     }
 
     private AuthAccountEntity createEmailAccount(String email, Instant now) {

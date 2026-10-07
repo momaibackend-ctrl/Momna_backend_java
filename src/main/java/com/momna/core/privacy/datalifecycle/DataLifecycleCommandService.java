@@ -13,17 +13,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DataLifecycleCommandService {
     private final DataLifecycleOperationRepository operations;
+    private final DataLifecycleArchiveManifestRepository archiveManifests;
     private final DataLifecycleRetentionService retention;
     private final PrivacyPolicyService privacy;
     private final ObjectProvider<DataLifecycleJobPort> jobs;
 
     public DataLifecycleCommandService(
         DataLifecycleOperationRepository operations,
+        DataLifecycleArchiveManifestRepository archiveManifests,
         DataLifecycleRetentionService retention,
         PrivacyPolicyService privacy,
         ObjectProvider<DataLifecycleJobPort> jobs
     ) {
         this.operations = operations;
+        this.archiveManifests = archiveManifests;
         this.retention = retention;
         this.privacy = privacy;
         this.jobs = jobs;
@@ -73,6 +76,74 @@ public class DataLifecycleCommandService {
             evaluation.policyVersion()
         );
         captureLocalTime(operation, referenceAt, requestTimezone);
+        return persistAndQueue(operation);
+    }
+
+    @Transactional
+    public WriteResult requestRestore(
+        String actorUserId,
+        UUID archiveOperationId,
+        String requestTimezone,
+        String idempotencyKey,
+        String traceId
+    ) {
+        var archive = operations.findById(archiveOperationId)
+            .orElseThrow(() -> new DataLifecycleRetentionService.DataLifecycleException(
+                "RESOURCE_NOT_FOUND", "Archive operation not found"
+            ));
+        if (archive.getKind() != DataLifecycleOperationKind.ARCHIVE
+            || archive.getState() != DataLifecycleOperationState.SUCCEEDED) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "RESTORE_NOT_ALLOWED", "Archive operation is not restorable"
+            );
+        }
+        if (!archiveManifests.existsById(archiveOperationId)) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "RESOURCE_NOT_FOUND", "Archive manifest not found"
+            );
+        }
+
+        var policy = retention.resolvePolicy(
+            archive.getResourceOwner(),
+            archive.getResourceType(),
+            archive.getPolicyVersion()
+        );
+        if (!policy.isRestoreAllowed()) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "RESTORE_NOT_ALLOWED", "Restore is not allowed by retention policy"
+            );
+        }
+
+        authorize(
+            actorUserId,
+            archive.getSubjectUserId(),
+            archive.getResourceOwner(),
+            archive.getResourceId(),
+            archive.getPrivacyScope(),
+            "data-lifecycle.restore",
+            traceId
+        );
+
+        var operation = new DataLifecycleOperationEntity(
+            UUID.randomUUID(),
+            archive.getSubjectUserId(),
+            actorUserId,
+            DataLifecycleOperationKind.RESTORE,
+            requireIdempotency(idempotencyKey),
+            requireText(traceId, "traceId"),
+            Instant.now()
+        );
+        operation.attachResource(
+            archive.getResourceOwner(),
+            archive.getResourceType(),
+            archive.getResourceId(),
+            archive.getPrivacyScope(),
+            archive.getRetentionAnchorAt(),
+            policy.getPolicyKey(),
+            policy.getPolicyVersion()
+        );
+        operation.linkRelatedOperation(archiveOperationId);
+        captureLocalTime(operation, Instant.now(), requestTimezone);
         return persistAndQueue(operation);
     }
 

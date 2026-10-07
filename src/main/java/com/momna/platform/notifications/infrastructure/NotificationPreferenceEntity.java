@@ -40,6 +40,38 @@ public class NotificationPreferenceEntity {
 
     protected NotificationPreferenceEntity() {}
 
+    public NotificationPreferenceEntity(
+        String userId,
+        NotificationChannel channel,
+        String category,
+        String purpose,
+        boolean enabled,
+        LocalTime quietStart,
+        LocalTime quietEnd,
+        String quietPolicyVersion
+    ) {
+        this.userId = userId;
+        this.channel = channel;
+        this.category = category;
+        this.purpose = purpose;
+        this.enabled = enabled;
+        this.quietStart = quietStart;
+        this.quietEnd = quietEnd;
+        this.quietPolicyVersion = quietPolicyVersion;
+    }
+
+    public void update(
+        boolean enabled,
+        LocalTime quietStart,
+        LocalTime quietEnd,
+        String quietPolicyVersion
+    ) {
+        this.enabled = enabled;
+        this.quietStart = quietStart;
+        this.quietEnd = quietEnd;
+        this.quietPolicyVersion = quietPolicyVersion;
+    }
+
     public String getUserId() { return userId; }
     public NotificationChannel getChannel() { return channel; }
     public String getCategory() { return category; }

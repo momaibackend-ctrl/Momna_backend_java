@@ -31,3 +31,12 @@ momna:
   role: ${MOMNA_ROLE:api}
   default-locale: ${MOMNA_DEFAULT_LOCALE:en-US}
   default-timezone: ${MOMNA_DEFAULT_TIMEZONE:UTC}
+
+  object-storage:
+    enabled: ${MOMNA_OBJECT_STORAGE_ENABLED:false}
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:}
+    region: ${OBJECT_STORAGE_REGION:}
+    access-key-id: ${OBJECT_STORAGE_ACCESS_KEY_ID:}
+    secret-access-key: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:}
+    diary-bucket: ${OBJECT_STORAGE_DIARY_BUCKET:}
+    medical-bucket: ${OBJECT_STORAGE_MEDICAL_BUCKET:}

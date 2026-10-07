@@ -20,6 +20,15 @@ public class DataLifecycleArchiveManifestEntity {
 
     protected DataLifecycleArchiveManifestEntity() {}
 
+    public UUID getOperationId() { return operationId; }
+    public String getPolicyKey() { return policyKey; }
+    public int getPolicyVersion() { return policyVersion; }
+    public String getArtifactBucket() { return artifactBucket; }
+    public String getArtifactKey() { return artifactKey; }
+    public String getArtifactContentType() { return artifactContentType; }
+    public long getArtifactSizeBytes() { return artifactSizeBytes; }
+    public Instant getCreatedAt() { return createdAt; }
+
     public DataLifecycleArchiveManifestEntity(
         UUID operationId, String policyKey, int policyVersion,
         String artifactBucket, String artifactKey, String artifactContentType,

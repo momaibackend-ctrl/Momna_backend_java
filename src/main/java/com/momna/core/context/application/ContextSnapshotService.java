@@ -216,9 +216,11 @@ public class ContextSnapshotService {
         var out = new ArrayList<SourceSpec>();
         for (var item : list) {
             if (!(item instanceof Map<?, ?> map)) continue;
+            var kindValue = map.get("kind");
+            var sourceKeyValue = map.get("sourceKey");
             out.add(new SourceSpec(
-                String.valueOf(map.getOrDefault("kind", "")),
-                String.valueOf(map.getOrDefault("sourceKey", "")),
+                kindValue == null ? "" : String.valueOf(kindValue),
+                sourceKeyValue == null ? "" : String.valueOf(sourceKeyValue),
                 Boolean.TRUE.equals(map.get("required")),
                 nullable(map.get("scopeType")),
                 nullable(map.get("scopeId"))

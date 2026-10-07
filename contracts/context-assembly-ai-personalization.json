@@ -1,0 +1,68 @@
+{
+  "id": "core.context-assembly-ai-personalization",
+  "exposure": "INTERNAL_ONLY",
+  "schemaVersion": 1,
+  "extends": ["core.context", "core.extensible-canonical-context-registry"],
+  "pipeline": [
+    "CANONICAL_REGISTRY",
+    "PURPOSE_CONSUMER_RELEVANCE",
+    "ACTIVE_DEFINITION_VERSION",
+    "PRIVACY",
+    "CONSENT",
+    "SENSITIVITY",
+    "VALUE_SCOPE",
+    "CANONICAL_CONFLICT_RESOLUTION",
+    "VALIDITY_FRESHNESS",
+    "CONTEXT_SNAPSHOT",
+    "CONSUMER_PROJECTION"
+  ],
+  "consumers": {
+    "platform.ai": "AI_GATEWAY",
+    "platform.safety": "SAFETY",
+    "core.flows": "FLOW_ENGINE",
+    "modules.myday": "MYDAY"
+  },
+  "relevance": {
+    "selector": "CanonicalContextSelector",
+    "metadata": ["fieldId", "namespace", "domainOwner", "consumer", "scopeType", "scopeId"],
+    "fieldSpecificSwitchRequired": false,
+    "dynamicRegistryDefinitionsSupported": true
+  },
+  "snapshotFactMetadata": [
+    "fieldId", "definitionVersion", "schemaVersion", "knowledgeState", "provenance",
+    "recordedAt", "validFrom", "validUntil", "confidence", "privacyClassification",
+    "consentScope", "sensitivityClassification", "valueScopeType", "valueScopeId", "appliedMergePolicy"
+  ],
+  "knowledgeStates": ["UNKNOWN", "NOT_ASKED", "DECLINED", "KNOWN"],
+  "selectionReasons": [
+    "INCLUDED", "NO_VALUE_OR_AMBIGUOUS", "STALE_OR_EXPIRED", "PRIVACY_DENIED",
+    "CONSENT_DENIED", "SENSITIVITY_DENIED", "SCOPE_DENIED", "KNOWLEDGE_STATE_EXCLUDED",
+    "DEFINITION_UNAVAILABLE"
+  ],
+  "projection": {
+    "contract": "ContextProjectionContract",
+    "schemaVersion": 1,
+    "providerNeutral": true,
+    "usesCanonicalFieldValue": true,
+    "passesFieldPayloadToLlm": false,
+    "passesPersistenceRowsToLlm": false,
+    "aiReferenceIds": "HASHED",
+    "deterministic": true,
+    "fingerprint": "SHA-256"
+  },
+  "invariants": {
+    "privacyAndConsentBeforeConsumer": true,
+    "purposeRelevantOnly": true,
+    "consumerBoundSnapshots": true,
+    "canonicalConflictResolverRequired": true,
+    "sameFactsVersionsPurposePolicyAndReferenceTimeProduceSameFingerprint": true,
+    "repositoryIterationOrderIndependent": true,
+    "rawSensitiveObservability": false
+  },
+  "persistence": {
+    "snapshotTable": "momna.context_snapshots",
+    "storage": "existing immutable snapshot_json JSONB",
+    "schemaMigrationRequired": false,
+    "reason": "Context snapshot payload is already versioned JSONB; CORE-BE-25 is an additive contract/payload evolution"
+  }
+}

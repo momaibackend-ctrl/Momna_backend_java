@@ -52,7 +52,8 @@ public class DataLifecycleOperationProcessor {
         try {
             switch (operation.getKind()) {
                 case EXPORT -> processExport(operation);
-                case ARCHIVE, RESTORE, DELETION -> throw new DataLifecycleRetentionService.DataLifecycleException(
+                case ARCHIVE -> processArchive(operation);
+                case RESTORE, DELETION -> throw new DataLifecycleRetentionService.DataLifecycleException(
                     "DEPENDENCY_UNAVAILABLE",
                     "Lifecycle operation owner execution is not migrated yet"
                 );
@@ -67,6 +68,90 @@ public class DataLifecycleOperationProcessor {
             operations.saveAndFlush(operation);
             throw failure;
         }
+    }
+
+    private void processArchive(DataLifecycleOperationEntity operation) {
+        var objectStorage = storage.getIfAvailable();
+        if (objectStorage == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "DEPENDENCY_UNAVAILABLE", "Private object storage is unavailable"
+            );
+        }
+        if (operation.getResourceOwner() == null || operation.getResourceType() == null
+            || operation.getResourceId() == null || operation.getPrivacyScope() == null
+            || operation.getRetentionAnchorAt() == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "VALIDATION_ERROR", "Archive resource is incomplete"
+            );
+        }
+
+        var policy = retention.resolvePolicy(
+            operation.getResourceOwner(),
+            operation.getResourceType(),
+            operation.getPolicyVersion()
+        );
+        if (!policy.isArchiveAllowed()) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "ARCHIVE_NOT_ALLOWED", "Archive is not allowed by the current retention policy"
+            );
+        }
+
+        var adapter = owners.get(operation.getResourceOwner());
+        if (adapter == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "DEPENDENCY_UNAVAILABLE", "Lifecycle owner adapter is unavailable"
+            );
+        }
+
+        var resource = new DataLifecycleOwnerAdapter.Resource(
+            operation.getResourceOwner(),
+            operation.getResourceType(),
+            operation.getResourceId(),
+            operation.getSubjectUserId(),
+            operation.getPrivacyScope(),
+            operation.getRetentionAnchorAt(),
+            operation.getValidFrom(),
+            operation.getValidUntil(),
+            operation.getTimezoneAtEvent(),
+            operation.getLocalDateAtEvent()
+        );
+        var fragment = adapter.archiveFragment(resource, operation.getRequestedAt());
+        var extension = switch (fragment.mediaType()) {
+            case "application/json" -> "json";
+            case "application/pdf" -> "pdf";
+            case "text/plain" -> "txt";
+            default -> "bin";
+        };
+
+        var stored = objectStorage.put(
+            operation.getSubjectUserId(),
+            "momna-lifecycle-archive",
+            "archive/" + operation.getOperationId() + "." + extension,
+            fragment.bytes(),
+            fragment.mediaType(),
+            operation.getPrivacyScope() == com.momna.core.privacy.PrivacyScope.MEDICAL_PRIVATE
+                ? AssetSensitivity.MEDICAL_PRIVATE
+                : AssetSensitivity.PRIVATE
+        );
+        var artifact = new DataLifecycleOwnerAdapter.ArtifactRef(
+            stored.bucket(), stored.key(), stored.contentType(), stored.sizeBytes()
+        );
+        var result = adapter.markArchived(
+            resource,
+            artifact,
+            operation.getOperationId() + ":archive"
+        );
+        if (!Set.of("APPLIED", "ALREADY_APPLIED").contains(result.status())) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "VALIDATION_ERROR", "Owner did not accept archive state"
+            );
+        }
+        operation.attachArtifact(
+            stored.bucket(),
+            stored.key(),
+            stored.contentType(),
+            stored.sizeBytes()
+        );
     }
 
     private void processExport(DataLifecycleOperationEntity operation) {

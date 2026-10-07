@@ -43,6 +43,28 @@ public class BillingEntitlementEntity {
 
     protected BillingEntitlementEntity() {}
 
+    public BillingEntitlementEntity(
+        UUID userId,
+        String entitlementCode,
+        EntitlementStatus status,
+        Instant validFrom,
+        Instant validUntil,
+        EntitlementSourceType sourceType,
+        String sourceRef,
+        String reasonCode,
+        Instant resolvedAt
+    ) {
+        this.userId = userId;
+        this.entitlementCode = entitlementCode;
+        this.status = status;
+        this.validFrom = validFrom;
+        this.validUntil = validUntil;
+        this.sourceType = sourceType;
+        this.sourceRef = sourceRef;
+        this.reasonCode = reasonCode;
+        this.resolvedAt = resolvedAt;
+    }
+
     public UUID getUserId() { return userId; }
     public String getEntitlementCode() { return entitlementCode; }
     public EntitlementStatus getStatus() { return status; }

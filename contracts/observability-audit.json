@@ -1,0 +1,112 @@
+{
+  "contract": "OBSERVABILITY_AUDIT_CONTRACT_GATE",
+  "contractVersion": "observability-audit.v1",
+  "exposure": "INTERNAL_ONLY",
+  "httpRoutes": [],
+  "owners": {
+    "observability": "platform.observability",
+    "audit": "platform.audit"
+  },
+  "traceCorrelation": {
+    "requiredFor": ["API", "DURABLE_JOB", "AI_FLOW"],
+    "mandatoryFields": ["request_id", "trace_id", "source_module"],
+    "conditionalFields": ["user_id", "flow_instance_id", "context_snapshot_id", "rule_version", "config_version", "prompt_version", "model_version"],
+    "propagation": ["API->domain", "domain->database", "domain->durable-job", "durable-job->worker", "context->AI-gateway", "AI-gateway->provider"],
+    "apiHeaders": {"requestId": "X-Request-Id", "traceId": "X-Trace-Id"},
+    "missingBoundaryIdentifier": "GENERATE_AT_TRUSTED_BOUNDARY",
+    "missingInsideCore": "REJECT"
+  },
+  "structuredLogs": {
+    "format": "JSON",
+    "schemaVersionRequired": true,
+    "requiredFields": ["schema_version", "event", "level", "occurred_at", "request_id", "trace_id", "source_module", "fields"],
+    "typedErrorFields": ["error_code", "error_category", "retryable"],
+    "freeFormDiagnosticContract": "FORBIDDEN",
+    "canonicalLogger": "platform.observability.ObservabilityContract",
+    "fieldPolicy": "ALLOWLISTED_TECHNICAL_KEYS_AND_VALUES"
+  },
+  "metrics": {
+    "names": ["momna.api.request.latency_ms", "momna.api.error.total", "momna.module.operation.latency_ms", "momna.module.error.total", "momna.db.pool.active", "momna.db.pool.pending", "momna.jobs.queue.depth", "momna.jobs.dead.total", "momna.cache.hit.total", "momna.cache.miss.total", "momna.ai.latency_ms", "momna.ai.cost.usd_micros", "momna.ai.error.total", "momna.ai.validation_retry.total", "momna.notifications.delivery.total"],
+    "allowedLabels": ["module", "operation", "outcome", "error_category", "channel", "job_type", "provider", "cache", "status", "result", "queue", "pool"],
+    "highCardinalityLabelsForbidden": ["user_id", "request_id", "trace_id", "flow_instance_id", "context_snapshot_id", "subject_id"],
+    "maxLabelsPerMetric": 6,
+    "providerSpecificMetricTypes": "ADAPTER_ONLY"
+  },
+  "audit": {
+    "separateFromApplicationLogs": true,
+    "schemaVersionRequired": true,
+    "store": "PostgreSQL V14 through provider-neutral AuditStore",
+    "events": ["LIFECYCLE_TRANSITION", "CONSENT_CHANGE", "MEDICAL_CONFIRM", "MEDICAL_EDIT", "COUPLE_SHARE", "COUPLE_UNLINK", "SAFETY_DECISION", "DATA_EXPORT", "DATA_DELETE", "AI_GENERATION_DECISION", "LEGACY_TECHNICAL"],
+    "unregisteredEvent": "REJECT",
+    "requiredFields": ["event_id", "event_type", "schema_version", "occurred_at", "request_id", "trace_id", "actor_ref", "subject_ref", "source_module", "action_code", "result_code"],
+    "query": {"typed": true, "filters": ["traceId", "subjectRef", "eventTypes", "from", "to"], "pagination": "cursor", "maxPageSize": 200, "roles": ["READER", "EXPORTER"]},
+    "export": {"typed": true, "role": "EXPORTER", "rawSensitivePayloads": "FORBIDDEN"}
+  },
+  "errorTaxonomy": {
+    "singleRegistry": "TelemetryErrorCode",
+    "codes": [
+      {"code": "VALIDATION_ERROR", "category": "VALIDATION", "retryable": false},
+      {"code": "UNAUTHENTICATED", "category": "AUTHENTICATION", "retryable": false},
+      {"code": "FORBIDDEN", "category": "AUTHORIZATION", "retryable": false},
+      {"code": "NOT_FOUND", "category": "NOT_FOUND", "retryable": false},
+      {"code": "VERSION_CONFLICT", "category": "CONFLICT", "retryable": false},
+      {"code": "TIMEOUT", "category": "TIMEOUT", "retryable": true},
+      {"code": "RATE_LIMITED", "category": "RATE_LIMIT", "retryable": true},
+      {"code": "DEPENDENCY_UNAVAILABLE", "category": "DEPENDENCY", "retryable": true},
+      {"code": "RETRY_EXHAUSTED", "category": "RETRY_EXHAUSTED", "retryable": false},
+      {"code": "PRIVACY_DENIED", "category": "PRIVACY", "retryable": false},
+      {"code": "SAFETY_BLOCKED", "category": "SAFETY", "retryable": false},
+      {"code": "AI_OUTPUT_INVALID", "category": "AI_VALIDATION", "retryable": false},
+      {"code": "INTERNAL_ERROR", "category": "INTERNAL", "retryable": false}
+    ],
+    "inconsistentClassification": "REJECT"
+  },
+  "redaction": {
+    "allow": "approved technical IDs, enums, versions, statuses, counts and timings only",
+    "forbidden": ["raw diary text", "medical file/content", "full private AI context", "rendered prompt text", "provider response content", "access/refresh tokens", "credentials/passwords/secrets", "signed URLs", "notification destinations", "email/phone", "raw user payloads"],
+    "enforcement": ["TelemetryFieldPolicy", "AuditEvent validation", "contract tests", "allow-listed structured field shapes"]
+  },
+  "correlationAdapters": {
+    "jobs": "existing JobRecord.traceId + idempotencyKey",
+    "ai": "existing AiRequest.requestId + traceId + contextSnapshotId + prompt/model policy versions",
+    "duplicateCorrelationSystem": "FORBIDDEN"
+  },
+  "dashboards": {
+    "spec": "contracts/observability-dashboards.json",
+    "required": ["API_HEALTH", "DATABASE", "WORKERS_QUEUE", "AI_PROVIDER", "NOTIFICATIONS"],
+    "alerts": ["ERROR_SPIKE", "DB_POOL_SATURATION", "DEAD_JOBS", "AI_PROVIDER_FAILURE", "WORKER_STALL"],
+    "liveProviderBinding": "UNVERIFIED_UNTIL_REGISTERED"
+  },
+  "incidentDiagnostics": {
+    "runbook": "docs/runbooks/incident-debugging.md",
+    "acceptanceScenario": "14 August My Day wrong-result report",
+    "requiredEvidence": ["trace_id", "request_id", "context_snapshot_id", "lifecycle_source_ref", "calendar_source_ref", "checkin_source_ref", "prompt_version", "model_version", "validator_outcome", "safety_outcome", "response_ref"],
+    "manualCrossTableReconstruction": "NOT_REQUIRED"
+  },
+  "consumers": {
+    "CORE-BE-04 Jobs": ["trace_id", "source_module", "job schema/version/status"],
+    "CORE-BE-08 Timeline": ["trace_id", "event schema/version"],
+    "CORE-BE-10 Context": ["trace_id", "context_snapshot_id", "policy/schema versions"],
+    "CORE-BE-11 Privacy": ["trace_id", "policy/consent versions", "decision code"],
+    "CORE-BE-12 Safety": ["trace_id", "route/rule/catalog versions", "decision source"],
+    "CORE-BE-13 AI Gateway": ["request_id", "trace_id", "context_snapshot_id", "prompt/model/validation versions", "usage/cost"],
+    "CORE-BE-14 Time": ["trace_id", "timezone/policy version", "effective local day"],
+    "CORE-BE-16 Notifications": ["trace_id", "schedule/attempt/content technical refs", "provider-neutral result"],
+    "CORE-BE-17 Data Lifecycle": ["trace_id", "operation/policy/action/state technical refs"]
+  },
+  "requiredGateTests": ["missing-trace-id", "unregistered-audit-event", "forbidden-sensitive-field", "inconsistent-error-classification", "structured-log-schema", "metric-name-label-cardinality", "request-job-ai-correlation", "audit-query-access", "dashboard-spec", "incident-reconstruction"],
+  "moduleContracts": {
+    "platform.observability": {
+      "publicEntry": "com.momna.platform.observability.contract",
+      "exports": ["ObservabilityContract", "TelemetryContext", "StructuredLogEvent", "MetricPoint", "MetricName", "TraceSpan", "TelemetryErrorClassification"],
+      "operations": ["emit", "recordMetric", "startSpan", "finishSpan"],
+      "exposure": "INTERNAL_ONLY"
+    },
+    "platform.audit": {
+      "publicEntry": "com.momna.platform.audit.contract",
+      "exports": ["AuditContract", "AuditStore", "AuditEvent", "AuditEventType", "AuditQueryRequest", "AuditPage", "AuditExportRequest", "AuditExport"],
+      "operations": ["record", "query", "export"],
+      "exposure": "INTERNAL_ONLY"
+    }
+  }
+}

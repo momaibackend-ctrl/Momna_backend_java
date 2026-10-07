@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "contract": "LOCALIZATION_TIME_CONTRACT_GATE",
+  "version": "localization-time.v1",
+  "exposure": "INTERNAL_ONLY",
+  "dimensions": {
+    "language": "independent BCP47 language tag",
+    "locale": "independent BCP47 locale tag",
+    "countryRegion": "independent ISO-style country/region code",
+    "timezone": "independent IANA zone ID",
+    "derivation": "FORBIDDEN unless enabled by an explicit versioned resolution policy"
+  },
+  "sourcePrecedence": ["EXPLICIT_USER", "PROFILE", "REQUEST", "DEVICE", "DEFAULT_POLICY"],
+  "operations": [
+    {"name":"resolve","input":"ResolveLocalizationRequest","output":"ResolvedLocalization","errors":["INVALID_LANGUAGE","INVALID_LOCALE","UNSUPPORTED_LOCALE","LOCALE_REQUIRED","INVALID_COUNTRY","COUNTRY_REQUIRED","INVALID_TIMEZONE","TIMEZONE_REQUIRED"]},
+    {"name":"fallbackChain","input":"locale","output":"ordered locale list","errors":["INVALID_LOCALE"]},
+    {"name":"resolveContentLocale","input":"ContentKey + requested locale + available variants","output":"ContentLocaleResolution","errors":["INVALID_LOCALE","CONTENT_VARIANT_NOT_FOUND"]},
+    {"name":"resolveCountryPolicy","input":"country/region + optional policy version","output":"CountryPolicy","errors":["INVALID_COUNTRY","COUNTRY_POLICY_NOT_FOUND"]},
+    {"name":"getLocalNow","input":"IANA timezone + clock","output":"ZonedDateTime","errors":["INVALID_TIMEZONE"]},
+    {"name":"getLocalDate","input":"IANA timezone + UTC instant","output":"LocalDate","errors":["INVALID_TIMEZONE"]},
+    {"name":"resolveDayWindow","input":"LocalDate + IANA timezone","output":"half-open UTC instant window","errors":["INVALID_TIMEZONE"]},
+    {"name":"convertScheduledLocalTime","input":"LocalDateTime + IANA timezone + DST policies","output":"ScheduledLocalTimeResult","errors":["INVALID_TIMEZONE","AMBIGUOUS_LOCAL_TIME","NONEXISTENT_LOCAL_TIME"]},
+    {"name":"captureEventLocalTime","input":"UTC instant + current IANA timezone","output":"timezone_at_event + local_date_at_event","errors":["INVALID_TIMEZONE"]},
+    {"name":"resolveEffectiveLocalDay","input":"IANA timezone + reference instant + optional fixed effective local date","output":"EffectiveLocalDay","errors":["INVALID_TIMEZONE"]}
+  ],
+  "localeFallback": {
+    "policyVersionRequired": true,
+    "example": ["uk-UA", "uk", "en-US"],
+    "unsupportedLocale": "fallback only when policy explicitly allows it, otherwise UNSUPPORTED_LOCALE",
+    "content": "translation/content keys select variants through the shared LocaleResolver"
+  },
+  "countryPolicy": {
+    "versioned": true,
+    "fields": ["countryRegion","legalCopyPolicyKey","safetyCopyPolicyKey","featureAvailability","measurementSystem","minimumAge","marketAllowed","notificationVariantKey","legalVariantKey"],
+    "controllerHardcoding": "FORBIDDEN"
+  },
+  "time": {
+    "storage": "UTC_INSTANT",
+    "timezone": "IANA_ZONE_ID",
+    "fixedOffsetOnly": "REJECT",
+    "dayWindow": "local-date half-open window converted to UTC instants; may be 23/24/25 hours across DST",
+    "ambiguousLocalTime": ["REJECT","EARLIER_OFFSET","LATER_OFFSET"],
+    "nonexistentLocalTime": ["REJECT","SHIFT_FORWARD"]
+  },
+  "history": {
+    "eventFields": ["timezone_at_event","local_date_at_event"],
+    "invariant": "historical event local date/timezone are captured at event creation and never recomputed after travel or profile timezone change"
+  },
+  "dailyEffectiveLocalDay": {
+    "rule": "daily context is bound to an explicit effective local date or a declared reference instant and current IANA timezone",
+    "timezoneChangeDuringDay": "historical events retain old stamp; new scheduling decisions use current timezone"
+  },
+  "consumers": {
+    "FlowEngine": "content variants via shared LocaleResolver and content keys",
+    "Content": "content variants via shared LocaleResolver and ContentKey",
+    "Notifications": "local schedule conversion via shared TimeService",
+    "Calendar": "event local-date stamping via shared TimeService"
+  },
+  "observability": {
+    "allowed": ["operation metric","policy/version identifiers","locale/language/country/timezone identifiers","fallback technical status","day-window technical status","error code"],
+    "redacted": ["translated content body","user payload","medical/private content","credentials"]
+  },
+  "requiredGateTests": ["timezone-change","DST-ambiguous","DST-nonexistent","travel-between-zones","locale-not-equal-country","unsupported-locale","missing-timezone-country-locale","language-fallback","historical-local-date-at-event","fixed-effective-local-day","country-policy-versioning","consumer-bypass"]
+}

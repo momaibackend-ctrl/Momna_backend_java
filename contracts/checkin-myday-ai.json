@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "contract": "MOMNA-E28-CI-B09-P2",
+  "owner": "modules.checkin",
+  "purpose": "MY_DAY",
+  "contextConsumer": "platform.ai",
+  "builderVersion": "checkin-myday-ai-builder.v1",
+  "inputSchemaVersion": 1,
+  "outputSchemaVersion": 1,
+  "prompt": {"key": "checkin.myday.generate", "version": 1},
+  "modelPolicy": {"key": "my-day", "version": 1},
+  "outputValidator": {"key": "checkin.myday.output", "version": 1},
+  "executionPath": "SafetyGuardedAiContract.evaluateAndExecute",
+  "contextRule": "real ContextPlatform MY_DAY snapshot id is used by both Safety and AI",
+  "variables": ["input_schema_version", "scenario", "baseline_share", "phase_evidence", "adjustment_evidence", "orchestration_version"],
+  "outputFields": ["schemaVersion", "headline", "summary", "actions"],
+  "signalSemantics": "human-readable en-US label is resolved from immutable B01 definition for the B08 item provenance; item code is not sent to the model",
+  "forbidden": ["AiRequest validationAttributes", "direct AiGateway call", "provider SDK", "raw answers", "clarification values", "user id in prompt variables", "internal item codes in user-visible output", "strong hormonal causality claims"]
+}

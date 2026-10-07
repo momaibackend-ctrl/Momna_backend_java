@@ -1,0 +1,7 @@
+package com.momna.platform.observability;
+
+public enum TelemetryErrorCategory {
+    VALIDATION, AUTHENTICATION, AUTHORIZATION, NOT_FOUND, CONFLICT,
+    TIMEOUT, RATE_LIMIT, DEPENDENCY, RETRY_EXHAUSTED, PRIVACY,
+    SAFETY, AI_VALIDATION, INTERNAL
+}

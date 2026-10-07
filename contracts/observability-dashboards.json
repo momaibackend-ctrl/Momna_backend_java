@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "provider": "PROVIDER_NEUTRAL",
+  "dashboards": [
+    {"id": "API_HEALTH", "panels": [{"title": "Request latency", "metric": "momna.api.request.latency_ms", "groupBy": ["operation", "outcome"]}, {"title": "Error rate", "metric": "momna.api.error.total", "groupBy": ["operation", "outcome"]}]},
+    {"id": "DATABASE", "panels": [{"title": "Pool active", "metric": "momna.db.pool.active", "groupBy": ["pool"]}, {"title": "Pool pending", "metric": "momna.db.pool.pending", "groupBy": ["pool"]}]},
+    {"id": "WORKERS_QUEUE", "panels": [{"title": "Queue depth", "metric": "momna.jobs.queue.depth", "groupBy": ["queue", "job_type"]}, {"title": "Dead jobs", "metric": "momna.jobs.dead.total", "groupBy": ["queue", "job_type"]}]},
+    {"id": "AI_PROVIDER", "panels": [{"title": "AI latency", "metric": "momna.ai.latency_ms", "groupBy": ["provider"]}, {"title": "AI errors", "metric": "momna.ai.error.total", "groupBy": ["provider", "error_category"]}, {"title": "AI cost", "metric": "momna.ai.cost.usd_micros", "groupBy": ["provider"]}, {"title": "Validation retries", "metric": "momna.ai.validation_retry.total", "groupBy": ["provider"]}]},
+    {"id": "NOTIFICATIONS", "panels": [{"title": "Delivery result", "metric": "momna.notifications.delivery.total", "groupBy": ["channel", "outcome"]}]}
+  ],
+  "alerts": [
+    {"id": "ERROR_SPIKE", "metric": "momna.api.error.total", "condition": "rate_above_baseline", "window": "5m"},
+    {"id": "DB_POOL_SATURATION", "metric": "momna.db.pool.pending", "condition": "sustained_positive", "window": "5m"},
+    {"id": "DEAD_JOBS", "metric": "momna.jobs.dead.total", "condition": "increase", "window": "10m"},
+    {"id": "AI_PROVIDER_FAILURE", "metric": "momna.ai.error.total", "condition": "rate_above_threshold", "window": "5m"},
+    {"id": "WORKER_STALL", "metric": "momna.jobs.queue.depth", "condition": "growing_without_completion", "window": "10m"}
+  ],
+  "binding": {"liveProvider": "UNVERIFIED", "credentials": "FORBIDDEN_IN_REPOSITORY"}
+}

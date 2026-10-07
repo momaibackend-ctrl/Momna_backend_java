@@ -132,6 +132,7 @@ public class CanonicalFieldValueEntity {
         this.validUntil = validUntil;
         this.confidence = confidence;
         this.confirmedByUser = confirmedByUser;
+        this.recordVersion = 1L;
         this.definitionVersion = definitionVersion;
         this.schemaVersion = schemaVersion;
         this.knowledgeState = knowledgeState;

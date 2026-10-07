@@ -2,6 +2,7 @@ package com.momna.shared.api;
 
 import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.billing.application.BillingRestoreService;
+import com.momna.modules.flow.application.FlowException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -31,6 +32,33 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.UNAUTHORIZED;
         };
         return ResponseEntity.status(status).body(ApiError.of(ex.code(), publicMessage(ex.code())));
+    }
+
+    @ExceptionHandler(FlowException.class)
+    ResponseEntity<ApiError> flow(FlowException ex) {
+        var status = switch (ex.code()) {
+            case "NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "FORBIDDEN" -> HttpStatus.FORBIDDEN;
+            case "VALIDATION" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "STALE_VERSION", "CONFLICT", "INVALID_TRANSITION" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        var publicCode = switch (ex.code()) {
+            case "NOT_FOUND" -> "FLOW_NOT_FOUND";
+            case "FORBIDDEN" -> "FLOW_FORBIDDEN";
+            case "VALIDATION" -> "INVALID_FIELD_VALUE";
+            case "STALE_VERSION" -> "FLOW_DEFINITION_VERSION_MISMATCH";
+            case "CONFLICT" -> "STALE_REVISION";
+            case "INVALID_TRANSITION" -> "FLOW_INVALID_TRANSITION";
+            default -> "INTERNAL_ERROR";
+        };
+        return ResponseEntity.status(status).body(ApiError.of(publicCode, switch (status) {
+            case NOT_FOUND -> "Flow instance not found";
+            case FORBIDDEN -> "Flow instance is not accessible";
+            case UNPROCESSABLE_ENTITY -> "Flow request is invalid";
+            case CONFLICT -> "Flow mutation conflicts with authoritative state";
+            default -> "Unexpected server error";
+        }));
     }
 
     @ExceptionHandler(BillingRestoreService.BillingException.class)

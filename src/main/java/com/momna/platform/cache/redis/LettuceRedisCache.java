@@ -2,6 +2,8 @@ package com.momna.platform.cache.redis;
 
 import com.momna.platform.cache.*;
 import io.lettuce.core.*;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
 import java.time.Duration;
 
 public class LettuceRedisCache implements ExpiringCache, AutoCloseable {

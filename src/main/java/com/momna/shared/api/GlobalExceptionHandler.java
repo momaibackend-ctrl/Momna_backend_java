@@ -1,6 +1,7 @@
 package com.momna.shared.api;
 
 import com.momna.modules.auth.application.AuthException;
+import com.momna.modules.billing.application.BillingRestoreService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +31,22 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.UNAUTHORIZED;
         };
         return ResponseEntity.status(status).body(ApiError.of(ex.code(), publicMessage(ex.code())));
+    }
+
+    @ExceptionHandler(BillingRestoreService.BillingException.class)
+    ResponseEntity<ApiError> billing(BillingRestoreService.BillingException ex) {
+        var status = switch (ex.code()) {
+            case "RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "PURCHASE_ALREADY_CLAIMED" -> HttpStatus.CONFLICT;
+            case "AUTH_INVALID" -> HttpStatus.UNAUTHORIZED;
+            default -> HttpStatus.SERVICE_UNAVAILABLE;
+        };
+        return ResponseEntity.status(status).body(ApiError.of(ex.code(), switch (status) {
+            case TOO_MANY_REQUESTS -> "Billing request rate limit exceeded";
+            case CONFLICT -> "Purchase belongs to another account";
+            case UNAUTHORIZED -> "Authentication is required or no longer valid";
+            default -> "Billing state could not be verified";
+        }));
     }
 
     @ExceptionHandler(IllegalStateException.class)

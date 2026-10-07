@@ -1,8 +1,11 @@
 package com.momna.core.fields.application;
 
 import com.momna.core.fields.infrastructure.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +56,74 @@ public class CanonicalFieldRegistryService {
         requireText(userId, "userId");
         requireText(fieldId, "fieldId");
         return values.findByUserIdAndFieldIdOrderByRecordedAtDesc(userId, fieldId);
+    }
+
+    @Transactional
+    public CanonicalFieldValueEntity appendFlowTransitionValue(
+        String userId,
+        String fieldId,
+        Map<String, Object> payload,
+        String sourceId,
+        String flowInstanceId,
+        String transitionScopeId
+    ) {
+        requireText(userId, "userId");
+        requireText(fieldId, "fieldId");
+        requireText(sourceId, "sourceId");
+        requireText(flowInstanceId, "flowInstanceId");
+        requireText(transitionScopeId, "transitionScopeId");
+        if (payload == null || payload.isEmpty()) {
+            throw new IllegalArgumentException("payload is required");
+        }
+
+        var definition = currentDefinition(fieldId, Instant.now());
+
+        try {
+            var existing = resolveRelevantValue(
+                userId,
+                fieldId,
+                "ROUTER_TO_PERIOD_PREFILL",
+                Instant.now(),
+                "TRANSITION",
+                transitionScopeId
+            );
+            if (existing.getTypedValue() != null
+                && existing.getTypedValue().equals(payload)) {
+                return existing;
+            }
+        } catch (FieldRegistryException ignored) {
+            // No current transition-scoped value yet.
+        }
+
+        var now = Instant.now();
+        return values.save(
+            new CanonicalFieldValueEntity(
+                UUID.randomUUID().toString(),
+                userId,
+                fieldId,
+                Map.copyOf(payload),
+                null,
+                null,
+                "FLOW",
+                sourceId,
+                flowInstanceId,
+                "ROUTER_TO_PERIOD_PREFILL",
+                "TRANSITION",
+                transitionScopeId,
+                now,
+                now,
+                null,
+                BigDecimal.ONE,
+                false,
+                definition.getDefinitionVersion(),
+                definition.getSchemaVersion(),
+                "KNOWN",
+                definition.getSensitivityClass(),
+                definition.getSensitivityClass(),
+                definition.getSensitivityClass(),
+                "LATEST"
+            )
+        );
     }
 
     public CanonicalFieldValueEntity resolveRelevantValue(

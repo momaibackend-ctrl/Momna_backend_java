@@ -40,3 +40,8 @@ momna:
     secret-access-key: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:}
     diary-bucket: ${OBJECT_STORAGE_DIARY_BUCKET:}
     medical-bucket: ${OBJECT_STORAGE_MEDICAL_BUCKET:}
+
+  redis:
+    enabled: ${MOMNA_REDIS_ENABLED:false}
+    url: ${REDIS_URL:}
+    prefix: ${MOMNA_REDIS_PREFIX:momna}

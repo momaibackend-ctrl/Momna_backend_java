@@ -55,6 +55,36 @@ public class BillingSubscriptionEntity {
 
     protected BillingSubscriptionEntity() {}
 
+    public BillingSubscriptionEntity(
+        BillingProvider provider,
+        String originalTransactionId,
+        UUID userId,
+        String productId,
+        Instant startedAt,
+        Instant currentPeriodStart,
+        Instant currentPeriodEnd,
+        Boolean autoRenewEnabled,
+        SubscriptionStatus status,
+        boolean cancelAtPeriodEnd,
+        Instant cancelledAt,
+        Instant lastVerifiedAt,
+        long sourceOfTruthVersion
+    ) {
+        this.provider = provider;
+        this.originalTransactionId = originalTransactionId;
+        this.userId = userId;
+        this.productId = productId;
+        this.startedAt = startedAt;
+        this.currentPeriodStart = currentPeriodStart;
+        this.currentPeriodEnd = currentPeriodEnd;
+        this.autoRenewEnabled = autoRenewEnabled;
+        this.status = status;
+        this.cancelAtPeriodEnd = cancelAtPeriodEnd;
+        this.cancelledAt = cancelledAt;
+        this.lastVerifiedAt = lastVerifiedAt;
+        this.sourceOfTruthVersion = sourceOfTruthVersion;
+    }
+
     public BillingProvider getProvider() { return provider; }
     public String getOriginalTransactionId() { return originalTransactionId; }
     public UUID getUserId() { return userId; }

@@ -32,7 +32,7 @@ public class ContentPlatformNotificationResolver implements NotificationContentR
             resolved.schemaVersion(),
             resolved.resolvedLocale(),
             "localization.v1",
-            request.countryRegion() == null ? null : "country-policy.v1"
+            null
         );
     }
 }

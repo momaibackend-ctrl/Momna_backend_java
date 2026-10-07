@@ -182,6 +182,16 @@ public class CheckinSessionEntity {
         this.updatedAt = at;
     }
 
+    public void markConsumed(String myDayId, Instant at) {
+        if (this.consumedAt != null && !Objects.equals(this.consumedByRef, myDayId)) {
+            throw new IllegalStateException("Check-in session already consumed by another My Day");
+        }
+        this.consumedAt = at;
+        this.consumedByType = "MY_DAY";
+        this.consumedByRef = myDayId;
+        this.updatedAt = at;
+    }
+
     public void finalizeByUser(Instant at) {
         this.status = CheckinSessionStatus.SUBMITTED;
         this.submittedAt = at;

@@ -169,6 +169,10 @@ public class DataLifecycleOperationEntity {
         this.policyVersion = policyVersion;
     }
 
+    public void attachDeletionPlan(UUID deletionPlanId) {
+        this.deletionPlanId = deletionPlanId;
+    }
+
     public void linkRelatedOperation(UUID relatedOperationId) {
         this.relatedOperationId = relatedOperationId;
     }

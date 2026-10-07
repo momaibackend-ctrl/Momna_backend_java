@@ -1,0 +1,21 @@
+{
+  "id": "momna.e28.ci-b05.checkin-baseline-context",
+  "schemaVersion": 1,
+  "exposure": "INTERNAL_ONLY",
+  "purposes": ["CHECKIN", "MY_DAY"],
+  "assemblyOwner": "core.context",
+  "consumerOwner": "modules.checkin",
+  "directForeignTableReads": false,
+  "semantics": ["LIFE_PERIOD","LIFE_SUBSTAGE","CYCLE_DAY","PREGNANCY_WEEK","POSTPARTUM_AGE","STAGE_MARKERS","MULTIPLE_GESTATION","POSTMENOPAUSE_MONTHS_SINCE_FMP"],
+  "availability": ["PRESENT","UNKNOWN","STALE","DENIED","NOT_AVAILABLE"],
+  "missingValueRule": "missing, unknown, declined, stale or unavailable values are never materialized as false, zero or negative answers",
+  "modifierOwnershipRule": "modifier bindings must point to authorized canonical owner projections; onboarding hints are not promoted to medical source of truth",
+  "onboardingCoverage": {
+    "groupBy": "provenance.flowInstanceId",
+    "optionalSourceMetadata": ["status","completionRatio","completedAt"],
+    "fabricateCompletion": false
+  },
+  "fallback": "PERIOD_FALLBACK_REQUIRED when no authoritative lifecycle or temporal semantic is present",
+  "observability": "metadata only; no user id, canonical values, answers or health content",
+  "outOfScope": ["scoring","safety-threshold","70-30-weighting","session-persistence","my-day-generation"]
+}

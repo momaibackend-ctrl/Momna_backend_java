@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "variables": [
+    {"name":"MOMNA_ENV","type":"enum","values":["local","dev","stage","prod"],"required":true,"default":null,"invalid":"fail-startup"},
+    {"name":"MOMNA_ROLE","type":"enum","values":["api","worker","scheduler"],"required":true,"default":null,"invalid":"fail-startup"},
+    {"name":"PORT","type":"integer","required":false,"default":8080,"invalid":"use-default-8080"},
+    {"name":"DATABASE_URL","type":"postgres-url","required":false,"requiredWhen":"api and MOMNA_ENV != local","default":null,"invalid":"fail-startup"},
+    {"name":"DATABASE_MAX_POOL_SIZE","type":"integer[1..100]","required":false,"default":10,"invalid":"fail-startup"},
+    {"name":"REDIS_URL","type":"uri","required":false,"requiredWhen":"redis adapter enabled","default":null,"invalid":"fail-adapter-startup"},
+    {"name":"OBJECT_STORAGE_ENDPOINT","type":"uri","required":false,"requiredWhen":"object storage enabled","default":null,"invalid":"fail-adapter-startup"},
+    {"name":"OBJECT_STORAGE_REGION","type":"string","required":false,"requiredWhen":"object storage enabled","default":null,"invalid":"fail-adapter-startup"},
+    {"name":"OBJECT_STORAGE_ACCESS_KEY_ID","type":"secret-reference","required":false,"requiredWhen":"object storage enabled","default":null,"invalid":"fail-adapter-startup"},
+    {"name":"OBJECT_STORAGE_SECRET_ACCESS_KEY","type":"secret-reference","required":false,"requiredWhen":"object storage enabled","default":null,"invalid":"fail-adapter-startup"}
+  ],
+  "health": {
+    "live":{"dependencies":[],"timeoutMs":0},
+    "ready":{"mandatoryChecks":{"local":[],"dev":["database"],"stage":["database"],"prod":["database"]},"timeoutMs":2000,"redaction":"name/status/timeout only"}
+  }
+}

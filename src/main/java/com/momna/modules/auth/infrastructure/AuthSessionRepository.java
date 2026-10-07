@@ -8,4 +8,5 @@ public interface AuthSessionRepository extends JpaRepository<AuthSessionEntity, 
     Optional<AuthSessionEntity> findByAccessHash(String accessHash);
     Optional<AuthSessionEntity> findByRefreshHash(String refreshHash);
     List<AuthSessionEntity> findByUserIdOrderByCreatedAtDescSessionIdAsc(String userId);
+    List<AuthSessionEntity> findByFamilyId(String familyId);
 }

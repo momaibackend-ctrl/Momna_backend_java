@@ -9,6 +9,18 @@ public interface BillingProviderAdapter {
 
     ReconciliationResult reconcileUserPurchases(String userId);
 
+    record VerifiedSubscription(
+        String originalTransactionId,
+        Instant startedAt,
+        Instant currentPeriodStart,
+        Instant currentPeriodEnd,
+        Boolean autoRenewEnabled,
+        SubscriptionStatus status,
+        boolean cancelAtPeriodEnd,
+        Instant cancelledAt,
+        long sourceOfTruthVersion
+    ) {}
+
     record VerifiedProviderPurchase(
         BillingProvider provider,
         BillingEnvironment environment,
@@ -18,7 +30,8 @@ public interface BillingProviderAdapter {
         Instant purchasedAt,
         boolean revoked,
         boolean refunded,
-        String evidenceHash
+        String evidenceHash,
+        VerifiedSubscription subscription
     ) {}
 
     record ReconciliationResult(

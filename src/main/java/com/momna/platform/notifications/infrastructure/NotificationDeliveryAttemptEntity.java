@@ -63,6 +63,66 @@ public class NotificationDeliveryAttemptEntity {
 
     protected NotificationDeliveryAttemptEntity() {}
 
+    public NotificationDeliveryAttemptEntity(
+        UUID attemptId,
+        UUID scheduleId,
+        Instant scheduledAt,
+        int attemptNumber,
+        DeliveryAttemptStatus status,
+        String contentId,
+        String contentKey,
+        int contentVersion,
+        int contentSchemaVersion,
+        String resolvedLocale,
+        String localePolicyVersion,
+        String countryPolicyVersion,
+        String retryPolicyVersion,
+        Instant createdAt,
+        Instant updatedAt
+    ) {
+        this.attemptId = attemptId;
+        this.scheduleId = scheduleId;
+        this.scheduledAt = scheduledAt;
+        this.attemptNumber = attemptNumber;
+        this.status = status;
+        this.contentId = contentId;
+        this.contentKey = contentKey;
+        this.contentVersion = contentVersion;
+        this.contentSchemaVersion = contentSchemaVersion;
+        this.resolvedLocale = resolvedLocale;
+        this.localePolicyVersion = localePolicyVersion;
+        this.countryPolicyVersion = countryPolicyVersion;
+        this.retryPolicyVersion = retryPolicyVersion;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public void markEnqueued(Instant at) {
+        this.status = DeliveryAttemptStatus.ENQUEUED;
+        this.updatedAt = at;
+    }
+
+    public void markDelivered(String code, Instant at) {
+        this.status = DeliveryAttemptStatus.DELIVERED;
+        this.providerNeutralCode = code;
+        this.nextRetryAt = null;
+        this.updatedAt = at;
+    }
+
+    public void markRetry(String code, Instant retryAt, Instant at) {
+        this.status = DeliveryAttemptStatus.RETRY_WAIT;
+        this.providerNeutralCode = code;
+        this.nextRetryAt = retryAt;
+        this.updatedAt = at;
+    }
+
+    public void markFailed(String code, boolean deadLetter, Instant at) {
+        this.status = deadLetter ? DeliveryAttemptStatus.DEAD_LETTER : DeliveryAttemptStatus.FAILED;
+        this.providerNeutralCode = code;
+        this.nextRetryAt = null;
+        this.updatedAt = at;
+    }
+
     public UUID getAttemptId() { return attemptId; }
     public UUID getScheduleId() { return scheduleId; }
     public Instant getScheduledAt() { return scheduledAt; }

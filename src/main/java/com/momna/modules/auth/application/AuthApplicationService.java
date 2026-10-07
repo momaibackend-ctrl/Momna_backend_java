@@ -24,6 +24,7 @@ public class AuthApplicationService {
     private final LoginIdentityRepository identities;
     private final AuthSessionRepository sessions;
     private final EmailChallengeRepository challenges;
+    private final AuthRefreshHistoryRepository refreshHistory;
     private final OutboxEventRepository outbox;
     private final CredentialHasher hasher;
     private final OpaqueCredentialGenerator credentials;
@@ -35,6 +36,7 @@ public class AuthApplicationService {
         LoginIdentityRepository identities,
         AuthSessionRepository sessions,
         EmailChallengeRepository challenges,
+        AuthRefreshHistoryRepository refreshHistory,
         OutboxEventRepository outbox,
         CredentialHasher hasher,
         OpaqueCredentialGenerator credentials,
@@ -44,6 +46,7 @@ public class AuthApplicationService {
         this.identities = identities;
         this.sessions = sessions;
         this.challenges = challenges;
+        this.refreshHistory = refreshHistory;
         this.outbox = outbox;
         this.hasher = hasher;
         this.credentials = credentials;
@@ -92,6 +95,62 @@ public class AuthApplicationService {
         var identity = identities.findByProviderAndProviderSubject(AuthProvider.EMAIL, email).orElse(null);
         var account = identity == null ? createEmailAccount(email, now) : requireActive(identity.getUserId());
         return createSession(account.getUserId(), now, deviceLabel, UUID.randomUUID().toString());
+    }
+
+    @Transactional
+    public SessionCredentials refreshSession(String refreshCredential) {
+        requireText(refreshCredential, "refreshCredential");
+        var now = clock.instant();
+        var refreshHash = hasher.sha256(refreshCredential);
+
+        var reused = refreshHistory.findById(refreshHash).orElse(null);
+        if (reused != null) {
+            for (var familySession : sessions.findByFamilyId(reused.getFamilyId())) {
+                if (familySession.getStatus() == AuthSessionStatus.ACTIVE) {
+                    familySession.revoke(now, null);
+                }
+            }
+            publish("SessionRevoked", "unknown", now, Map.of(
+                "familyId", reused.getFamilyId(),
+                "reason", "refresh_reuse"
+            ));
+            throw new AuthException("SESSION_REVOKED", "Refresh credential reuse detected");
+        }
+
+        var current = sessions.findByRefreshHash(refreshHash)
+            .orElseThrow(() -> new AuthException("AUTH_INVALID", "Refresh credential is invalid"));
+
+        if (current.getStatus() != AuthSessionStatus.ACTIVE || !now.isBefore(current.getRefreshExpiresAt())) {
+            throw new AuthException("AUTH_INVALID", "Refresh credential is invalid");
+        }
+
+        requireActive(current.getUserId());
+        refreshHistory.save(new AuthRefreshHistoryEntity(refreshHash, current.getFamilyId(), now));
+
+        var access = credentials.opaque();
+        var refresh = credentials.opaque();
+        var replacement = new AuthSessionEntity(
+            UUID.randomUUID().toString(),
+            current.getFamilyId(),
+            current.getUserId(),
+            hasher.sha256(access),
+            hasher.sha256(refresh),
+            now,
+            current.getAuthenticatedAt(),
+            now.plus(ACCESS_TTL),
+            now.plus(REFRESH_TTL),
+            AuthSessionStatus.ACTIVE,
+            current.getDeviceLabel()
+        );
+
+        current.revoke(now, replacement.getSessionId());
+        sessions.save(current);
+        sessions.save(replacement);
+        publish("SessionCreated", current.getUserId(), now, Map.of(
+            "sessionId", replacement.getSessionId(),
+            "reason", "refresh_rotation"
+        ));
+        return new SessionCredentials(access, refresh, replacement);
     }
 
     @Transactional(readOnly = true)

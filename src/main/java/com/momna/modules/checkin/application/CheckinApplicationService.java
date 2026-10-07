@@ -20,6 +20,7 @@ public class CheckinApplicationService {
     private final CheckinSessionRepository sessions;
     private final CheckinAnswerRepository answers;
     private final CheckinIdempotencyRepository idempotency;
+    private final CheckinAdjustmentSignalRepository adjustmentSignals;
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
     private final CheckinDayContextService contexts;
@@ -29,6 +30,7 @@ public class CheckinApplicationService {
         CheckinSessionRepository sessions,
         CheckinAnswerRepository answers,
         CheckinIdempotencyRepository idempotency,
+        CheckinAdjustmentSignalRepository adjustmentSignals,
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
         CheckinDayContextService contexts
@@ -36,6 +38,7 @@ public class CheckinApplicationService {
         this.sessions = sessions;
         this.answers = answers;
         this.idempotency = idempotency;
+        this.adjustmentSignals = adjustmentSignals;
         this.definitions = definitions;
         this.scoring = scoring;
         this.contexts = contexts;
@@ -181,7 +184,7 @@ public class CheckinApplicationService {
 
         var answerMap = answerMap(sessionId);
         current.updateCompletion(answerMap.size(), now);
-        scoring.score(
+        var score = scoring.score(
             CheckinDefinitionPeriod.valueOf(current.getPeriodAtTime()),
             current.getPhase(),
             current.getDefinitionVersion(),
@@ -189,6 +192,7 @@ public class CheckinApplicationService {
             answerMap,
             Map.of()
         );
+        persistAdjustmentSignals(current, score, now);
 
         try {
             current = sessions.saveAndFlush(current);
@@ -342,6 +346,39 @@ public class CheckinApplicationService {
             map.put(answer.getItemCode(), answer.getValue());
         }
         return Map.copyOf(map);
+    }
+
+    private void persistAdjustmentSignals(
+        CheckinSessionEntity session,
+        com.momna.modules.checkin.scoring.CheckinScoringResult result,
+        Instant now
+    ) {
+        adjustmentSignals.deleteBySessionId(session.getSessionId());
+        var completion = session.getCompletionRatio();
+        for (var contribution : result.contributions()) {
+            if (contribution.adjustmentContribution().signum() <= 0) continue;
+            var signalId = sha(
+                session.getSessionId() + "|" + contribution.itemCode() + "|"
+                    + session.getDefinitionVersion() + "|" + session.getRulesVersion()
+            );
+            adjustmentSignals.save(new CheckinAdjustmentSignalEntity(
+                signalId,
+                session.getUserId(),
+                session.getSessionId(),
+                contribution.itemCode(),
+                "checkin.adjustment." + contribution.itemCode().toLowerCase(Locale.ROOT),
+                session.getPhase().name(),
+                session.getLocalDate(),
+                session.getPeriodAtTime(),
+                contribution.statePoints(),
+                result.adjustmentTier().name(),
+                contribution.adjustmentContribution(),
+                completion,
+                session.getRulesVersion(),
+                session.getDefinitionVersion(),
+                now
+            ));
+        }
     }
 
     private CheckinSessionEntity replay(

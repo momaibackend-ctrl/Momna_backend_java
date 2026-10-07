@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.momna.modules.checkin.domain.CheckinDefinitionPeriod;
 import com.momna.modules.checkin.domain.CheckinPhase;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -146,14 +146,25 @@ public class WeightedCheckinDefinitionCatalog {
     }
 
     private byte[] extractJson(byte[] archive) throws IOException {
-        try (var zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
-            for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
-                if (!entry.isDirectory() && entry.getName().substring(entry.getName().lastIndexOf('/') + 1).equals(ENTRY)) {
-                    return zip.readAllBytes();
+        var temporary = Files.createTempFile("momna-checkin-model-", ".zip");
+        try {
+            Files.write(temporary, archive);
+            try (var zip = new ZipFile(temporary.toFile())) {
+                var entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    var entry = entries.nextElement();
+                    if (!entry.isDirectory()
+                        && entry.getName().substring(entry.getName().lastIndexOf('/') + 1).equals(ENTRY)) {
+                        try (var input = zip.getInputStream(entry)) {
+                            return input.readAllBytes();
+                        }
+                    }
                 }
             }
+            throw new IllegalStateException("Canonical check-in JSON missing");
+        } finally {
+            Files.deleteIfExists(temporary);
         }
-        throw new IllegalStateException("Canonical check-in JSON missing");
     }
 
     private CheckinDefinitionPeriod mapPeriod(String code) {

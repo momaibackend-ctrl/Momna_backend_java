@@ -17,6 +17,8 @@ public class DataLifecycleOperationProcessor {
     public static final String PRIVATE_EXPORT_BUCKET = "momna-lifecycle-export";
 
     private final DataLifecycleOperationRepository operations;
+    private final DataLifecycleArchiveManifestRepository archiveManifests;
+    private final DataLifecycleExportManifestRepository exportManifests;
     private final DataLifecycleRetentionService retention;
     private final Map<String, DataLifecycleOwnerAdapter> owners;
     private final ObjectProvider<PrivateObjectStorage> storage;
@@ -24,12 +26,16 @@ public class DataLifecycleOperationProcessor {
 
     public DataLifecycleOperationProcessor(
         DataLifecycleOperationRepository operations,
+        DataLifecycleArchiveManifestRepository archiveManifests,
+        DataLifecycleExportManifestRepository exportManifests,
         DataLifecycleRetentionService retention,
         ObjectProvider<DataLifecycleOwnerAdapter> owners,
         ObjectProvider<PrivateObjectStorage> storage,
         ObjectMapper mapper
     ) {
         this.operations = operations;
+        this.archiveManifests = archiveManifests;
+        this.exportManifests = exportManifests;
         this.retention = retention;
         this.owners = owners.orderedStream().collect(
             java.util.stream.Collectors.toUnmodifiableMap(DataLifecycleOwnerAdapter::owner, x -> x)
@@ -152,6 +158,18 @@ public class DataLifecycleOperationProcessor {
             stored.contentType(),
             stored.sizeBytes()
         );
+        if (!archiveManifests.existsById(operation.getOperationId())) {
+            archiveManifests.save(new DataLifecycleArchiveManifestEntity(
+                operation.getOperationId(),
+                policy.getPolicyKey(),
+                policy.getPolicyVersion(),
+                stored.bucket(),
+                stored.key(),
+                stored.contentType(),
+                stored.sizeBytes(),
+                Instant.now()
+            ));
+        }
     }
 
     private void processExport(DataLifecycleOperationEntity operation) {
@@ -227,5 +245,21 @@ public class DataLifecycleOperationProcessor {
             stored.contentType(),
             stored.sizeBytes()
         );
+        if (!exportManifests.existsById(operation.getOperationId())) {
+            exportManifests.save(new DataLifecycleExportManifestEntity(
+                operation.getOperationId(),
+                operation.getSubjectUserId(),
+                operation.getRequestedAt(),
+                EXPORT_SCHEMA_VERSION,
+                String.join(",", includedOwners),
+                included,
+                excluded,
+                stored.bucket(),
+                stored.key(),
+                stored.contentType(),
+                stored.sizeBytes(),
+                Instant.now()
+            ));
+        }
     }
 }

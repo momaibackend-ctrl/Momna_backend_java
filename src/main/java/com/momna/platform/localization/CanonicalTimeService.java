@@ -93,6 +93,28 @@ public class CanonicalTimeService {
         );
     }
 
+    public EffectiveLocalDay resolveEffectiveLocalDay(
+        ZoneId timezone,
+        Instant referenceInstant,
+        LocalDate fixedLocalDate
+    ) {
+        var zone = requireIana(timezone);
+        if (fixedLocalDate != null) {
+            return new EffectiveLocalDay(
+                fixedLocalDate,
+                zone,
+                referenceInstant,
+                EffectiveLocalDaySource.EXPLICIT_EFFECTIVE_DAY
+            );
+        }
+        return new EffectiveLocalDay(
+            referenceInstant.atZone(zone).toLocalDate(),
+            zone,
+            referenceInstant,
+            EffectiveLocalDaySource.REFERENCE_INSTANT
+        );
+    }
+
     private ZoneId requireIana(ZoneId zone) {
         if (zone == null || !ZoneId.getAvailableZoneIds().contains(zone.getId())) {
             throw new LocalizationException("INVALID_TIMEZONE", "Timezone must be an IANA zone ID");
@@ -120,5 +142,17 @@ public class CanonicalTimeService {
         Instant occurredAt,
         String timezoneAtEvent,
         LocalDate localDateAtEvent
+    ) {}
+
+    public enum EffectiveLocalDaySource {
+        EXPLICIT_EFFECTIVE_DAY,
+        REFERENCE_INSTANT
+    }
+
+    public record EffectiveLocalDay(
+        LocalDate localDate,
+        ZoneId timezone,
+        Instant referenceInstant,
+        EffectiveLocalDaySource source
     ) {}
 }

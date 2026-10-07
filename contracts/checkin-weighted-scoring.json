@@ -1,0 +1,15 @@
+{
+  "id": "momna.e28.ci-b06.weighted-scoring",
+  "schemaVersion": 1,
+  "exposure": "INTERNAL_ONLY",
+  "definitionSource": "CI-B01 immutable CheckinFlowDefinitionContract",
+  "numeric": {"type":"decimal","scale":6,"rounding":"HALF_UP","order":"baseWeight * matchingMultipliers(sorted ruleId) * statePoints, then stable display-order sum"},
+  "answers": {"allowed":[0,1,2],"unanswered":"absence","explicitZero":"stored answer with zero contribution"},
+  "adjustmentThresholds": {"mild":4,"moderate":10,"strong":18},
+  "safetyReferenceThreshold": {"value":12,"owner":"CI-B07","meaning":"comparison evidence only; B06 does not trigger or route"},
+  "phaseWeightingOwner": "CI-B04",
+  "persistenceOwner": "CI-B08",
+  "modifierSource": "CI-B05 typed baseline projection only",
+  "signals": {"deterministicIds":true,"effectivePhaseWeightInB06":null},
+  "privacy": "observability excludes user IDs, answers, medical values and modifier values"
+}

@@ -59,7 +59,7 @@ public class LegacyAuditBridge {
                 Map.of("schema", "v1")
             ),
             Map.of(
-                "audit_event_id", recorded.getId().toString(),
+                "audit_event_id", recorded.getEventId().toString(),
                 "audit_event_type", recorded.getEventType(),
                 "action_code", action,
                 "result_code", "RECORDED",

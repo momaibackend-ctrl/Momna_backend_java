@@ -201,6 +201,159 @@ public class NotificationPlatformService {
         return List.copyOf(decisions);
     }
 
+    @Transactional
+    public NotificationDeliveryAttemptEntity recordDeliveryResult(
+        UUID attemptId,
+        DeliveryOutcome outcome,
+        String providerNeutralCode,
+        Instant occurredAt
+    ) {
+        if (providerNeutralCode == null || !providerNeutralCode.matches("[A-Z][A-Z0-9_]{1,79}")) {
+            throw new IllegalArgumentException("Invalid provider-neutral delivery code");
+        }
+        var attempt = attempts.findById(attemptId)
+            .orElseThrow(() -> new NotificationException("NOTIFICATION_NOT_FOUND", "Delivery attempt not found"));
+        var schedule = schedules.findById(attempt.getScheduleId())
+            .orElseThrow(() -> new NotificationException("NOTIFICATION_NOT_FOUND", "Notification schedule not found"));
+
+        switch (outcome) {
+            case DELIVERED -> {
+                attempt.markDelivered(providerNeutralCode, occurredAt);
+                if (schedule.getRecurrence() == NotificationRecurrence.ONCE) {
+                    schedule.complete();
+                    schedules.save(schedule);
+                }
+            }
+            case PERMANENT_FAILURE -> attempt.markFailed(providerNeutralCode, false, occurredAt);
+            case RETRYABLE_FAILURE -> {
+                if (attempt.getAttemptNumber() >= schedule.getRetryMaxAttempts()) {
+                    attempt.markFailed("RETRY_EXHAUSTED", true, occurredAt);
+                } else {
+                    var multiplier = 1L << Math.min(Math.max(attempt.getAttemptNumber() - 1, 0), 8);
+                    var retryAt = occurredAt.plusSeconds(schedule.getRetryInitialBackoffSeconds() * multiplier);
+                    attempt.markRetry(providerNeutralCode, retryAt, occurredAt);
+                }
+            }
+        }
+        return attempts.saveAndFlush(attempt);
+    }
+
+    @Transactional
+    public List<EnqueueDecision> enqueueRetries(Instant dueAt, int limit, String traceId) {
+        if (limit < 1 || limit > 500) throw new IllegalArgumentException("limit must be between 1 and 500");
+
+        var retryable = attempts
+            .findTop500ByStatusAndNextRetryAtLessThanEqualOrderByNextRetryAtAsc(
+                DeliveryAttemptStatus.RETRY_WAIT,
+                dueAt
+            )
+            .stream()
+            .limit(limit)
+            .toList();
+
+        var decisions = new ArrayList<EnqueueDecision>();
+        for (var previous : retryable) {
+            var schedule = schedules.findById(previous.getScheduleId()).orElse(null);
+            if (schedule == null || schedule.getState() != NotificationScheduleState.ACTIVE) {
+                decisions.add(new EnqueueDecision(
+                    previous.getScheduleId(), previous.getAttemptId(), "NOTIFICATION_NOT_FOUND", false
+                ));
+                continue;
+            }
+            if (previous.getAttemptNumber() >= schedule.getRetryMaxAttempts()) {
+                previous.markFailed("RETRY_EXHAUSTED", true, dueAt);
+                attempts.save(previous);
+                decisions.add(new EnqueueDecision(
+                    schedule.getScheduleId(), previous.getAttemptId(), "RETRY_EXHAUSTED", false
+                ));
+                continue;
+            }
+
+            var preference = preferences.findByUserIdAndChannelAndCategoryAndPurpose(
+                schedule.getUserId(), schedule.getChannel(), schedule.getCategory(), schedule.getPurpose()
+            ).orElse(null);
+            if (preference != null && !preference.isEnabled()) {
+                decisions.add(new EnqueueDecision(
+                    schedule.getScheduleId(), previous.getAttemptId(), "PREFERENCE_DISABLED", false
+                ));
+                continue;
+            }
+
+            var consentGuard = consentGuards.getIfAvailable();
+            if (consentGuard == null || !consentGuard.allowed(
+                schedule.getUserId(), schedule.getChannel(), schedule.getCategory(), schedule.getPurpose()
+            )) {
+                decisions.add(new EnqueueDecision(
+                    schedule.getScheduleId(), previous.getAttemptId(), "CONSENT_REQUIRED", false
+                ));
+                continue;
+            }
+
+            var resolver = contentResolvers.getIfAvailable();
+            var profile = profiles.get(schedule.getUserId());
+            if (resolver == null || profile == null || profile.getTimezone() == null) {
+                decisions.add(new EnqueueDecision(
+                    schedule.getScheduleId(), previous.getAttemptId(), "CONTENT_UNAVAILABLE", false
+                ));
+                continue;
+            }
+
+            var zone = effectiveTimezone(schedule, profile.getTimezone());
+            var evidence = resolver.resolve(new NotificationContentResolver.Request(
+                schedule.getContentKey(),
+                schedule.getPinnedContentVersion(),
+                profile.getLocale(),
+                profile.getCountryRegion(),
+                zone.getId(),
+                dueAt,
+                schedule.getPurpose(),
+                schedule.getUserId(),
+                traceId
+            ));
+
+            var number = previous.getAttemptNumber() + 1;
+            var retry = new NotificationDeliveryAttemptEntity(
+                UUID.randomUUID(),
+                schedule.getScheduleId(),
+                previous.getScheduledAt(),
+                number,
+                DeliveryAttemptStatus.CREATED,
+                evidence.contentId(),
+                evidence.contentKey(),
+                evidence.contentVersion(),
+                evidence.schemaVersion(),
+                evidence.resolvedLocale(),
+                evidence.localePolicyVersion(),
+                evidence.countryPolicyVersion(),
+                schedule.getRetryPolicyVersion(),
+                dueAt,
+                dueAt
+            );
+            retry = attempts.saveAndFlush(retry);
+
+            var key = "notification:" + schedule.getScheduleId() + ":"
+                + previous.getScheduledAt().getEpochSecond() + ":" + number;
+            jobs.enqueue(
+                JobType.NOTIFICATION,
+                "notification-attempt:" + retry.getAttemptId(),
+                key,
+                traceId,
+                schedule.getRetryMaxAttempts(),
+                Duration.ofSeconds(schedule.getRetryInitialBackoffSeconds()),
+                1
+            );
+            retry.markEnqueued(Instant.now());
+            attempts.save(retry);
+            previous.markFailed("RETRY_SUPERSEDED", false, Instant.now());
+            attempts.save(previous);
+
+            decisions.add(new EnqueueDecision(
+                schedule.getScheduleId(), retry.getAttemptId(), "RETRY_ENQUEUED", true
+            ));
+        }
+        return List.copyOf(decisions);
+    }
+
     private EnqueueDecision enqueueOne(NotificationScheduleEntity schedule, String traceId) {
         var preference = preferences.findByUserIdAndChannelAndCategoryAndPurpose(
             schedule.getUserId(),
@@ -477,6 +630,8 @@ public class NotificationPlatformService {
         NotificationPreferenceEntity preference,
         boolean idempotentReplay
     ) {}
+
+    public enum DeliveryOutcome { DELIVERED, RETRYABLE_FAILURE, PERMANENT_FAILURE }
 
     public record EnqueueDecision(
         UUID scheduleId,

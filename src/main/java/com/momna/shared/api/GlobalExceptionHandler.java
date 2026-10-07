@@ -2,6 +2,7 @@ package com.momna.shared.api;
 
 import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.billing.application.BillingRestoreService;
+import com.momna.modules.checkin.application.CheckinException;
 import com.momna.modules.flow.application.FlowException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,34 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.UNAUTHORIZED;
         };
         return ResponseEntity.status(status).body(ApiError.of(ex.code(), publicMessage(ex.code())));
+    }
+
+    @ExceptionHandler(CheckinException.class)
+    ResponseEntity<ApiError> checkin(CheckinException ex) {
+        var status = switch (ex.code()) {
+            case "CHECKIN_SESSION_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "CHECKIN_NOT_ELIGIBLE" -> HttpStatus.FORBIDDEN;
+            case "CHECKIN_ITEM_UNKNOWN", "CHECKIN_ITEM_NOT_APPLICABLE",
+                 "CHECKIN_VALUE_INVALID", "SAFETY_VALUE_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "DEPENDENCY_UNAVAILABLE", "CHECKIN_DEFINITION_UNAVAILABLE",
+                 "MY_DAY_DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "CHECKIN_WINDOW_NOT_OPEN", "CHECKIN_WINDOW_CLOSED",
+                 "CHECKIN_SESSION_FINALIZED", "CHECKIN_ALREADY_SUBMITTED",
+                 "CHECKIN_ALREADY_AUTO_FINALIZED", "CHECKIN_SESSION_CONSUMED",
+                 "CHECKIN_DEFINITION_VERSION_MISMATCH", "SAFETY_CLARIFICATION_REQUIRED",
+                 "SAFETY_CLARIFICATION_NOT_CURRENT", "SAFETY_STATE_BLOCKING",
+                 "SAFETY_ROUTE_VERSION_MISMATCH", "STALE_REVISION",
+                 "IDEMPOTENCY_CONFLICT" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        return ResponseEntity.status(status).body(ApiError.of(ex.code(), switch (status) {
+            case NOT_FOUND -> "Check-in session not found";
+            case FORBIDDEN -> "Check-in is not available for the current lifecycle state";
+            case UNPROCESSABLE_ENTITY -> "Check-in request contains an invalid answer";
+            case SERVICE_UNAVAILABLE -> "Check-in dependency is temporarily unavailable";
+            case CONFLICT -> "Check-in request conflicts with the current session state";
+            default -> "Unexpected server error";
+        }));
     }
 
     @ExceptionHandler(FlowException.class)

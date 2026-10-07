@@ -1,0 +1,11 @@
+package com.momna.platform.jobs;
+
+public enum JobType {
+    AI_GENERATION,
+    FILE_PROCESSING,
+    NOTIFICATION,
+    DIARY_MEDICAL_DETECTION,
+    INTEREST_SIGNAL_PROCESSING,
+    EXPORT,
+    SEMANTIC_CONTENT_GENERATION
+}

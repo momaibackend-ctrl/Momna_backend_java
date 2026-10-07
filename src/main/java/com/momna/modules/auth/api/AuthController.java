@@ -38,6 +38,11 @@ public class AuthController {
         ));
     }
 
+    @PostMapping("/auth/refresh")
+    public SessionCredentialsResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        return credentials(auth.refreshSession(request.refreshCredential()));
+    }
+
     @GetMapping("/me/session")
     public SafeSession current(Authentication authentication) {
         var actor = actor(authentication);
@@ -123,6 +128,7 @@ public class AuthController {
         @NotBlank String code,
         String deviceLabel
     ) {}
+    public record RefreshRequest(@NotBlank String refreshCredential) {}
     public record ChallengeResponse(String challengeId, Instant expiresAt, boolean accepted) {}
     public record SessionCredentialsResponse(
         String accessCredential,

@@ -322,13 +322,13 @@ public class NotificationPlatformService {
         if (profile == null || profile.getTimezone() == null) return candidate;
         var zone = effectiveTimezone(schedule, profile.getTimezone());
         var local = candidate.atZone(zone).toLocalDateTime();
-        var time = local.toLocalTime();
+        var localClock = local.toLocalTime();
         var start = preference.getQuietStart();
         var end = preference.getQuietEnd();
 
         var inside = start.isBefore(end)
-            ? !time.isBefore(start) && time.isBefore(end)
-            : !time.isBefore(start) || time.isBefore(end);
+            ? !localClock.isBefore(start) && localClock.isBefore(end)
+            : !localClock.isBefore(start) || localClock.isBefore(end);
         if (!inside) return candidate;
 
         if (schedule.getPriority() == NotificationPriority.CRITICAL) {
@@ -343,7 +343,7 @@ public class NotificationPlatformService {
 
         var date = start.isBefore(end)
             ? local.toLocalDate()
-            : !time.isBefore(start) ? local.toLocalDate().plusDays(1) : local.toLocalDate();
+            : !localClock.isBefore(start) ? local.toLocalDate().plusDays(1) : local.toLocalDate();
         return time.convertScheduledLocalTime(
             LocalDateTime.of(date, end),
             zone,

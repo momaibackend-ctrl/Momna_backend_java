@@ -19,6 +19,7 @@ public class DataLifecycleOperationProcessor {
     private final DataLifecycleOperationRepository operations;
     private final DataLifecycleArchiveManifestRepository archiveManifests;
     private final DataLifecycleExportManifestRepository exportManifests;
+    private final DataLifecycleDeletionStore deletionStore;
     private final DataLifecycleRetentionService retention;
     private final Map<String, DataLifecycleOwnerAdapter> owners;
     private final ObjectProvider<PrivateObjectStorage> storage;
@@ -28,6 +29,7 @@ public class DataLifecycleOperationProcessor {
         DataLifecycleOperationRepository operations,
         DataLifecycleArchiveManifestRepository archiveManifests,
         DataLifecycleExportManifestRepository exportManifests,
+        DataLifecycleDeletionStore deletionStore,
         DataLifecycleRetentionService retention,
         ObjectProvider<DataLifecycleOwnerAdapter> owners,
         ObjectProvider<PrivateObjectStorage> storage,
@@ -36,6 +38,7 @@ public class DataLifecycleOperationProcessor {
         this.operations = operations;
         this.archiveManifests = archiveManifests;
         this.exportManifests = exportManifests;
+        this.deletionStore = deletionStore;
         this.retention = retention;
         this.owners = owners.orderedStream().collect(
             java.util.stream.Collectors.toUnmodifiableMap(DataLifecycleOwnerAdapter::owner, x -> x)
@@ -60,10 +63,7 @@ public class DataLifecycleOperationProcessor {
                 case EXPORT -> processExport(operation);
                 case ARCHIVE -> processArchive(operation);
                 case RESTORE -> processRestore(operation);
-                case DELETION -> throw new DataLifecycleRetentionService.DataLifecycleException(
-                    "DEPENDENCY_UNAVAILABLE",
-                    "Lifecycle deletion execution is not migrated yet"
-                );
+                case DELETION -> processDeletion(operation);
             }
             operation.markSucceeded();
             return operations.saveAndFlush(operation);
@@ -75,6 +75,153 @@ public class DataLifecycleOperationProcessor {
             operations.saveAndFlush(operation);
             throw failure;
         }
+    }
+
+    private void processDeletion(DataLifecycleOperationEntity operation) {
+        if (operation.getDeletionPlanId() == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "VALIDATION_ERROR", "Deletion plan reference is missing"
+            );
+        }
+        var plan = deletionStore.findPlan(operation.getDeletionPlanId());
+        if (plan == null) {
+            throw new DataLifecycleRetentionService.DataLifecycleException(
+                "RESOURCE_NOT_FOUND", "Deletion plan is missing"
+            );
+        }
+        var objectStorage = storage.getIfAvailable();
+        var retained = new ArrayList<DataLifecycleDeletionStore.Action>();
+        int applied = 0;
+
+        for (var action : plan.actions()) {
+            var resource = action.resource();
+            if (action.action() == DeletionAction.RETAIN_REQUIRED) {
+                retained.add(action);
+                continue;
+            }
+
+            var adapter = owners.get(resource.owner());
+            if (adapter == null) {
+                throw new DataLifecycleRetentionService.DataLifecycleException(
+                    "DEPENDENCY_UNAVAILABLE", "Lifecycle owner adapter is unavailable"
+                );
+            }
+            var actionName = action.action().name();
+            if (deletionStore.checkpointExists(
+                operation.getOperationId(),
+                resource.owner(),
+                resource.resourceType(),
+                resource.resourceId(),
+                actionName
+            )) {
+                continue;
+            }
+
+            if (action.action() == DeletionAction.ARCHIVE_REQUIRED) {
+                if (objectStorage == null) {
+                    throw new DataLifecycleRetentionService.DataLifecycleException(
+                        "DEPENDENCY_UNAVAILABLE", "Private object storage is unavailable"
+                    );
+                }
+                var fragment = adapter.archiveFragment(resource, plan.snapshotAt());
+                var stored = objectStorage.put(
+                    resource.subjectUserId(),
+                    "momna-lifecycle-archive",
+                    "deletion/" + operation.getOperationId() + "/"
+                        + resource.owner() + "/" + resource.resourceType() + "/"
+                        + resource.resourceId() + ".bin",
+                    fragment.bytes(),
+                    fragment.mediaType(),
+                    resource.privacyScope() == com.momna.core.privacy.PrivacyScope.MEDICAL_PRIVATE
+                        ? AssetSensitivity.MEDICAL_PRIVATE
+                        : AssetSensitivity.PRIVATE
+                );
+                var artifact = new DataLifecycleOwnerAdapter.ArtifactRef(
+                    stored.bucket(), stored.key(), stored.contentType(), stored.sizeBytes()
+                );
+                adapter.markArchived(
+                    resource,
+                    artifact,
+                    operation.getOperationId() + ":predelete-archive:" + resource.resourceId()
+                );
+                deletionStore.saveCheckpoint(
+                    operation.getOperationId(),
+                    resource.owner(),
+                    resource.resourceType(),
+                    resource.resourceId(),
+                    "ARCHIVE_REQUIRED",
+                    "ARCHIVE_REQUIRED_COMPLETE",
+                    Instant.now()
+                );
+
+                var delete = adapter.applyDeletion(
+                    resource,
+                    DeletionAction.DELETE,
+                    operation.getOperationId() + ":delete:" + resource.resourceId()
+                );
+                deletionStore.saveCheckpoint(
+                    operation.getOperationId(),
+                    resource.owner(),
+                    resource.resourceType(),
+                    resource.resourceId(),
+                    "DELETE",
+                    delete.resultCode(),
+                    Instant.now()
+                );
+            } else {
+                var result = adapter.applyDeletion(
+                    resource,
+                    action.action(),
+                    operation.getOperationId() + ":"
+                        + action.action().name().toLowerCase(Locale.ROOT) + ":"
+                        + resource.resourceId()
+                );
+                deletionStore.saveCheckpoint(
+                    operation.getOperationId(),
+                    resource.owner(),
+                    resource.resourceType(),
+                    resource.resourceId(),
+                    actionName,
+                    result.resultCode(),
+                    Instant.now()
+                );
+            }
+            applied++;
+        }
+
+        for (var adapter : owners.values().stream()
+            .sorted(Comparator.comparing(DataLifecycleOwnerAdapter::owner)).toList()) {
+            if (!deletionStore.checkpointExists(
+                operation.getOperationId(),
+                adapter.owner(),
+                "derived",
+                operation.getSubjectUserId(),
+                "INVALIDATE_DERIVED"
+            )) {
+                var result = adapter.invalidateDerivedCopies(
+                    operation.getSubjectUserId(),
+                    operation.getOperationId() + ":invalidate-derived:" + adapter.owner()
+                );
+                deletionStore.saveCheckpoint(
+                    operation.getOperationId(),
+                    adapter.owner(),
+                    "derived",
+                    operation.getSubjectUserId(),
+                    "INVALIDATE_DERIVED",
+                    result.resultCode(),
+                    Instant.now()
+                );
+            }
+        }
+
+        deletionStore.saveReceipt(
+            operation.getOperationId(),
+            plan.planId(),
+            plan.subjectUserId(),
+            applied,
+            List.copyOf(retained),
+            Instant.now()
+        );
     }
 
     private void processRestore(DataLifecycleOperationEntity operation) {

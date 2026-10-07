@@ -28,6 +28,34 @@ public class LifecyclePeriodHistoryEntity {
 
     protected LifecyclePeriodHistoryEntity() {}
 
+    public LifecyclePeriodHistoryEntity(
+        String id,
+        String userId,
+        LifecyclePeriod period,
+        String substage,
+        Instant effectiveFrom,
+        Instant effectiveTo,
+        String source,
+        double confidence,
+        boolean selectedManually
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.period = period;
+        this.substage = substage;
+        this.effectiveFrom = effectiveFrom;
+        this.effectiveTo = effectiveTo;
+        this.source = source;
+        this.confidence = confidence;
+        this.selectedManually = selectedManually;
+    }
+
+    public void closeAt(Instant at) {
+        if (effectiveTo == null || at.isBefore(effectiveTo)) {
+            this.effectiveTo = at;
+        }
+    }
+
     public String getId() { return id; }
     public String getUserId() { return userId; }
     public LifecyclePeriod getPeriod() { return period; }

@@ -2,6 +2,7 @@ package com.momna.modules.auth.api;
 
 import com.momna.modules.auth.application.AuthApplicationService;
 import com.momna.modules.auth.domain.AuthenticatedActor;
+import com.momna.modules.auth.domain.AuthProvider;
 import com.momna.modules.auth.domain.SessionCredentials;
 import com.momna.modules.auth.infrastructure.AuthSessionEntity;
 import com.momna.modules.auth.infrastructure.LoginIdentityEntity;
@@ -35,6 +36,18 @@ public class AuthController {
     public SessionCredentialsResponse completeEmail(@Valid @RequestBody CompleteEmailRequest request) {
         return credentials(auth.completeEmailSignIn(
             request.challengeId(), request.email(), request.code(), request.deviceLabel()
+        ));
+    }
+
+    @PostMapping("/auth/providers/exchange")
+    public SessionCredentialsResponse exchangeProvider(@Valid @RequestBody ProviderCredentialRequest request) {
+        return credentials(auth.exchangeProviderCredential(
+            provider(request.provider()),
+            request.credential(),
+            request.state(),
+            request.nonce(),
+            request.pkceVerifier(),
+            request.deviceLabel()
         ));
     }
 
@@ -88,11 +101,64 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/me/login-identities")
+    public ResponseEntity<SafeLoginIdentity> linkIdentity(
+        Authentication authentication,
+        @Valid @RequestBody ProviderCredentialRequest request
+    ) {
+        var identity = auth.linkIdentity(
+            actor(authentication),
+            provider(request.provider()),
+            request.credential(),
+            request.state(),
+            request.nonce(),
+            request.pkceVerifier()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(safe(identity));
+    }
+
+    @DeleteMapping("/me/login-identities/{identityId}")
+    public ResponseEntity<Void> unlinkIdentity(
+        Authentication authentication,
+        @PathVariable String identityId
+    ) {
+        auth.unlinkIdentity(actor(authentication), identityId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/me/reauthenticate")
+    public ReauthenticateResponse reauthenticate(
+        Authentication authentication,
+        @Valid @RequestBody ProviderCredentialRequest request
+    ) {
+        var refreshed = auth.reauthenticate(
+            actor(authentication),
+            provider(request.provider()),
+            request.credential(),
+            request.state(),
+            request.nonce(),
+            request.pkceVerifier()
+        );
+        return new ReauthenticateResponse(refreshed.authenticatedAt());
+    }
+
     private AuthenticatedActor actor(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedActor actor)) {
             throw new com.momna.modules.auth.application.AuthException("AUTH_REQUIRED", "Authentication required");
         }
         return actor;
+    }
+
+    private AuthProvider provider(String value) {
+        try {
+            var provider = AuthProvider.valueOf(value.toUpperCase(java.util.Locale.ROOT));
+            if (provider == AuthProvider.EMAIL) {
+                throw new IllegalArgumentException("Unsupported auth provider");
+            }
+            return provider;
+        } catch (RuntimeException failure) {
+            throw new IllegalArgumentException("Unsupported auth provider");
+        }
     }
 
     private SessionCredentialsResponse credentials(SessionCredentials value) {
@@ -128,6 +194,14 @@ public class AuthController {
         @NotBlank String code,
         String deviceLabel
     ) {}
+    public record ProviderCredentialRequest(
+        @NotBlank String provider,
+        @NotBlank String credential,
+        String state,
+        String nonce,
+        String pkceVerifier,
+        String deviceLabel
+    ) {}
     public record RefreshRequest(@NotBlank String refreshCredential) {}
     public record ChallengeResponse(String challengeId, Instant expiresAt, boolean accepted) {}
     public record SessionCredentialsResponse(
@@ -153,4 +227,5 @@ public class AuthController {
         Instant createdAt
     ) {}
     public record IdentityList(List<SafeLoginIdentity> items) {}
+    public record ReauthenticateResponse(Instant authenticatedAt) {}
 }

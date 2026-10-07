@@ -1,5 +1,6 @@
 package com.momna.modules.flow.application;
 
+import com.momna.core.fields.application.CanonicalFieldRegistryService;
 import com.momna.modules.lifecycle.application.LifecycleCommandService;
 import com.momna.modules.lifecycle.application.LifecycleQueryService;
 import com.momna.modules.lifecycle.domain.LifecyclePeriod;
@@ -17,15 +18,18 @@ public class RouterConfirmationService {
     private final UniversalFlowService flows;
     private final LifecycleQueryService lifecycleQuery;
     private final LifecycleCommandService lifecycleCommands;
+    private final CanonicalFieldRegistryService fields;
 
     public RouterConfirmationService(
         UniversalFlowService flows,
         LifecycleQueryService lifecycleQuery,
-        LifecycleCommandService lifecycleCommands
+        LifecycleCommandService lifecycleCommands,
+        CanonicalFieldRegistryService fields
     ) {
         this.flows = flows;
         this.lifecycleQuery = lifecycleQuery;
         this.lifecycleCommands = lifecycleCommands;
+        this.fields = fields;
     }
 
     @Transactional
@@ -59,6 +63,17 @@ public class RouterConfirmationService {
             (instanceId + "|" + operationId)
                 .getBytes(StandardCharsets.UTF_8)
         ).toString();
+
+        result.answers().forEach((fieldId, payload) ->
+            fields.appendFlowTransitionValue(
+                userId,
+                fieldId,
+                payload,
+                result.definitionKey(),
+                instanceId.toString(),
+                transitionScopeId
+            )
+        );
 
         var current = lifecycleQuery.current(
             userId,

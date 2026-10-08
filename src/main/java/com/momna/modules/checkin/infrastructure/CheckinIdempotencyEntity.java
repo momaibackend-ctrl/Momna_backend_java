@@ -18,7 +18,7 @@ public class CheckinIdempotencyEntity {
     @Column(name = "idempotency_key")
     private String idempotencyKey;
 
-    @Column(name = "fingerprint_sha256", nullable = false, length = 64, columnDefinition = "char(64)")
+    @Column(name = "fingerprint_sha256", nullable = false, length = 64)
     private String fingerprintSha256;
 
     @Column(name = "result_session_id", nullable = false)

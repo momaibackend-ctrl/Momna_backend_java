@@ -14,9 +14,6 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        default_schema: momna
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
 

@@ -9,7 +9,7 @@ import java.time.LocalDate;
 @Table(name = "checkin_adjustment_signals", schema = "momna")
 public class CheckinAdjustmentSignalEntity {
     @Id
-    @Column(name = "signal_id", length = 64)
+    @Column(name = "signal_id", length = 64, columnDefinition = "char(64)")
     private String signalId;
 
     @Column(name = "user_id", nullable = false)

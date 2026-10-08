@@ -34,14 +34,14 @@ public class FoundationController {
 
     @GetMapping("/health/live")
     public Map<String, Object> live() {
-        return Map.of("status", "UP");
+        return Map.of("status", "LIVE");
     }
 
     @GetMapping("/health/ready")
     public ResponseEntity<Map<String, Object>> ready() {
         var report = readiness.report();
         var body = new LinkedHashMap<String, Object>();
-        body.put("status", report.ready() ? "UP" : "DOWN");
+        body.put("status", report.ready() ? "READY" : "NOT_READY");
         body.put(
             "checks",
             report.checks().stream().map(check -> Map.of(

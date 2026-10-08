@@ -1,0 +1,22 @@
+{
+  "info": {
+    "_postman_id": "6b56c54d-3185-4d68-b3b4-17bf5d540001",
+    "name": "Momna Core Foundation + Public API Runtime",
+    "description": "Smoke, E2E and regression checks for the foundation plus deterministic CORE-API-01 public contract behavior.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{"key":"baseUrl","value":"http://127.0.0.1:8080"}],
+  "item": [
+    {"name":"Smoke","item":[
+      {"name":"Service identity","request":{"method":"GET","header":[],"url":"{{baseUrl}}/"},"event":[{"listen":"test","script":{"exec":["pm.test('status 200', function () { pm.response.to.have.status(200); });","pm.test('stable identity', function () { pm.expect(pm.response.text()).to.eql('Momna Backend'); });"]}}]},
+      {"name":"Health","request":{"method":"GET","header":[],"url":"{{baseUrl}}/health"},"event":[{"listen":"test","script":{"exec":["pm.test('status 200', function () { pm.response.to.have.status(200); });","pm.test('health body', function () { pm.expect(pm.response.text()).to.eql('OK'); });"]}}]},
+      {"name":"Liveness","request":{"method":"GET","header":[],"url":"{{baseUrl}}/health/live"},"event":[{"listen":"test","script":{"exec":["pm.test('status 200', function () { pm.response.to.have.status(200); });","pm.test('live schema', function () { pm.expect(pm.response.json()).to.eql({status:'LIVE'}); });"]}}]},
+      {"name":"Readiness","request":{"method":"GET","header":[],"url":"{{baseUrl}}/health/ready"},"event":[{"listen":"test","script":{"exec":["pm.test('status 200', function () { pm.response.to.have.status(200); });","pm.test('ready schema', function () { var b=pm.response.json(); pm.expect(b.status).to.eql('READY'); pm.expect(b.checks).to.be.an('array'); });","pm.test('no sensitive readiness fields', function () { var t=pm.response.text().toLowerCase(); ['password','secret','connection','jdbc:','postgresql://'].forEach(function(x){pm.expect(t).not.to.include(x);}); });"]}}]},
+      {"name":"Version","request":{"method":"GET","header":[],"url":"{{baseUrl}}/version"},"event":[{"listen":"test","script":{"exec":["pm.test('status 200', function () { pm.response.to.have.status(200); });","pm.test('version body', function () { pm.expect(pm.response.text()).to.eql('0.6.0'); });"]}}]}
+    ]},
+    {"name":"CORE-API-01 contract","item":[
+      {"name":"Protected Core route rejects missing bearer with standard envelope","request":{"method":"GET","header":[{"key":"X-Request-Id","value":"postman-core-api-1"}],"url":"{{baseUrl}}/api/v1/me/profile"},"event":[{"listen":"test","script":{"exec":["pm.test('status 401', function () { pm.response.to.have.status(401); });","pm.test('error envelope', function () { var b=pm.response.json(); pm.expect(b.code).to.eql('AUTH_REQUIRED'); pm.expect(b.message).to.be.a('string'); pm.expect(b.requestId).to.eql('postman-core-api-1'); });","pm.test('no internal leak', function () { var t=pm.response.text(); ['accessHash','refreshHash','providerSubject','sourceRef'].forEach(function(x){pm.expect(t).not.to.include(x);}); });"]}}]}
+    ]},
+    {"name":"Regression","item":[{"name":"Unknown route stays 404","request":{"method":"GET","header":[],"url":"{{baseUrl}}/__contract_regression_missing__"},"event":[{"listen":"test","script":{"exec":["pm.test('status 404', function () { pm.response.to.have.status(404); });"]}}]}]}
+  ]
+}

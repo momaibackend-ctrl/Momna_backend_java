@@ -1,0 +1,84 @@
+{
+  "contract": "CONTENT_API_CONTRACT_GATE",
+  "contractVersion": "content.v1",
+  "exposure": "INTERNAL_ONLY",
+  "httpRoutes": [],
+  "owner": "modules.content",
+  "contentObject": {
+    "identity": ["contentId", "contentKey", "contentType"],
+    "types": ["TEXT", "SLIDES", "AUDIO"],
+    "status": ["DRAFT", "PUBLISHED", "UNPUBLISHED", "ARCHIVED"],
+    "logicalIdentitySeparatedFromVersions": true
+  },
+  "contentVersion": {
+    "fields": ["contentId", "version", "schemaVersion", "contentType", "status", "sourceType", "sourceReference", "variants", "createdAt", "publishedAt", "rowVersion"],
+    "publishedVersionsImmutable": true,
+    "optimisticConcurrency": "expectedRowVersion",
+    "history": "APPEND_PRESERVING",
+    "effectiveResolution": "explicit effectiveAt; highest effective published version unless pinnedVersion is supplied"
+  },
+  "variant": {
+    "fields": ["id", "locale", "countryRegions", "audienceKey", "privacyScope", "payload", "validFrom", "validUntil", "safetySignalKeys", "aiProvenance"],
+    "selection": "validity + audience + shared locale fallback + country specificity; equal specificity conflicts fail AMBIGUOUS_VARIANT"
+  },
+  "payloadSchemas": {
+    "TEXT": {"shape": "ordered TextBlock[]", "required": ["id", "kind", "text"]},
+    "SLIDES": {"shape": "ordered ContentSlide[]", "required": ["id", "blocks"], "stableItemIds": true},
+    "AUDIO": {"shape": "private object-storage reference + technical metadata", "required": ["bucket", "objectKey", "contentTypeValue", "durationMillis"], "postgresBinaryBytes": "FORBIDDEN"}
+  },
+  "operations": [
+    {"name": "createDraft", "request": "CreateContentDraftRequest", "response": "ContentWriteResult", "async": true, "idempotent": true},
+    {"name": "getContent", "request": "GetContentRequest", "response": "ContentObject", "async": true, "idempotent": true},
+    {"name": "getVersion", "request": "GetContentVersionRequest", "response": "ContentVersion", "async": true, "idempotent": true},
+    {"name": "listVersions", "request": "ListContentVersionsRequest", "response": "List<ContentVersion>", "async": true, "idempotent": true},
+    {"name": "resolveContent", "request": "ResolveContentRequest", "response": "ResolvedContent", "async": true, "idempotent": true},
+    {"name": "publishVersion", "request": "PublishContentVersionRequest", "response": "ContentWriteResult", "async": true, "idempotent": true},
+    {"name": "unpublishVersion", "request": "UnpublishContentVersionRequest", "response": "ContentWriteResult", "async": true, "idempotent": true}
+  ],
+  "errors": ["CONTENT_NOT_FOUND", "VERSION_NOT_FOUND", "VARIANT_NOT_FOUND", "CONTENT_UNAVAILABLE", "AMBIGUOUS_VARIANT", "INVALID_CONTENT", "UNSUPPORTED_CONTENT_TYPE", "FORBIDDEN", "CONSENT_REQUIRED", "VERSION_CONFLICT", "VALIDATION_ERROR"],
+  "localizationCountryTime": {
+    "localeResolver": "platform.localization.LocaleResolver",
+    "countryPolicy": "platform.localization.CountryPolicyRegistry",
+    "timeService": "platform.localization.TimeService",
+    "fallbackOwnership": "CORE-BE-14 shared localization policy only",
+    "featureLocalQuestionRuEnColumns": "FORBIDDEN",
+    "localeAndCountryIndependent": true,
+    "effectiveTimeRequired": true
+  },
+  "privacySafetyAi": {
+    "privacy": "core.privacy.PrivacyPolicyService before protected resolution/cache use",
+    "safety": "platform.safety.SafetyContract; deterministic BLOCK prevents delivery",
+    "ai": "AI-generated content provenance must reference platform.ai AI Gateway request/context/prompt/model policy versions; direct provider calls are FORBIDDEN",
+    "rawProviderSdkObjects": "FORBIDDEN"
+  },
+  "cache": {
+    "owner": "platform.cache.ExpiringCacheContract",
+    "namespace": "content-resolution",
+    "ttl": "bounded, default 10m",
+    "sourceOfTruth": false,
+    "keyDimensions": ["contentId", "contentKey", "contentVersion", "schemaVersion", "resolvedLocale", "localePolicyVersion", "countryRegion", "countryPolicyVersion", "audienceKey", "subjectIsolation", "effectiveAt", "timezone"],
+    "invalidation": "publish/unpublish invalidates namespace; version dimensions also version-bust stale entries"
+  },
+  "storage": {
+    "structuredMetadata": "PostgreSQL through provider-neutral database boundary",
+    "audioBinary": "platform.storage private object storage",
+    "publicBucketForAudio": "FORBIDDEN",
+    "providerSdkLeak": "FORBIDDEN"
+  },
+  "authoring": {
+    "owner": "Content Platform",
+    "publishedMutation": "FORBIDDEN; create a new version",
+    "idempotency": "content_operations persisted key",
+    "concurrency": "rowVersion optimistic conflict"
+  },
+  "observability": {
+    "allow": ["contentId", "contentKey", "version", "schemaVersion", "locale/country policy identifiers", "cache hit/miss", "publish state", "technical error code", "traceId"],
+    "redact": ["full content bodies", "sensitive user context", "signed URLs", "credentials", "raw prompts", "provider responses", "private payloads"]
+  },
+  "consumers": {
+    "reads": "feature/application consumers through ContentPlatformContract",
+    "writes": "Content Platform authoring boundary only",
+    "directRedisS3ProviderAccess": "FORBIDDEN"
+  },
+  "requiredGateTests": ["text", "slides", "audio", "version-immutability", "publish-idempotency", "optimistic-conflict", "locale-fallback", "locale-not-equal-country", "country-targeting", "effective-time", "ambiguous-variant", "cache-isolation", "cache-invalidation", "audio-object-reference", "privacy-before-cache", "safety-before-cache", "ai-provenance", "architecture-bypass"]
+}

@@ -1,0 +1,65 @@
+{
+  "contract": "NOTIFICATION_CONTENT_API_CONTRACT_GATE",
+  "contractVersion": "notifications.v1",
+  "contentIntegrationVersion": "notification-content.v1",
+  "exposure": "INTERNAL_ONLY",
+  "httpRoutes": [],
+  "owner": "platform.notifications",
+  "types": ["NotificationIntent", "NotificationSchedule", "NotificationPreference", "QuietHoursPolicy", "DeliveryAttempt", "DeliveryResult"],
+  "operations": ["createSchedule", "updateSchedule", "cancelSchedule", "upsertPreference", "resolveNextDelivery", "enqueueDueNotifications", "recordDeliveryResult", "inspectTechnicalState"],
+  "errors": ["NOTIFICATION_NOT_FOUND", "INVALID_SCHEDULE", "INVALID_TIMEZONE", "PREFERENCE_DISABLED", "QUIET_HOURS_DEFERRED", "CONTENT_UNAVAILABLE", "FORBIDDEN", "CONSENT_REQUIRED", "CHANNEL_UNAVAILABLE", "DUPLICATE", "VERSION_CONFLICT", "RETRY_EXHAUSTED", "VALIDATION_ERROR"],
+  "time": {
+    "owner": "CORE-BE-14 TimeService",
+    "timezone": "IANA ZoneId only; fixed numeric UTC offsets are rejected",
+    "storage": "local schedule metadata plus derived UTC next_delivery_at",
+    "dst": {"ambiguous": ["REJECT", "EARLIER_OFFSET", "LATER_OFFSET"], "nonexistent": ["REJECT", "SHIFT_FORWARD"]},
+    "travel": "FOLLOW_PROFILE schedules recompute future occurrences from current canonical profile timezone; PINNED schedules retain explicit zone",
+    "history": "executed DeliveryAttempt scheduled_at/content evidence is immutable historical evidence"
+  },
+  "preferencesQuietHours": {
+    "key": ["userId", "channel", "category", "purpose"],
+    "sendTimeRecheck": true,
+    "crossMidnight": true,
+    "normalBehavior": "defer to next quiet-hours end",
+    "criticalBypass": "only CRITICAL intent with registered safety signals and CORE-BE-12 deterministic CRITICAL non-blocking decision"
+  },
+  "content": {
+    "owner": "CORE-BE-15 ContentPlatformContract",
+    "dependencyInversion": "platform.notifications owns NotificationContentResolver; modules.content owns ContentPlatformNotificationResolver adapter",
+    "reference": ["contentKey", "pinnedContentVersion"],
+    "resolutionDimensions": ["locale", "countryRegion", "timezone", "effectiveAt", "purpose", "userId"],
+    "retainedEvidence": ["contentId", "contentKey", "contentVersion", "schemaVersion", "resolvedLocale", "localePolicyVersion", "countryPolicyVersion"],
+    "userFacingCopyInNotificationSources": "FORBIDDEN",
+    "providerLocalization": "FORBIDDEN"
+  },
+  "privacySafety": {
+    "privacy": "CORE-BE-11 PrivacyConsentContract is rechecked before content materialization/enqueue and each retry",
+    "safety": "CORE-BE-12 SafetyContract exclusively authorizes critical quiet-hours bypass",
+    "directAiProviderCalls": "FORBIDDEN"
+  },
+  "durabilityRetries": {
+    "sourceOfTruth": "PostgreSQL V12 notification tables",
+    "queue": "CORE-BE-04 DurableJobsContract JobType.NOTIFICATION",
+    "idempotency": "notification_operations plus unique schedule_id/scheduled_at/attempt_number",
+    "retry": "bounded maxAttempts + exponential backoff + retry policy version",
+    "terminal": ["DELIVERED", "FAILED", "DEAD_LETTER"],
+    "infiniteRetry": "FORBIDDEN"
+  },
+  "providers": {
+    "channels": ["PUSH", "EMAIL", "IN_APP"],
+    "boundary": "NotificationChannelAdapter",
+    "sdkTypesInContract": "FORBIDDEN",
+    "rawCredentials": "FORBIDDEN"
+  },
+  "observability": {
+    "allow": ["scheduleId", "attemptId", "channel", "category", "purpose", "timezone", "policy versions", "nextDeliveryAt", "decision code", "content identity/version", "attempt number", "retry/dead-letter state", "provider-neutral code", "traceId"],
+    "redact": ["destination", "message body", "raw sensitive context", "credentials", "signed URLs", "provider payloads"]
+  },
+  "consumerOwnership": {
+    "featureSchedulers": "FORBIDDEN",
+    "featureQuietHoursCalculators": "FORBIDDEN",
+    "featureRetryLoops": "FORBIDDEN",
+    "sharedBoundaries": ["TimeService", "ContentPlatformContract via adapter", "PrivacyConsentContract", "SafetyContract", "DurableJobsContract"]
+  },
+  "requiredGateTests": ["timezone-aware-local-scheduling", "dst-ambiguous-policy", "dst-nonexistent-policy", "timezone-travel", "daily-recurrence", "cross-midnight-quiet-hours", "preference-disable-send-time", "consent-withdrawal", "content-version-evidence", "idempotent-delivery", "retry-backoff", "retry-exhaustion-dead-letter", "channel-unavailable", "version-conflict", "critical-safety-ordering", "no-hardcoded-copy", "architecture-dependency-inversion"]
+}

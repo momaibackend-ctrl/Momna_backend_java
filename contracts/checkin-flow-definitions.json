@@ -1,0 +1,24 @@
+{
+  "contract": "checkin-flow-definitions",
+  "schemaVersion": 1,
+  "exposure": "INTERNAL_ONLY",
+  "sourceOfTruth": {
+    "qiraEpic": "MOMNA-E28",
+    "attachment": "Momna Checkin Weighted Model Files.zip",
+    "entry": "daily_checkin_weighted_model_v3.json",
+    "sourceSchemaVersion": "3.0",
+    "poolVersion": "weighted-v3"
+  },
+  "coreDefinitionMechanism": "CORE-BE-09",
+  "sessionLifecycleOwner": "CHECKIN",
+  "sessionStatuses": ["DRAFT", "PARTIAL", "SUBMITTED", "AUTO_FINALIZED"],
+  "definitionKeyPattern": "daily-checkin.<period>.<phase>",
+  "definitionVersion": 3,
+  "answerValues": [0, 1, 2],
+  "unansweredRepresentation": "ABSENT",
+  "nonScoringItemCodes": ["T2", "T3"],
+  "periods": ["MENARCHE", "CYCLE", "PLANNING", "PREGNANCY", "POSTPARTUM", "PERIMENOPAUSE", "MENOPAUSE"],
+  "phases": ["MORNING", "EVENING"],
+  "consumerBoundary": "com.momna.modules.checkin.contract.CheckinFlowDefinitionContract",
+  "forbiddenConsumerDependencies": ["FlowDefinitionRepository", "FlowDefinition", "database entities", "Postgres types"]
+}

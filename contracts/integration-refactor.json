@@ -1,0 +1,1450 @@
+{
+  "schemaVersion": 1,
+  "contractId": "momna.integration-refactor",
+  "contractVersion": "integration.v1",
+  "exposure": "INTERNAL_ONLY",
+  "sourceTask": "CORE-BE-20/MOMNA-856",
+  "decisions": [
+    "KEEP",
+    "REFRAME",
+    "MERGE",
+    "BLOCK"
+  ],
+  "requiredMappingFields": [
+    "oldSource",
+    "coreContract",
+    "coreOperation",
+    "requestMapping",
+    "responseMapping",
+    "errorMapping",
+    "eventMapping",
+    "ownership"
+  ],
+  "migrationStages": [
+    "INVENTORIED",
+    "CONTRACT_MAPPED",
+    "DUAL_READ_IF_DATA_EXISTS",
+    "BACKFILL_IF_NEEDED",
+    "PARITY_VERIFIED",
+    "CUTOVER",
+    "LEGACY_REMOVED_AFTER_PARITY",
+    "CORE_NATIVE"
+  ],
+  "ownershipRules": {
+    "oneWritableOwnerPerFact": true,
+    "coreProvidesSharedMechanismsOnly": true,
+    "domainLogicNeverMovedForConvenience": true,
+    "legacyRemovalRequiresStageParity": true
+  },
+  "compatibility": {
+    "publicClientApiPreserved": true,
+    "versionedMigrationRequiredForBreakingChange": true,
+    "hiddenCompatibilityHacksAllowed": false
+  },
+  "forbiddenBypasses": [
+    "DIRECT_FOREIGN_TABLE_ACCESS",
+    "DIRECT_SUPABASE_OR_PROVIDER_SDK_IN_FEATURE",
+    "FEATURE_LOCAL_CONTEXT_ENGINE",
+    "FEATURE_LOCAL_SAFETY_ENGINE",
+    "FEATURE_LOCAL_FLOW_ENGINE",
+    "DIRECT_AI_PROVIDER_SDK",
+    "DURABLE_USER_STATE_ONLY_IN_REDIS",
+    "SECOND_WRITABLE_PROFILE_OR_LIFECYCLE",
+    "UNSCOPED_COUPLE_CONTEXT",
+    "UNCONFIRMED_AI_OUTPUT_AS_MEDICAL_FACT"
+  ],
+  "resolvedContractGaps": [
+    {
+      "consumers": [
+        "ONBOARDING",
+        "CHECKIN",
+        "COUPLE"
+      ],
+      "gap": "Published FlowEngineContract exposed only start/resume although canonical engine already implements the complete flow lifecycle",
+      "resolution": "Publish UniversalFlowConsumerContract in core.flows.contract and map through CanonicalFlowConsumerAdapter",
+      "owner": "core.flows"
+    },
+    {
+      "consumers": [
+        "MYDAY",
+        "MEDICAL",
+        "COUPLE",
+        "MYWORLD",
+        "SCANNER",
+        "AGENT"
+      ],
+      "gap": "Feature modules cannot invoke AiGateway directly under the existing Safety Platform architecture gate",
+      "resolution": "Publish SafetyGuardedAiContract; evaluate canonical Safety first and invoke canonical AiGateway only after ALLOW while AiGateway retains Privacy/Consent authorization",
+      "owner": "platform.safety"
+    }
+  ],
+  "unresolvedContractGaps": [],
+  "consumers": [
+    {
+      "consumer": "ONBOARDING",
+      "moduleId": "modules.onboarding",
+      "qiraKeys": [
+        "MOMNA-326",
+        "MOMNA-327",
+        "MOMNA-990",
+        "MOMNA-991",
+        "MOMNA-1024"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Onboarding flow and answer collection",
+      "canonicalDependencies": [
+        "core.lifecycle",
+        "core.fields",
+        "core.flows",
+        "core.context"
+      ],
+      "publicClientContract": "existing router and seven onboarding client schemas stay stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "dual-read existing flow instances; transition-scoped prefill; parity; cutover",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "feature-local router/deep-onboarding orchestration and answer handoff",
+          "coreContract": "core.lifecycle",
+          "coreOperation": "getCurrentLifecycle/proposeTransition/confirmTransition",
+          "requestMapping": "onboarding typed request -> core.lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.lifecycle typed response -> onboarding domain input; Core never owns Onboarding flow and answer collection",
+          "errorMapping": [
+            "LIFECYCLE_NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION_CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Onboarding flow and answer collection",
+          "order": 1
+        },
+        {
+          "oldSource": "feature-local router/deep-onboarding orchestration and answer handoff",
+          "coreContract": "core.fields",
+          "coreOperation": "validateValue/recordValue/resolveRelevantValue",
+          "requestMapping": "onboarding typed request -> core.fields typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.fields typed response -> onboarding domain input; Core never owns Onboarding flow and answer collection",
+          "errorMapping": [
+            "FIELD_NOT_FOUND",
+            "INVALID_VALUE",
+            "AMBIGUOUS_OR_STALE",
+            "WRITER_NOT_ALLOWED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Onboarding flow and answer collection",
+          "order": 2
+        },
+        {
+          "oldSource": "feature-local router/deep-onboarding orchestration and answer handoff",
+          "coreContract": "core.flows",
+          "coreOperation": "start/resume/next/submit/change/skip/back/complete/result/prefill",
+          "requestMapping": "onboarding typed request -> core.flows typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.flows typed response -> onboarding domain input; Core never owns Onboarding flow and answer collection",
+          "errorMapping": [
+            "NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION",
+            "VALIDATION",
+            "CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Onboarding flow and answer collection",
+          "order": 3
+        },
+        {
+          "oldSource": "feature-local router/deep-onboarding orchestration and answer handoff",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "onboarding typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> onboarding domain input; Core never owns Onboarding flow and answer collection",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Onboarding flow and answer collection",
+          "order": 4
+        }
+      ]
+    },
+    {
+      "consumer": "CHECKIN",
+      "moduleId": "modules.checkin",
+      "qiraKeys": [
+        "MOMNA-651",
+        "MOMNA-652",
+        "MOMNA-653",
+        "MOMNA-654",
+        "MOMNA-667",
+        "MOMNA-668",
+        "MOMNA-669",
+        "MOMNA-670",
+        "MOMNA-671",
+        "MOMNA-1025"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Check-in sessions, answers, weighted scoring and day signals",
+      "canonicalDependencies": [
+        "core.flows",
+        "core.context",
+        "platform.safety",
+        "core.timeline"
+      ],
+      "publicClientContract": "existing session/scoring UI contract stays stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain answers/scoring tables; route orchestration through Core Flow/Context/Safety; parity",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "feature-local session flow, context builder and safety gates",
+          "coreContract": "core.flows",
+          "coreOperation": "start/resume/next/submit/change/skip/back/complete/result/prefill",
+          "requestMapping": "checkin typed request -> core.flows typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.flows typed response -> checkin domain input; Core never owns Check-in sessions, answers, weighted scoring and day signals",
+          "errorMapping": [
+            "NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION",
+            "VALIDATION",
+            "CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Check-in sessions, answers, weighted scoring and day signals",
+          "order": 1
+        },
+        {
+          "oldSource": "feature-local session flow, context builder and safety gates",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "checkin typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> checkin domain input; Core never owns Check-in sessions, answers, weighted scoring and day signals",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Check-in sessions, answers, weighted scoring and day signals",
+          "order": 2
+        },
+        {
+          "oldSource": "feature-local session flow, context builder and safety gates",
+          "coreContract": "platform.safety",
+          "coreOperation": "evaluate",
+          "requestMapping": "checkin typed request -> platform.safety typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.safety typed response -> checkin domain input; Core never owns Check-in sessions, answers, weighted scoring and day signals",
+          "errorMapping": [
+            "ALLOW",
+            "REDIRECT",
+            "BLOCK"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Check-in sessions, answers, weighted scoring and day signals",
+          "order": 3
+        },
+        {
+          "oldSource": "feature-local session flow, context builder and safety gates",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "checkin typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> checkin domain input; Core never owns Check-in sessions, answers, weighted scoring and day signals",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "checkin owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Check-in sessions, answers, weighted scoring and day signals",
+          "order": 4
+        }
+      ]
+    },
+    {
+      "consumer": "CALENDAR",
+      "moduleId": "modules.calendar",
+      "qiraKeys": [
+        "MOMNA-1006",
+        "MOMNA-1009",
+        "MOMNA-1014",
+        "MOMNA-1035",
+        "MOMNA-1036",
+        "MOMNA-1037",
+        "MOMNA-1039",
+        "MOMNA-1040",
+        "MOMNA-1042",
+        "MOMNA-1043",
+        "MOMNA-1044"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Cycle facts, predictions, pregnancy dating and fertility observations",
+      "canonicalDependencies": [
+        "core.lifecycle",
+        "core.fields",
+        "core.context",
+        "modules.content",
+        "platform.notifications",
+        "platform.localization",
+        "core.timeline"
+      ],
+      "publicClientContract": "Calendar ready-object and write APIs stay stable/versioned",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain Calendar-owned facts/predictions; backfill event provenance if needed; parity",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "core.lifecycle",
+          "coreOperation": "getCurrentLifecycle/proposeTransition/confirmTransition",
+          "requestMapping": "calendar typed request -> core.lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.lifecycle typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "LIFECYCLE_NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION_CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 1
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "core.fields",
+          "coreOperation": "validateValue/recordValue/resolveRelevantValue",
+          "requestMapping": "calendar typed request -> core.fields typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.fields typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "FIELD_NOT_FOUND",
+            "INVALID_VALUE",
+            "AMBIGUOUS_OR_STALE",
+            "WRITER_NOT_ALLOWED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 2
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "calendar typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 3
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "modules.content",
+          "coreOperation": "resolveContent",
+          "requestMapping": "calendar typed request -> modules.content typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "modules.content typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "CONTENT_NOT_FOUND",
+            "VERSION_NOT_FOUND",
+            "VARIANT_NOT_FOUND",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 4
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "platform.notifications",
+          "coreOperation": "createSchedule/updateSchedule/cancelSchedule",
+          "requestMapping": "calendar typed request -> platform.notifications typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.notifications typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "INVALID_SCHEDULE",
+            "PREFERENCE_DISABLED",
+            "QUIET_HOURS_DEFERRED",
+            "VERSION_CONFLICT"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 5
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "platform.localization",
+          "coreOperation": "resolve/getLocalDate/resolveEffectiveLocalDay",
+          "requestMapping": "calendar typed request -> platform.localization typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.localization typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "INVALID_TIMEZONE",
+            "AMBIGUOUS_LOCAL_TIME",
+            "NONEXISTENT_LOCAL_TIME"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 6
+        },
+        {
+          "oldSource": "feature resolvers, direct context assembly and period-specific scheduling",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "calendar typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> calendar domain input; Core never owns Cycle facts, predictions, pregnancy dating and fertility observations",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "calendar owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Cycle facts, predictions, pregnancy dating and fertility observations",
+          "order": 7
+        }
+      ]
+    },
+    {
+      "consumer": "MYDAY",
+      "moduleId": "modules.myday",
+      "qiraKeys": [
+        "MOMNA-106",
+        "MOMNA-320",
+        "MOMNA-989",
+        "MOMNA-1027"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Durable user/local-day artifact and card progress",
+      "canonicalDependencies": [
+        "core.context",
+        "core.privacy",
+        "platform.safety",
+        "platform.safety-ai",
+        "platform.localization",
+        "platform.cache",
+        "core.timeline"
+      ],
+      "publicClientContract": "My Day ready-object and progress API stay stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain durable artifacts; rebuild caches; pin ContextSnapshot; parity",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "myday typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 1
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "myday typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 2
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "platform.safety",
+          "coreOperation": "evaluate",
+          "requestMapping": "myday typed request -> platform.safety typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.safety typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "ALLOW",
+            "REDIRECT",
+            "BLOCK"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 3
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "myday typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 4
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "platform.localization",
+          "coreOperation": "resolve/getLocalDate/resolveEffectiveLocalDay",
+          "requestMapping": "myday typed request -> platform.localization typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.localization typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "INVALID_TIMEZONE",
+            "AMBIGUOUS_LOCAL_TIME",
+            "NONEXISTENT_LOCAL_TIME"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 5
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "platform.cache",
+          "coreOperation": "get/put/invalidate with versioned key",
+          "requestMapping": "myday typed request -> platform.cache typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.cache typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "TIMEOUT",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 6
+        },
+        {
+          "oldSource": "LLM/context/cache orchestration around a daily ready-object",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "myday typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> myday domain input; Core never owns Durable user/local-day artifact and card progress",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "myday owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Durable user/local-day artifact and card progress",
+          "order": 7
+        }
+      ]
+    },
+    {
+      "consumer": "DIARY",
+      "moduleId": "modules.diary",
+      "qiraKeys": [
+        "MOMNA-537",
+        "MOMNA-541",
+        "MOMNA-542",
+        "MOMNA-543",
+        "MOMNA-544",
+        "MOMNA-545",
+        "MOMNA-553",
+        "MOMNA-1026"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Raw personal diary entries and assets",
+      "canonicalDependencies": [
+        "platform.storage",
+        "core.privacy",
+        "core.lifecycle",
+        "core.timeline",
+        "core.data-lifecycle"
+      ],
+      "publicClientContract": "Diary CRUD/export UI contract stays stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain raw owner tables; migrate assets to private storage refs; safe-event backfill",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "feature persistence/assets plus direct downstream consumption risk",
+          "coreContract": "platform.storage",
+          "coreOperation": "put/getMetadata/signedGetUrl/delete",
+          "requestMapping": "diary typed request -> platform.storage typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.storage typed response -> diary domain input; Core never owns Raw personal diary entries and assets",
+          "errorMapping": [
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Raw personal diary entries and assets",
+          "order": 1
+        },
+        {
+          "oldSource": "feature persistence/assets plus direct downstream consumption risk",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "diary typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> diary domain input; Core never owns Raw personal diary entries and assets",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Raw personal diary entries and assets",
+          "order": 2
+        },
+        {
+          "oldSource": "feature persistence/assets plus direct downstream consumption risk",
+          "coreContract": "core.lifecycle",
+          "coreOperation": "getCurrentLifecycle/proposeTransition/confirmTransition",
+          "requestMapping": "diary typed request -> core.lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.lifecycle typed response -> diary domain input; Core never owns Raw personal diary entries and assets",
+          "errorMapping": [
+            "LIFECYCLE_NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION_CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Raw personal diary entries and assets",
+          "order": 3
+        },
+        {
+          "oldSource": "feature persistence/assets plus direct downstream consumption risk",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "diary typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> diary domain input; Core never owns Raw personal diary entries and assets",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "diary owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Raw personal diary entries and assets",
+          "order": 4
+        },
+        {
+          "oldSource": "feature persistence/assets plus direct downstream consumption risk",
+          "coreContract": "core.data-lifecycle",
+          "coreOperation": "requestArchive/requestExport/planDeletion/executeDeletion",
+          "requestMapping": "diary typed request -> core.data-lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.data-lifecycle typed response -> diary domain input; Core never owns Raw personal diary entries and assets",
+          "errorMapping": [
+            "NOT_FOUND",
+            "VERSION_CONFLICT",
+            "FORBIDDEN",
+            "VALIDATION_ERROR"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Raw personal diary entries and assets",
+          "order": 5
+        }
+      ]
+    },
+    {
+      "consumer": "MEDICAL",
+      "moduleId": "modules.medical",
+      "qiraKeys": [
+        "MOMNA-538",
+        "MOMNA-539",
+        "MOMNA-546",
+        "MOMNA-547",
+        "MOMNA-548",
+        "MOMNA-549",
+        "MOMNA-550",
+        "MOMNA-554",
+        "MOMNA-1026"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "User-confirmed structured medical facts and suggestion lifecycle",
+      "canonicalDependencies": [
+        "core.privacy",
+        "platform.safety",
+        "platform.safety-ai",
+        "platform.storage",
+        "core.timeline",
+        "core.data-lifecycle"
+      ],
+      "publicClientContract": "suggestion confirm/edit/dismiss and doctor export stay stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain confirmed facts; backfill suggestion state/provenance; never auto-confirm",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "medical typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 1
+        },
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "platform.safety",
+          "coreOperation": "evaluate",
+          "requestMapping": "medical typed request -> platform.safety typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.safety typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "ALLOW",
+            "REDIRECT",
+            "BLOCK"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 2
+        },
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "medical typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 3
+        },
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "platform.storage",
+          "coreOperation": "put/getMetadata/signedGetUrl/delete",
+          "requestMapping": "medical typed request -> platform.storage typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.storage typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 4
+        },
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "medical typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "medical owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 5
+        },
+        {
+          "oldSource": "detection/suggestion pipeline with risk of auto-promoting AI output",
+          "coreContract": "core.data-lifecycle",
+          "coreOperation": "requestArchive/requestExport/planDeletion/executeDeletion",
+          "requestMapping": "medical typed request -> core.data-lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.data-lifecycle typed response -> medical domain input; Core never owns User-confirmed structured medical facts and suggestion lifecycle",
+          "errorMapping": [
+            "NOT_FOUND",
+            "VERSION_CONFLICT",
+            "FORBIDDEN",
+            "VALIDATION_ERROR"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "User-confirmed structured medical facts and suggestion lifecycle",
+          "order": 6
+        }
+      ]
+    },
+    {
+      "consumer": "COUPLE",
+      "moduleId": "modules.couple",
+      "qiraKeys": [
+        "MOMNA-734",
+        "MOMNA-735",
+        "MOMNA-736",
+        "MOMNA-737",
+        "MOMNA-738",
+        "MOMNA-739",
+        "MOMNA-740",
+        "MOMNA-741",
+        "MOMNA-742",
+        "MOMNA-743",
+        "MOMNA-744",
+        "MOMNA-745",
+        "MOMNA-746",
+        "MOMNA-747",
+        "MOMNA-748",
+        "MOMNA-749",
+        "MOMNA-750",
+        "MOMNA-751",
+        "MOMNA-878",
+        "MOMNA-1028"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Relationship-space state and Couple/Buddy business rules",
+      "canonicalDependencies": [
+        "core.lifecycle",
+        "core.context",
+        "core.privacy",
+        "platform.safety-ai",
+        "platform.cache",
+        "platform.storage",
+        "core.timeline"
+      ],
+      "publicClientContract": "connection-scoped Buddy client contract and privacy labels stay stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain connection state; scope all context by relationship; Redis is rebuildable only",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "core.lifecycle",
+          "coreOperation": "getCurrentLifecycle/proposeTransition/confirmTransition",
+          "requestMapping": "couple typed request -> core.lifecycle typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.lifecycle typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "LIFECYCLE_NOT_FOUND",
+            "INVALID_TRANSITION",
+            "STALE_VERSION_CONFLICT",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 1
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "couple typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 2
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "couple typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 3
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "couple typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 4
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "platform.cache",
+          "coreOperation": "get/put/invalidate with versioned key",
+          "requestMapping": "couple typed request -> platform.cache typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.cache typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "TIMEOUT",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 5
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "platform.storage",
+          "coreOperation": "put/getMetadata/signedGetUrl/delete",
+          "requestMapping": "couple typed request -> platform.storage typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.storage typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 6
+        },
+        {
+          "oldSource": "connection logic plus semantic/private context and relationship memory",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "couple typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> couple domain input; Core never owns Relationship-space state and Couple/Buddy business rules",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "couple owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Relationship-space state and Couple/Buddy business rules",
+          "order": 7
+        }
+      ]
+    },
+    {
+      "consumer": "MYWORLD",
+      "moduleId": "modules.myworld",
+      "qiraKeys": [
+        "MOMNA-803",
+        "MOMNA-805",
+        "MOMNA-806",
+        "MOMNA-807",
+        "MOMNA-808",
+        "MOMNA-810",
+        "MOMNA-811",
+        "MOMNA-812",
+        "MOMNA-813",
+        "MOMNA-814",
+        "MOMNA-835",
+        "MOMNA-836",
+        "MOMNA-860",
+        "MOMNA-882",
+        "MOMNA-1034"
+      ],
+      "decision": "KEEP",
+      "domainLogicOwner": "Interests, branches, progress, scoring and state machine",
+      "canonicalDependencies": [
+        "core.context",
+        "core.privacy",
+        "platform.safety-ai",
+        "platform.jobs",
+        "platform.cache",
+        "core.timeline"
+      ],
+      "publicClientContract": "branch/progress APIs and state labels stay stable",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "retain branches/progress; rebuild cache/memory projections from durable state",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "myworld typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 1
+        },
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "myworld typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 2
+        },
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "myworld typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 3
+        },
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "platform.jobs",
+          "coreOperation": "enqueue/claim/complete/fail",
+          "requestMapping": "myworld typed request -> platform.jobs typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.jobs typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "DUPLICATE_IDEMPOTENCY_KEY",
+            "RETRYABLE",
+            "DEAD_LETTER"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 4
+        },
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "platform.cache",
+          "coreOperation": "get/put/invalidate with versioned key",
+          "requestMapping": "myworld typed request -> platform.cache typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.cache typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "TIMEOUT",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 5
+        },
+        {
+          "oldSource": "interest signals, branch state machine, generation and continuity memory",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "myworld typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> myworld domain input; Core never owns Interests, branches, progress, scoring and state machine",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "myworld owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Interests, branches, progress, scoring and state machine",
+          "order": 6
+        }
+      ]
+    },
+    {
+      "consumer": "CONTENT",
+      "moduleId": "modules.content",
+      "qiraKeys": [
+        "MOMNA-198",
+        "MOMNA-201",
+        "MOMNA-204",
+        "MOMNA-207",
+        "MOMNA-870",
+        "MOMNA-898",
+        "MOMNA-899",
+        "MOMNA-900",
+        "MOMNA-1030"
+      ],
+      "decision": "MERGE",
+      "domainLogicOwner": "Deep Focus selection rules and ContentObject organization",
+      "canonicalDependencies": [
+        "core.context",
+        "platform.localization",
+        "platform.cache"
+      ],
+      "publicClientContract": "ContentObject representations replace period backends behind stable client DTOs",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "import legacy materials into versioned ContentObject; verify locale/version parity",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "DUAL_READ_IF_DATA_EXISTS",
+        "BACKFILL_IF_NEEDED",
+        "PARITY_VERIFIED",
+        "CUTOVER",
+        "LEGACY_REMOVED_AFTER_PARITY"
+      ],
+      "mappings": [
+        {
+          "oldSource": "period-specific article APIs and archive/runtime content paths",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "content typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> content domain input; Core never owns Deep Focus selection rules and ContentObject organization",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Deep Focus selection rules and ContentObject organization",
+          "order": 1
+        },
+        {
+          "oldSource": "period-specific article APIs and archive/runtime content paths",
+          "coreContract": "platform.localization",
+          "coreOperation": "resolve/getLocalDate/resolveEffectiveLocalDay",
+          "requestMapping": "content typed request -> platform.localization typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.localization typed response -> content domain input; Core never owns Deep Focus selection rules and ContentObject organization",
+          "errorMapping": [
+            "INVALID_TIMEZONE",
+            "AMBIGUOUS_LOCAL_TIME",
+            "NONEXISTENT_LOCAL_TIME"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Deep Focus selection rules and ContentObject organization",
+          "order": 2
+        },
+        {
+          "oldSource": "period-specific article APIs and archive/runtime content paths",
+          "coreContract": "platform.cache",
+          "coreOperation": "get/put/invalidate with versioned key",
+          "requestMapping": "content typed request -> platform.cache typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.cache typed response -> content domain input; Core never owns Deep Focus selection rules and ContentObject organization",
+          "errorMapping": [
+            "TIMEOUT",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Deep Focus selection rules and ContentObject organization",
+          "order": 3
+        }
+      ]
+    },
+    {
+      "consumer": "SCANNER",
+      "moduleId": "modules.scanner",
+      "qiraKeys": [
+        "MOMNA-874",
+        "MOMNA-1033"
+      ],
+      "decision": "REFRAME",
+      "domainLogicOwner": "Assessment artifact and scanner domain decisions",
+      "canonicalDependencies": [
+        "core.context",
+        "core.privacy",
+        "platform.safety",
+        "platform.safety-ai",
+        "platform.storage",
+        "core.timeline"
+      ],
+      "publicClientContract": "first public contract must be Core-native",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "CORE_NATIVE; no legacy migration",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "CORE_NATIVE"
+      ],
+      "mappings": [
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "scanner typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 1
+        },
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "scanner typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 2
+        },
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "platform.safety",
+          "coreOperation": "evaluate",
+          "requestMapping": "scanner typed request -> platform.safety typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.safety typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "ALLOW",
+            "REDIRECT",
+            "BLOCK"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 3
+        },
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "scanner typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 4
+        },
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "platform.storage",
+          "coreOperation": "put/getMetadata/signedGetUrl/delete",
+          "requestMapping": "scanner typed request -> platform.storage typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.storage typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "PROVIDER_UNAVAILABLE"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 5
+        },
+        {
+          "oldSource": "not implemented; legacy path forbidden",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "scanner typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> scanner domain input; Core never owns Assessment artifact and scanner domain decisions",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "scanner owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Assessment artifact and scanner domain decisions",
+          "order": 6
+        }
+      ]
+    },
+    {
+      "consumer": "AGENT",
+      "moduleId": "modules.agent",
+      "qiraKeys": [
+        "MOMNA-862",
+        "MOMNA-866",
+        "MOMNA-870",
+        "MOMNA-874",
+        "MOMNA-878",
+        "MOMNA-882",
+        "MOMNA-886",
+        "MOMNA-890",
+        "MOMNA-1033"
+      ],
+      "decision": "REFRAME",
+      "domainLogicOwner": "Agent sessions, modes and orchestration",
+      "canonicalDependencies": [
+        "core.context",
+        "core.privacy",
+        "platform.safety",
+        "platform.safety-ai",
+        "core.timeline"
+      ],
+      "publicClientContract": "first public contract must be Core-native",
+      "compatibility": {
+        "publicApi": "PRESERVE_OR_VERSIONED_MIGRATION",
+        "hiddenCompatibilityHacks": false
+      },
+      "migrationPlan": "CORE_NATIVE; no legacy migration",
+      "migrationStages": [
+        "INVENTORIED",
+        "CONTRACT_MAPPED",
+        "CORE_NATIVE"
+      ],
+      "mappings": [
+        {
+          "oldSource": "not implemented; adapters and runtime must be Core-native",
+          "coreContract": "core.context",
+          "coreOperation": "validatePurposeAccess/createSnapshot/getSnapshot",
+          "requestMapping": "agent typed request -> core.context typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.context typed response -> agent domain input; Core never owns Agent sessions, modes and orchestration",
+          "errorMapping": [
+            "PURPOSE_NOT_FOUND",
+            "CONSENT_REQUIRED",
+            "CONTEXT_AMBIGUOUS_OR_STALE",
+            "FORBIDDEN"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Agent sessions, modes and orchestration",
+          "order": 1
+        },
+        {
+          "oldSource": "not implemented; adapters and runtime must be Core-native",
+          "coreContract": "core.privacy",
+          "coreOperation": "decide/enforce",
+          "requestMapping": "agent typed request -> core.privacy typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.privacy typed response -> agent domain input; Core never owns Agent sessions, modes and orchestration",
+          "errorMapping": [
+            "CONSENT_REQUIRED",
+            "SCOPE_NOT_ALLOWED",
+            "RAW_SENSITIVE_CROSS_BOUNDARY_DENIED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Agent sessions, modes and orchestration",
+          "order": 2
+        },
+        {
+          "oldSource": "not implemented; adapters and runtime must be Core-native",
+          "coreContract": "platform.safety",
+          "coreOperation": "evaluate",
+          "requestMapping": "agent typed request -> platform.safety typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "platform.safety typed response -> agent domain input; Core never owns Agent sessions, modes and orchestration",
+          "errorMapping": [
+            "ALLOW",
+            "REDIRECT",
+            "BLOCK"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Agent sessions, modes and orchestration",
+          "order": 3
+        },
+        {
+          "oldSource": "not implemented; adapters and runtime must be Core-native",
+          "coreContract": "platform.safety-ai",
+          "coreOperation": "evaluateAndExecute",
+          "requestMapping": "agent typed request -> platform.safety-ai typed request; purpose/version/trace/idempotency are explicit; canonical AiGateway remains internal behind SafetyGuardedAiContract",
+          "responseMapping": "platform.safety-ai typed response -> agent domain input; Core never owns Agent sessions, modes and orchestration",
+          "errorMapping": [
+            "SAFETY_REDIRECT",
+            "SAFETY_BLOCKED",
+            "PRIVACY_OR_SAFETY_DENIED",
+            "OUTPUT_VALIDATION_FAILED",
+            "FALLBACK_EXHAUSTED"
+          ],
+          "eventMapping": "none; domain owner publishes its own event after durable change",
+          "ownership": "Agent sessions, modes and orchestration",
+          "order": 4
+        },
+        {
+          "oldSource": "not implemented; adapters and runtime must be Core-native",
+          "coreContract": "core.timeline",
+          "coreOperation": "enqueue",
+          "requestMapping": "agent typed request -> core.timeline typed request; purpose/version/trace/idempotency are explicit",
+          "responseMapping": "core.timeline typed response -> agent domain input; Core never owns Agent sessions, modes and orchestration",
+          "errorMapping": [
+            "OUTBOX_WRITE_FAILED"
+          ],
+          "eventMapping": "agent owner event -> TransactionalOutboxContract.enqueue; safe IDs only",
+          "ownership": "Agent sessions, modes and orchestration",
+          "order": 5
+        }
+      ]
+    }
+  ]
+}

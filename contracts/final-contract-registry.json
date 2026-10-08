@@ -1,0 +1,1296 @@
+{
+  "schemaVersion": 1,
+  "contractId": "momna.core.final-contract-handover",
+  "contractVersion": "handover.v1",
+  "sourceTask": "CORE-BE-21",
+  "exposure": "INTERNAL_ONLY",
+  "status": "COMPLETE",
+  "covers": [
+    "CORE-BE-01",
+    "CORE-BE-02",
+    "CORE-BE-03",
+    "CORE-BE-04",
+    "CORE-BE-05",
+    "CORE-BE-06",
+    "CORE-BE-07",
+    "CORE-BE-08",
+    "CORE-BE-09",
+    "CORE-BE-10",
+    "CORE-BE-11",
+    "CORE-BE-12",
+    "CORE-BE-13",
+    "CORE-BE-14",
+    "CORE-BE-15",
+    "CORE-BE-16",
+    "CORE-BE-17",
+    "CORE-BE-18",
+    "CORE-BE-19",
+    "CORE-BE-20"
+  ],
+  "mandatoryEntryFields": [
+    "taskKey",
+    "domain",
+    "artifactPath",
+    "artifactSelector",
+    "contractVersion",
+    "exposure",
+    "interfaces",
+    "requestSchemas",
+    "responseSchemas",
+    "authPrivacyRules",
+    "errors",
+    "idempotency",
+    "eventSchemas",
+    "owner",
+    "consumers",
+    "tests",
+    "status",
+    "httpOperations"
+  ],
+  "httpContract": "openapi.json",
+  "internalContractCatalog": "contracts/module-contracts.json",
+  "integrationContract": "contracts/integration-refactor.json",
+  "entries": [
+    {
+      "taskKey": "CORE-BE-01",
+      "domain": "Foundation boundaries",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "all modules + openapi.json",
+      "contractVersion": "v1",
+      "exposure": "PUBLIC_HTTP",
+      "interfaces": [
+        "GET /",
+        "GET /health",
+        "GET /health/live",
+        "GET /health/ready",
+        "GET /version"
+      ],
+      "requestSchemas": [
+        "NoBody",
+        "NoBody",
+        "NoBody",
+        "NoBody",
+        "NoBody"
+      ],
+      "responseSchemas": [
+        "ServiceIdentityText",
+        "LegacyHealthText",
+        "LivenessResponse",
+        "ReadinessResponse",
+        "VersionText"
+      ],
+      "authPrivacyRules": [
+        "Anonymous operational endpoints; response and telemetry redaction"
+      ],
+      "errors": [
+        "HTTP_503_READINESS"
+      ],
+      "idempotency": [
+        "GET operations are safe and replayable"
+      ],
+      "eventSchemas": [
+        "NO_DOMAIN_EVENTS"
+      ],
+      "owner": "API foundation",
+      "consumers": [
+        "operators",
+        "deployment probes"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/CanonFoundationTest.kt",
+        "src/test/kotlin/com/momna/architecture/ApiContractRuntimeTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": [
+        {
+          "method": "GET",
+          "path": "/"
+        },
+        {
+          "method": "GET",
+          "path": "/health"
+        },
+        {
+          "method": "GET",
+          "path": "/health/live"
+        },
+        {
+          "method": "GET",
+          "path": "/health/ready"
+        },
+        {
+          "method": "GET",
+          "path": "/version"
+        }
+      ]
+    },
+    {
+      "taskKey": "CORE-BE-02",
+      "domain": "Environment and deploy",
+      "artifactPath": "contracts/runtime-environment.json",
+      "artifactSelector": "variables + health",
+      "contractVersion": "v1",
+      "exposure": "PUBLIC_HTTP",
+      "interfaces": [
+        "RuntimeConfig.fromEnvironment",
+        "ReadinessContract.report"
+      ],
+      "requestSchemas": [
+        "Typed environment variables",
+        "NoBody"
+      ],
+      "responseSchemas": [
+        "RuntimeConfig",
+        "ReadinessResponse"
+      ],
+      "authPrivacyRules": [
+        "Secret references only; readiness exposes name/status/timeout"
+      ],
+      "errors": [
+        "INVALID_CONFIGURATION",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "idempotency": [
+        "Startup is deterministic for the same versioned configuration"
+      ],
+      "eventSchemas": [
+        "api.startup"
+      ],
+      "owner": "Runtime/config and deploy owners",
+      "consumers": [
+        "api",
+        "worker",
+        "scheduler",
+        "operators"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/config/RuntimeContractTest.kt",
+        "src/test/kotlin/com/momna/architecture/ApiContractRuntimeTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": [
+        {
+          "method": "GET",
+          "path": "/health/live"
+        },
+        {
+          "method": "GET",
+          "path": "/health/ready"
+        }
+      ]
+    },
+    {
+      "taskKey": "CORE-BE-03",
+      "domain": "Persistence foundation",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "platform.database",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "RepositoryContract",
+        "TransactionContract",
+        "FlywayMigrator"
+      ],
+      "requestSchemas": [
+        "Owner-defined repository request",
+        "ExpectedVersion",
+        "IdempotencyKey"
+      ],
+      "responseSchemas": [
+        "Typed entity/page",
+        "MigrationResult"
+      ],
+      "authPrivacyRules": [
+        "Owner authorization precedes persistence; foreign repository access forbidden"
+      ],
+      "errors": [
+        "NOT_FOUND",
+        "VERSION_CONFLICT",
+        "DUPLICATE_IDEMPOTENCY_KEY",
+        "TIMEOUT",
+        "PROVIDER_UNAVAILABLE"
+      ],
+      "idempotency": [
+        "IdempotencyKey + optimistic version"
+      ],
+      "eventSchemas": [
+        "NO_DOMAIN_EVENTS"
+      ],
+      "owner": "Persistence platform; table owner remains domain contract",
+      "consumers": [
+        "all durable owners"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/PersistenceBoundaryTest.kt",
+        "src/test/kotlin/com/momna/platform/database/OptionalPostgresMigrationTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-04",
+      "domain": "Cache, storage and jobs",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "platform.cache/platform.storage/platform.jobs",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "ExpiringCacheContract",
+        "PrivateObjectStorageContract",
+        "DurableJobsContract"
+      ],
+      "requestSchemas": [
+        "CacheKey/TTL",
+        "ObjectKey/ACL",
+        "EnqueueJob"
+      ],
+      "responseSchemas": [
+        "Cached value",
+        "Signed object result",
+        "JobRecord"
+      ],
+      "authPrivacyRules": [
+        "Private buckets; ACL before signed URL; cache never authorizes"
+      ],
+      "errors": [
+        "PROVIDER_UNAVAILABLE",
+        "LOCK_CONFLICT",
+        "DUPLICATE_IDEMPOTENCY_KEY",
+        "RETRY_EXHAUSTED"
+      ],
+      "idempotency": [
+        "Versioned cache keys; stable job idempotency key"
+      ],
+      "eventSchemas": [
+        "job.queued",
+        "job.completed",
+        "job.failed"
+      ],
+      "owner": "Platform cache/storage/jobs",
+      "consumers": [
+        "context",
+        "diary",
+        "medical",
+        "notifications",
+        "myworld"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/platform/PlatformInfrastructureTest.kt",
+        "src/test/kotlin/com/momna/architecture/PersistenceBoundaryTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-05",
+      "domain": "Identity and profile",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "core.identity",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "ProfileService",
+        "ProfileRepository"
+      ],
+      "requestSchemas": [
+        "GetProfileRequest",
+        "UpdatePreferencesRequest",
+        "UpdateLocaleCountryTimezoneRequest",
+        "Consent requests"
+      ],
+      "responseSchemas": [
+        "ProfileResponse",
+        "ProductProfile",
+        "ConsentResponse"
+      ],
+      "authPrivacyRules": [
+        "Authenticated subject and owner-only writes; consent is versioned"
+      ],
+      "errors": [
+        "UNAUTHENTICATED",
+        "FORBIDDEN",
+        "PROFILE_NOT_FOUND",
+        "STALE_VERSION_CONFLICT",
+        "CONSENT_VERSION_MISMATCH"
+      ],
+      "idempotency": [
+        "Expected profile version + operation identity"
+      ],
+      "eventSchemas": [
+        "profile.updated",
+        "consent.changed"
+      ],
+      "owner": "Identity/Profile single writable owner",
+      "consumers": [
+        "onboarding",
+        "lifecycle",
+        "localization",
+        "notifications"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/core/identity/ProfileServiceIntegrationTest.kt",
+        "src/test/kotlin/com/momna/architecture/PrivacyBoundaryArchitectureTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-06",
+      "domain": "Lifecycle Core",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "core.lifecycle",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "LifecycleService",
+        "LifecycleRepository"
+      ],
+      "requestSchemas": [
+        "GetCurrentLifecycleRequest",
+        "ProposeTransitionRequest",
+        "ConfirmTransitionRequest"
+      ],
+      "responseSchemas": [
+        "LifecycleSnapshot",
+        "LifecycleTransition",
+        "LifecycleContext"
+      ],
+      "authPrivacyRules": [
+        "User-scoped lifecycle; explicit confirmation and owner authorization"
+      ],
+      "errors": [
+        "LIFECYCLE_NOT_FOUND",
+        "INVALID_TRANSITION",
+        "CONFIRMATION_REQUIRED",
+        "STALE_VERSION_CONFLICT",
+        "FORBIDDEN"
+      ],
+      "idempotency": [
+        "Transition idempotency key + expected current history id"
+      ],
+      "eventSchemas": [
+        "lifecycle.transition.confirmed"
+      ],
+      "owner": "Lifecycle Core single writable owner",
+      "consumers": [
+        "onboarding",
+        "calendar",
+        "diary",
+        "couple"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/core/lifecycle/LifecycleServiceIntegrationTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-07",
+      "domain": "Canonical Field Registry",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "core.fields",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "CanonicalFieldRegistryService",
+        "FieldRegistryRepository"
+      ],
+      "requestSchemas": [
+        "Field definition/value/history requests"
+      ],
+      "responseSchemas": [
+        "FieldDefinition",
+        "CanonicalFieldRecord",
+        "Field history"
+      ],
+      "authPrivacyRules": [
+        "Sensitivity/scope checks and allowed-writer enforcement"
+      ],
+      "errors": [
+        "FIELD_NOT_FOUND",
+        "FIELD_DEPRECATED",
+        "INVALID_VALUE",
+        "WRITER_NOT_ALLOWED",
+        "AMBIGUOUS_OR_STALE"
+      ],
+      "idempotency": [
+        "Record version and provenance identity"
+      ],
+      "eventSchemas": [
+        "canonical.field.recorded",
+        "canonical.field.confirmed"
+      ],
+      "owner": "Field registry semantics; domain owner retains writable facts",
+      "consumers": [
+        "onboarding",
+        "calendar",
+        "flows",
+        "context"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/FieldRegistryContractArchitectureTest.kt",
+        "src/test/kotlin/com/momna/architecture/PersistenceBoundaryTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-08",
+      "domain": "Timeline, event and signal",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "core.timeline",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "TimelineContract",
+        "TransactionalOutboxContract"
+      ],
+      "requestSchemas": [
+        "DomainEvent",
+        "Signal input"
+      ],
+      "responseSchemas": [
+        "Timeline event/signal projection",
+        "Outbox acknowledgement"
+      ],
+      "authPrivacyRules": [
+        "Privacy-filtered payloads; owner emits only safe events"
+      ],
+      "errors": [
+        "DUPLICATE_EVENT",
+        "INVALID_EVENT",
+        "FORBIDDEN"
+      ],
+      "idempotency": [
+        "eventId and aggregate/version deduplication"
+      ],
+      "eventSchemas": [
+        "DomainEvent v1",
+        "DerivedSignal v1"
+      ],
+      "owner": "Timeline/Outbox Core",
+      "consumers": [
+        "all event-producing modules"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/architecture/PersistenceBoundaryTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-09",
+      "domain": "Universal Flow Engine",
+      "artifactPath": "contracts/flow-engine-contract.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "UniversalFlowConsumerContract",
+        "FlowEngineContract"
+      ],
+      "requestSchemas": [
+        "Start/Resume/Submit/Change/Skip/Back/Recalculate/Complete requests"
+      ],
+      "responseSchemas": [
+        "ConsumerFlowInstance",
+        "ConsumerFlowTransition",
+        "ConsumerFlowResult"
+      ],
+      "authPrivacyRules": [
+        "Consumer and user authorization; field privacy contract"
+      ],
+      "errors": [
+        "NOT_FOUND",
+        "INVALID_TRANSITION",
+        "STALE_VERSION",
+        "VALIDATION",
+        "CONFLICT",
+        "FORBIDDEN"
+      ],
+      "idempotency": [
+        "operationId + pinned definition/instance version"
+      ],
+      "eventSchemas": [
+        "flow.started",
+        "flow.answer.submitted",
+        "flow.completed"
+      ],
+      "owner": "Flow Engine",
+      "consumers": [
+        "onboarding",
+        "checkin"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/core/flows/contract/FlowConsumerContractTest.kt",
+        "src/test/kotlin/com/momna/core/flows/UniversalFlowEngineTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-10",
+      "domain": "Context Platform",
+      "artifactPath": "contracts/module-contracts.json",
+      "artifactSelector": "core.context + contracts/context-purpose-policies.json",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "ContextPlatformContract",
+        "ContextPurposePolicyRegistry",
+        "ContextSnapshotRepository"
+      ],
+      "requestSchemas": [
+        "ValidatePurposeAccessRequest",
+        "BuildContextRequest",
+        "ResolveCurrentContextRequest",
+        "Create/Get snapshot requests"
+      ],
+      "responseSchemas": [
+        "ContextPurposePolicy",
+        "ContextResolvedContext",
+        "ContextSnapshot"
+      ],
+      "authPrivacyRules": [
+        "Purpose allowlist, consent and privacy before field resolution"
+      ],
+      "errors": [
+        "PURPOSE_NOT_FOUND",
+        "FORBIDDEN",
+        "CONSENT_REQUIRED",
+        "CONTEXT_AMBIGUOUS_OR_STALE",
+        "SNAPSHOT_NOT_FOUND"
+      ],
+      "idempotency": [
+        "Purpose/policy/source versions in snapshot and cache key"
+      ],
+      "eventSchemas": [
+        "context.snapshot.created",
+        "context.invalidated"
+      ],
+      "owner": "Context Platform",
+      "consumers": [
+        "checkin",
+        "calendar",
+        "myday",
+        "content",
+        "scanner",
+        "agent"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/ContextPlatformContractArchitectureTest.kt",
+        "src/test/kotlin/com/momna/core/context/ContextPlatformServiceTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-11",
+      "domain": "Privacy and consent",
+      "artifactPath": "contracts/privacy-policy.json",
+      "artifactSelector": "policy + core.privacy catalog",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "PrivacyPolicyService",
+        "PrivacyConsentContract"
+      ],
+      "requestSchemas": [
+        "Authorization subject/action/scope/context"
+      ],
+      "responseSchemas": [
+        "ALLOW or typed DENY decision"
+      ],
+      "authPrivacyRules": [
+        "HER_PRIVATE/HIS_PRIVATE/COUPLE_SHARED; relationship-space and consent enforcement"
+      ],
+      "errors": [
+        "FORBIDDEN",
+        "CONSENT_REQUIRED",
+        "CROSS_USER_ACCESS",
+        "RELATIONSHIP_SCOPE_DENIED"
+      ],
+      "idempotency": [
+        "Policy and consent versions bind each decision"
+      ],
+      "eventSchemas": [
+        "privacy.access.denied",
+        "consent.changed"
+      ],
+      "owner": "Privacy Core",
+      "consumers": [
+        "all protected-data consumers"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/PrivacyBoundaryArchitectureTest.kt",
+        "src/test/kotlin/com/momna/core/identity/ProfileServiceIntegrationTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-12",
+      "domain": "Safety Platform",
+      "artifactPath": "contracts/safety-platform.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "SafetyContract",
+        "SafetyGuardedAiContract"
+      ],
+      "requestSchemas": [
+        "SafetyEvaluationInput",
+        "SafetyGuardedAiRequest"
+      ],
+      "responseSchemas": [
+        "SafetyDecision",
+        "SafetyGuardedAiResponse"
+      ],
+      "authPrivacyRules": [
+        "Deterministic safety decision precedes AI; no feature bypass"
+      ],
+      "errors": [
+        "SAFETY_REDIRECT",
+        "SAFETY_BLOCKED",
+        "UNKNOWN_RULE_VERSION"
+      ],
+      "idempotency": [
+        "Pinned catalog and rule versions"
+      ],
+      "eventSchemas": [
+        "safety.decision"
+      ],
+      "owner": "Safety platform",
+      "consumers": [
+        "checkin",
+        "medical",
+        "myday",
+        "scanner",
+        "agent"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/SafetyPlatformArchitectureTest.kt",
+        "src/test/kotlin/com/momna/platform/safety/SafetyPlatformTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-13",
+      "domain": "AI Gateway",
+      "artifactPath": "contracts/ai-gateway.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "AiGateway.execute"
+      ],
+      "requestSchemas": [
+        "AiRequest"
+      ],
+      "responseSchemas": [
+        "AiResponse"
+      ],
+      "authPrivacyRules": [
+        "Context purpose + Privacy + Safety before provider; provider has no DB access"
+      ],
+      "errors": [
+        "VALIDATION_FAILED",
+        "POLICY_DENIED",
+        "PROVIDER_UNAVAILABLE",
+        "BUDGET_EXCEEDED"
+      ],
+      "idempotency": [
+        "requestId/idempotencyKey + prompt/model policy versions"
+      ],
+      "eventSchemas": [
+        "ai.request.completed",
+        "ai.fallback.selected"
+      ],
+      "owner": "AI platform",
+      "consumers": [
+        "myday",
+        "medical",
+        "myworld",
+        "scanner",
+        "agent"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/AiGatewayContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/ai/CanonicalAiGatewayTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-14",
+      "domain": "Localization, country and time",
+      "artifactPath": "contracts/localization-time.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "LocalizationPlatformContract",
+        "TimeService",
+        "CountryPolicyRegistry"
+      ],
+      "requestSchemas": [
+        "Locale/country/time resolution requests"
+      ],
+      "responseSchemas": [
+        "Resolved locale/country policy/local day/day window"
+      ],
+      "authPrivacyRules": [
+        "Locale, country and timezone remain distinct; safe metadata only"
+      ],
+      "errors": [
+        "UNSUPPORTED_LOCALE",
+        "INVALID_TIMEZONE",
+        "MISSING_COUNTRY_POLICY",
+        "AMBIGUOUS_LOCAL_TIME"
+      ],
+      "idempotency": [
+        "Pinned resolver/country/time policy versions"
+      ],
+      "eventSchemas": [
+        "localization.resolved"
+      ],
+      "owner": "Localization/Time platform",
+      "consumers": [
+        "calendar",
+        "content",
+        "notifications",
+        "myday",
+        "featureflags"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/LocalizationTimeContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/localization/CanonicalLocalizationPlatformTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-15",
+      "domain": "Content Platform",
+      "artifactPath": "contracts/content-platform.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "ContentPlatformContract",
+        "ContentRepository"
+      ],
+      "requestSchemas": [
+        "Create/resolve/publish/version requests"
+      ],
+      "responseSchemas": [
+        "ContentObject",
+        "ContentVersion",
+        "ResolvedContent",
+        "ContentWriteResult"
+      ],
+      "authPrivacyRules": [
+        "Privacy/Safety/AI boundary before protected content"
+      ],
+      "errors": [
+        "CONTENT_NOT_FOUND",
+        "VERSION_NOT_FOUND",
+        "VARIANT_NOT_FOUND",
+        "FORBIDDEN",
+        "CONSENT_REQUIRED",
+        "VERSION_CONFLICT"
+      ],
+      "idempotency": [
+        "Immutable published version + authoring idempotency key"
+      ],
+      "eventSchemas": [
+        "content.published",
+        "content.unpublished"
+      ],
+      "owner": "Content Platform",
+      "consumers": [
+        "deep focus",
+        "calendar",
+        "notifications"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/ContentPlatformContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/content/ContentPlatformServiceTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-16",
+      "domain": "Notification Platform",
+      "artifactPath": "contracts/notification-platform.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "NotificationPlatformContract"
+      ],
+      "requestSchemas": [
+        "Schedule/preference/quiet-hour/delivery requests"
+      ],
+      "responseSchemas": [
+        "NotificationSchedule",
+        "DeliveryResult",
+        "TechnicalDeliveryState"
+      ],
+      "authPrivacyRules": [
+        "Consent and preferences rechecked at send; critical bypass requires Safety"
+      ],
+      "errors": [
+        "INVALID_SCHEDULE",
+        "PREFERENCE_DISABLED",
+        "QUIET_HOURS_DEFERRED",
+        "CONSENT_REQUIRED",
+        "DUPLICATE",
+        "RETRY_EXHAUSTED"
+      ],
+      "idempotency": [
+        "Schedule/enqueue/provider attempt deduplication"
+      ],
+      "eventSchemas": [
+        "notification.scheduled",
+        "notification.delivery.recorded"
+      ],
+      "owner": "Notification Platform",
+      "consumers": [
+        "calendar",
+        "myday",
+        "content"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/NotificationContentContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/notifications/CanonicalNotificationPlatformTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-17",
+      "domain": "Data Lifecycle",
+      "artifactPath": "contracts/data-lifecycle.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "DataLifecyclePlatformContract"
+      ],
+      "requestSchemas": [
+        "Retention/archive/export/deletion operation requests"
+      ],
+      "responseSchemas": [
+        "LifecycleOperation",
+        "Export reference",
+        "RetainedException"
+      ],
+      "authPrivacyRules": [
+        "Owner adapter + Privacy/Consent; legal hold fails closed"
+      ],
+      "errors": [
+        "POLICY_NOT_FOUND",
+        "FORBIDDEN",
+        "CONSENT_REQUIRED",
+        "LEGAL_HOLD",
+        "DUPLICATE",
+        "RETRY_EXHAUSTED"
+      ],
+      "idempotency": [
+        "Operation idempotency + policy version"
+      ],
+      "eventSchemas": [
+        "data.archive.requested",
+        "data.export.ready",
+        "data.deletion.completed"
+      ],
+      "owner": "Data Lifecycle platform with domain owner adapters",
+      "consumers": [
+        "diary",
+        "medical",
+        "content",
+        "notifications"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/DataLifecycleContractGateTest.kt",
+        "src/test/kotlin/com/momna/core/privacy/datalifecycle/CanonicalDataLifecycleServiceTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-18",
+      "domain": "Observability and audit",
+      "artifactPath": "contracts/observability-audit.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "StructuredObservabilityContract",
+        "AuditStoreContract"
+      ],
+      "requestSchemas": [
+        "TelemetryContext",
+        "StructuredLogEvent",
+        "MetricPoint",
+        "AuditEvent"
+      ],
+      "responseSchemas": [
+        "Redacted log/metric/audit evidence"
+      ],
+      "authPrivacyRules": [
+        "Mandatory trace/request/correlation; raw private data and secrets rejected"
+      ],
+      "errors": [
+        "VALIDATION",
+        "AUTH",
+        "PRIVACY",
+        "DEPENDENCY",
+        "TIMEOUT",
+        "INTERNAL"
+      ],
+      "idempotency": [
+        "Trace/correlation propagation and audit event identity"
+      ],
+      "eventSchemas": [
+        "typed observability/audit event catalog"
+      ],
+      "owner": "Observability and Audit platforms",
+      "consumers": [
+        "all core/platform/modules"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/ObservabilityAuditContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/observability/ObservabilityContractTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-19",
+      "domain": "Config and feature flags",
+      "artifactPath": "contracts/config-feature-flags.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "ConfigFeatureFlagsPlatformContract"
+      ],
+      "requestSchemas": [
+        "Get/resolve config and get/evaluate flag requests"
+      ],
+      "responseSchemas": [
+        "Typed versioned config/flag decision"
+      ],
+      "authPrivacyRules": [
+        "Flags cannot grant access denied by Privacy/Safety; telemetry is redacted"
+      ],
+      "errors": [
+        "CONFIG_NOT_FOUND",
+        "FLAG_NOT_FOUND",
+        "INVALID_RULE",
+        "UNKNOWN_SEGMENT",
+        "DISABLED",
+        "REQUIRED_CONFIG_UNAVAILABLE",
+        "FORBIDDEN"
+      ],
+      "idempotency": [
+        "Published immutable version + deterministic rollout algorithm"
+      ],
+      "eventSchemas": [
+        "config.published",
+        "flag.published",
+        "kill_switch.changed"
+      ],
+      "owner": "Config/Feature Flags platform",
+      "consumers": [
+        "all typed config consumers"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/platform/featureflags/ConfigFeatureFlagContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/featureflags/CanonicalConfigFeatureFlagsPlatformTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    },
+    {
+      "taskKey": "CORE-BE-20",
+      "domain": "Integration Refactor",
+      "artifactPath": "contracts/integration-refactor.json",
+      "artifactSelector": "complete contract",
+      "contractVersion": "v1",
+      "exposure": "INTERNAL_ONLY",
+      "interfaces": [
+        "CoreIntegratedConsumer",
+        "CoreIntegrationRegistry"
+      ],
+      "requestSchemas": [
+        "Typed consumer port requests"
+      ],
+      "responseSchemas": [
+        "Canonical Core contract responses/events"
+      ],
+      "authPrivacyRules": [
+        "No direct provider, foreign repository/table, privacy/safety/context/flow bypass"
+      ],
+      "errors": [
+        "mapped provider-neutral errors per consumer"
+      ],
+      "idempotency": [
+        "Consumer/core operation idempotency inherited from canonical contract"
+      ],
+      "eventSchemas": [
+        "mapped canonical events per consumer"
+      ],
+      "owner": "Integration governance; domain owners retain product logic",
+      "consumers": [
+        "onboarding",
+        "checkin",
+        "calendar",
+        "myday",
+        "diary",
+        "medical",
+        "couple",
+        "myworld",
+        "content",
+        "scanner",
+        "agent"
+      ],
+      "tests": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED",
+      "httpOperations": []
+    }
+  ],
+  "handoverScenarios": [
+    {
+      "name": "Lifecycle Router -> Period Onboarding",
+      "steps": [
+        "modules.onboarding consumer",
+        "core.lifecycle current period",
+        "core.flows start/prefill",
+        "flow repository + outbox event"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/core/lifecycle/LifecycleServiceIntegrationTest.kt",
+        "src/test/kotlin/com/momna/core/flows/contract/FlowConsumerContractTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "Morning Check-in -> My Day Context",
+      "steps": [
+        "modules.checkin consumer",
+        "core.flows answer event",
+        "core.context purpose resolution",
+        "ContextSnapshot persistence"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/core/flows/contract/FlowConsumerContractTest.kt",
+        "src/test/kotlin/com/momna/architecture/ContextPlatformContractArchitectureTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "Calendar event -> Context invalidation",
+      "steps": [
+        "modules.calendar consumer",
+        "core.timeline event/outbox",
+        "core.context invalidation",
+        "versioned snapshot rebuild"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/ContextPlatformContractArchitectureTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "Diary entry -> safe Timeline event",
+      "steps": [
+        "modules.diary owner",
+        "core.privacy authorization",
+        "private storage reference",
+        "redacted core.timeline event"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/PrivacyBoundaryArchitectureTest.kt",
+        "src/test/kotlin/com/momna/architecture/ObservabilityAuditContractGateTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "Couple privacy denial",
+      "steps": [
+        "modules.couple consumer",
+        "relationship-space authorization",
+        "core.privacy deny",
+        "no persistence/event side effect"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/PrivacyBoundaryArchitectureTest.kt",
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "AI fallback",
+      "steps": [
+        "consumer purpose request",
+        "core.context snapshot",
+        "platform.safety decision",
+        "platform.ai primary failure and fallback result/event"
+      ],
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/AiGatewayContractGateTest.kt",
+        "src/test/kotlin/com/momna/platform/ai/CanonicalAiGatewayTest.kt",
+        "src/test/kotlin/com/momna/architecture/SafetyPlatformArchitectureTest.kt"
+      ],
+      "status": "PASS"
+    }
+  ],
+  "crossModuleBoundaries": [
+    {
+      "consumer": "ONBOARDING",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "CHECKIN",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "CALENDAR",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "MYDAY",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "DIARY",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "MEDICAL",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "COUPLE",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "MYWORLD",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "CONTENT",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "SCANNER",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    },
+    {
+      "consumer": "AGENT",
+      "contractArtifact": "contracts/integration-refactor.json",
+      "corePortsArtifact": "src/main/kotlin/com/momna/modules/integration/contract/CoreIntegrationContract.kt",
+      "evidence": [
+        "src/test/kotlin/com/momna/architecture/IntegrationContractGateTest.kt",
+        "src/test/kotlin/com/momna/modules/integration/CoreIntegrationRegistryTest.kt"
+      ],
+      "status": "COVERED"
+    }
+  ],
+  "gates": {
+    "unit": "./gradlew test",
+    "integration": "PostgreSQL/Redis/MinIO services in exact-SHA CI",
+    "contract": "FinalContractHandoverGateTest",
+    "migration": "V1..V15 zero-to-current plus isolated PostgreSQL backup/restore rehearsal",
+    "architecture": "ArchitectureDependencyTest + IntegrationContractGateTest",
+    "security": "privacy/ACL/signed URL/provider-boundary/redaction tests",
+    "load": "build/reports/core-be-21/load-baseline.json",
+    "recovery": "build/reports/core-be-21/backup-restore.txt",
+    "regression": "./gradlew build installDist + Newman",
+    "handover": "docs/architecture/handover-playbook.md"
+  },
+  "acceptance": {
+    "localBootstrap": "documented",
+    "zeroMigration": "executable",
+    "backupRestore": "exact-SHA isolated CI rehearsal",
+    "addTestFlow": "documented and executable",
+    "traceIncident": "canonical CORE-BE-18 correlation drill",
+    "locateOwner": "module ownership + schema dictionary",
+    "oralKnowledgeRequired": false
+  }
+}

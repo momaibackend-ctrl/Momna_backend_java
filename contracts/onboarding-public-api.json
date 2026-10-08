@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "owner": "MOMNA-1024 / ONB-API-01",
+  "namespace": "/api/v1/flow-instances",
+  "architecture": "UNIVERSAL_FLOW_PROTOCOL_NOT_PERIOD_SPECIFIC_APIS",
+  "periods": [
+    "MENARCHE",
+    "CYCLE",
+    "PLANNING",
+    "PREGNANCY",
+    "POSTPARTUM",
+    "PERIMENOPAUSE",
+    "MENOPAUSE"
+  ],
+  "flowTypes": [
+    "LIFECYCLE_ROUTER",
+    "PERIOD_ONBOARDING"
+  ],
+  "mutation": {
+    "idempotencyHeader": "Idempotency-Key",
+    "concurrency": "expectedRevision",
+    "definitionConcurrency": "expectedDefinitionVersion",
+    "staleRecovery": "GET /api/v1/flow-instances/{instanceId}"
+  },
+  "operations": [
+    {
+      "method": "POST",
+      "path": "/api/v1/flow-instances"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/flow-instances/{instanceId}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/flow-instances/{instanceId}/answers/{fieldId}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/flow-instances/{instanceId}/steps/{stepId}/skip",
+      "compatibility": "MAP_TO_SERVER_SKIP_ACTION"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/flow-instances/{instanceId}/actions/{actionCode}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/flow-instances/{instanceId}/complete"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/flow-instances/{instanceId}/result"
+    }
+  ],
+  "compatibility": [
+    {
+      "existing": "POST /api/v1/flow-instances/{instanceId}/actions/SKIP",
+      "canonical": "POST /api/v1/flow-instances/{instanceId}/steps/{stepId}/skip",
+      "status": "MAP"
+    },
+    {
+      "existing": "POST /api/v1/flow-instances/{instanceId}/router/confirm",
+      "canonical": "POST /api/v1/flow-instances/{instanceId}/actions/{actionCode}",
+      "status": "DEPRECATE_AFTER_CLIENT_MIGRATION"
+    }
+  ],
+  "observability": {
+    "correlationHeaders": [
+      "X-Request-Id",
+      "X-Trace-Id"
+    ],
+    "apiMetrics": [
+      "API_REQUEST_LATENCY_MS",
+      "API_ERROR_TOTAL"
+    ],
+    "flowEvents": [
+      "flow.started",
+      "flow.answer.submitted",
+      "flow.answer.changed",
+      "flow.answer.skipped",
+      "flow.back",
+      "flow.completed"
+    ],
+    "sensitiveValuePolicy": "NEVER_LOG_OR_TAG_RAW_ONBOARDING_VALUES",
+    "safeDimensions": [
+      "operation",
+      "outcome",
+      "flowType",
+      "definitionKey",
+      "definitionVersion",
+      "status",
+      "fieldId"
+    ],
+    "requestIdentityPolicy": "IDEMPOTENCY_KEYS_AND_USER_INPUT_ARE_NEVER_USED_AS_TELEMETRY_CORRELATION_IDS"
+  },
+  "privacy": {
+    "rawSensitiveProfileInCompletion": false,
+    "clientContextEndpoint": false,
+    "clientSafetyEvaluateEndpoint": false,
+    "clientFieldRegistryEndpoint": false,
+    "clientAiGenerateEndpoint": false
+  },
+  "corrections": [
+    "MOMNA-563",
+    "MOMNA-565"
+  ],
+  "artifacts": [
+    "openapi/onboarding-public-v1.json",
+    "docs/api/onboarding-public-api.md",
+    "docs/api/onboarding-api-coverage-matrix.md",
+    "docs/api/onboarding-api-migration-impact.md"
+  ],
+  "serverIssuedActions": [
+    "BACK",
+    "CONFIRM_PROPOSED_PERIOD",
+    "SELECT_PERIOD_MANUALLY"
+  ],
+  "canonicalOpenApi": "openapi.json",
+  "fragmentOpenApi": "openapi/onboarding-public-v1.json"
+}

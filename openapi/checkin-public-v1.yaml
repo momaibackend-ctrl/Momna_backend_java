@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: Momna Daily Check-in Public API
+  version: 1.0.1
+  description: >-
+    Public Check-in transport originally established by CI-API-01. CI-B03 does not add
+    endpoints; it binds these routes to the server-owned session/window state machine.
+  x-session-runtime-owner: CI-B03
+  x-session-statuses: [DRAFT, PARTIAL, SUBMITTED, AUTO_FINALIZED]
+  x-window-semantics: '[opensAt, closesAt); exact close is CLOSED; no session is created merely because a window closes'
+  x-answer-semantics: '0,1,2 are explicit values; unanswered is absence; null in PATCH removes an answer'
+  x-finalization-semantics: 'SUBMITTED only by explicit submit; AUTO_FINALIZED only by server window close; consumedAt is orthogonal'
+paths:
+  /api/v1/check-in/today:
+    get:
+      operationId: getCheckinToday
+      description: Read both Morning and Evening phase summaries without creating a session.
+      responses:
+        '200': { description: Authoritative current local-day phase state, exact windows and existing final/consumed projections }
+        '401': { description: Authentication required }
+  /api/v1/check-in/sessions:
+    post:
+      operationId: startOrResumeCheckin
+      description: Atomically start or resume the unique canonical session for the current user/window.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phase]
+              properties:
+                phase: { $ref: '#/components/schemas/CheckinPhase' }
+      responses:
+        '200': { description: Existing current/resumable/final session; final or consumed sessions are never reopened }
+        '201': { description: New DRAFT session created while the requested phase window is open }
+        '409': { description: Idempotency conflict or window is not startable }
+  /api/v1/check-in/sessions/{sessionId}:
+    get:
+      operationId: getCheckinSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200': { description: Authoritative session; first access after deadline may expose server AUTO_FINALIZED state }
+        '404': { description: Session not found for current user }
+    patch:
+      operationId: patchCheckinSession
+      description: >-
+        Mutate explicit answers while the window is open. A mutable session is DRAFT when no
+        answers exist and PARTIAL when at least one exists; PARTIAL may have completionRatio 1.0
+        until the user explicitly submits.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, answerChanges]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+                answerChanges:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [itemCode, value]
+                    properties:
+                      itemCode: { type: string }
+                      value: { $ref: '#/components/schemas/NullableAnswerValue' }
+      responses:
+        '200': { description: Updated authoritative session with recomputed completionRatio and server Safety projection }
+        '409': { description: Stale revision, idempotency conflict, final/consumed state or non-editable window }
+  /api/v1/check-in/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer:
+    post:
+      operationId: answerCheckinSafetyClarification
+      description: Resolve only the current server-issued blocking clarification; frontend never resolves Safety locally.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - in: path
+          name: clarificationId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, value]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+                value: { type: string }
+      responses:
+        '200': { description: Updated authoritative session and safe Safety projection; a resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict or clarification is no longer current }
+  /api/v1/check-in/sessions/{sessionId}/submit:
+    post:
+      operationId: submitCheckin
+      description: Explicitly finalize a DRAFT or PARTIAL session while allowed; answering every item is not required.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+      responses:
+        '200': { description: Immutable SUBMITTED final state and typed downstream handoff; completionRatio may be less than 1 }
+        '409': { description: Finalized/consumed, stale, idempotency, closed-window or blocking-Safety conflict }
+components:
+  parameters:
+    SessionId:
+      in: path
+      name: sessionId
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 160 }
+  schemas:
+    CheckinPhase:
+      type: string
+      enum: [MORNING, EVENING]
+    CheckinSessionStatus:
+      type: string
+      enum: [DRAFT, PARTIAL, SUBMITTED, AUTO_FINALIZED]
+    CheckinAllowedAction:
+      type: string
+      enum: [EDIT_ANSWERS, SUBMIT, ANSWER_SAFETY, OPEN_MY_DAY]
+    AnswerValue:
+      type: integer
+      enum: [0, 1, 2]
+    NullableAnswerValue:
+      nullable: true
+      oneOf:
+        - $ref: '#/components/schemas/AnswerValue'

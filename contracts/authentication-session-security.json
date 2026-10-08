@@ -1,0 +1,20 @@
+{
+  "id": "core.authentication-session-security",
+  "schemaVersion": 1,
+  "owner": "core.auth",
+  "providerNeutral": true,
+  "canonicalChain": ["provider_credential", "verified_login_identity", "user_account", "auth_session", "authenticated_actor"],
+  "providers": ["APPLE", "GOOGLE", "EMAIL_PASSWORDLESS"],
+  "providerVerification": ["signature", "issuer", "audience", "expiry", "state", "nonce", "pkce_when_applicable"],
+  "identityRules": {"silentEmailMerge": false, "oneExternalIdentityPerActiveAccount": true, "multipleLoginIdentitiesPerAccount": true},
+  "session": {"access": "SHORT_LIVED_OPAQUE", "refresh": "ROTATING_OPAQUE", "plaintextPersistence": false, "reuseDetection": true, "serverRevocation": ["ONE", "ALL", "FAMILY"]},
+  "recentAuth": {"serverSide": true, "localBiometricSatisfies": false},
+  "recovery": {"passwordless": true, "antiEnumeration": true, "replayProtection": true, "partnerRelationshipRecovery": false},
+  "errors": ["AUTH_REQUIRED","AUTH_INVALID","AUTH_EXPIRED","SESSION_REVOKED","REAUTH_REQUIRED","IDENTITY_ALREADY_LINKED","IDENTITY_LINK_CONFLICT","ACCOUNT_DISABLED","RATE_LIMITED"],
+  "operations": ["beginEmailSignIn","completeEmailSignIn","exchangeProviderCredential","refreshSession","authenticate","getCurrentSession","listSessions","revokeSession","revokeAllSessions","logout","listLoginIdentities","linkLoginIdentity","unlinkLoginIdentity","reauthenticate","disableAuthAccount"],
+  "httpHandoff": {"owner": "CORE-API-01", "unifiedOpenApiRequired": true, "runtimeRoutesIntroducedHere": false, "reason": "Current Momna public HTTP surface contains foundation routes only; CORE-BE-26 defines typed application operations and exact security semantics without creating a parallel HTTP stack."},
+  "preAuthOnboarding": {"durableGuestAccount": false, "status": "NOT_SUPPORTED", "reason": "No current canonical public onboarding contract proves durable pre-auth user state; do not create hidden guest accounts."},
+  "events": ["AccountCreated","LoginIdentityLinked","LoginIdentityUnlinked","SessionCreated","SessionRevoked","AllSessionsRevoked","SecurityCredentialChanged","AccountDisabled"],
+  "redaction": {"accessCredential": "NEVER_LOG", "refreshCredential": "NEVER_LOG", "providerToken": "NEVER_LOG", "magicCode": "NEVER_LOG", "auditPayload": "TECHNICAL_IDS_AND_REASON_CODES_ONLY"},
+  "boundaries": {"profileOwner": "core.identity", "lifecycleOwner": "core.lifecycle", "relationshipAuthorizationOwner": "core.privacy/couple", "billingOwner": "CORE-BE-27"}
+}

@@ -1,0 +1,91 @@
+{
+  "contractVersion": 1,
+  "platform": "ConfigFeatureFlags",
+  "exposure": "INTERNAL_ONLY",
+  "publicEntry": "com.momna.platform.featureflags.contract.ConfigFeatureFlagsContract",
+  "typedReadContract": {
+    "operations": ["getConfig", "resolveConfig", "listConfigVersions", "getFlag", "evaluateFlag", "listFlagVersions", "evaluateModule"],
+    "authoringOperations": ["publishConfigVersion", "publishFlagVersion", "retireFlagVersion"],
+    "configValueTypes": ["BOOLEAN", "STRING", "LONG", "DOUBLE"],
+    "nullability": {
+      "validUntil": "nullable",
+      "countryRegion": "nullable",
+      "locale": "nullable",
+      "pinnedVersion": "nullable",
+      "matchedRuleId": "nullable",
+      "matchedSegmentId": "nullable"
+    },
+    "untypedMapReads": "FORBIDDEN"
+  },
+  "versioning": {
+    "definitionsHaveStableKeys": true,
+    "schemaVersionRequired": true,
+    "publishedValueAndRulePayloadsImmutable": true,
+    "statusTransitionMayRetirePublishedVersion": true,
+    "optimisticConflict": "VERSION_CONFLICT",
+    "idempotency": "stable operation key; duplicate identical publish/retire is replay-safe; key reuse for a different operation is DUPLICATE"
+  },
+  "rollout": {
+    "algorithm": "sha256-basis-points.v1",
+    "bucketRange": "0..9999",
+    "hashInput": ["algorithmVersion", "flagKey", "flagVersion", "stableSubjectRef"],
+    "requestOrderOrRandomness": "FORBIDDEN",
+    "rulePrecedence": "highest numeric priority wins after segment and rollout filters",
+    "samePriorityMultipleMatches": "AMBIGUOUS_RULE",
+    "segmentDimensions": ["canonical countryRegion", "canonical locale"],
+    "unknownSegment": "UNKNOWN_SEGMENT"
+  },
+  "moduleDisablement": {
+    "model": "one optional versioned kill-switch flag per module",
+    "noKillSwitch": "enabled",
+    "disabledDecision": "MODULE_DISABLED",
+    "protectedModules": ["platform.privacy", "platform.safety", "platform.audit", "platform.observability"],
+    "protectedModuleDisable": "FORBIDDEN"
+  },
+  "bootstrapAndFailure": {
+    "durableSourceOfTruth": "PostgreSQL",
+    "bootstrap": "only explicitly registered typed/versioned PUBLISHED values whose definition has bootstrapAllowed=true",
+    "requiredUnavailable": "REQUIRED_CONFIG_UNAVAILABLE",
+    "securityPrivacySafetyMissing": "FAIL_CLOSED",
+    "environmentVariables": "process/bootstrap infrastructure and secrets only; dynamic product rollout logic forbidden"
+  },
+  "cache": {
+    "contract": "platform.cache.ExpiringCacheContract",
+    "sourceOfTruth": false,
+    "keyDimensions": ["environment", "flagKey", "flagVersion", "hashed stable evaluation dimensions"],
+    "subjectRawValueInCacheKey": false,
+    "ttl": "PT5M",
+    "publishInvalidation": "version-bust; new published version uses a distinct cache version namespace"
+  },
+  "boundaries": {
+    "privacyConsent": "deny cannot be overridden by flag evaluation",
+    "safety": "deterministic safety deny cannot be overridden by flag evaluation",
+    "localizationCountryTime": "country/locale/effectiveAt are canonical pre-resolved inputs; featureflags does not derive timezone/locale/country",
+    "database": "provider-neutral repository contract with PostgreSQL adapter",
+    "featureConsumers": "must use ConfigFeatureFlagsContract; feature-local rollout/config engines are forbidden"
+  },
+  "telemetry": {
+    "canonicalContractRef": "contracts/observability-audit.json",
+    "contextType": "com.momna.platform.observability.contract.TelemetryContext",
+    "correlation": ["requestId", "traceId"],
+    "separateCorrelationSchema": "FORBIDDEN",
+    "structuredFields": ["config_id", "flag_id", "module_id", "rule_id", "segment_id", "decision_code", "cache_status", "*_version"],
+    "forbidden": ["raw config values", "raw subject targeting attributes", "credentials", "secrets", "private payloads"],
+    "errorTaxonomy": "CORE-BE-18 TelemetryErrorClassification"
+  },
+  "audit": {
+    "canonicalStore": "CORE-BE-18 AuditContract/AuditStore",
+    "events": ["CONFIG_PUBLISH", "FEATURE_FLAG_CHANGE", "MODULE_KILL_SWITCH"],
+    "evaluationReads": "structured observability; not per-read durable audit unless policy requires",
+    "redaction": "technical keys/versions/decision codes only"
+  },
+  "errors": ["CONFIG_NOT_FOUND", "FLAG_NOT_FOUND", "VERSION_NOT_FOUND", "INVALID_VALUE", "INVALID_RULE", "UNKNOWN_SEGMENT", "AMBIGUOUS_RULE", "DISABLED", "REQUIRED_CONFIG_UNAVAILABLE", "FORBIDDEN", "VERSION_CONFLICT", "DUPLICATE", "VALIDATION_ERROR"],
+  "ownership": {
+    "authoringOwner": "platform.featureflags",
+    "storageOwner": "PostgreSQL through platform.database",
+    "cacheOwner": "platform.cache",
+    "telemetryOwner": "platform.observability",
+    "auditOwner": "platform.audit",
+    "consumerRule": "consumers read/evaluate only through typed contract"
+  }
+}

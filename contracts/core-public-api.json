@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": "v1",
+  "namespace": "/api/v1",
+  "owner": "CORE-API-01",
+  "principles": {
+    "meIdentity": "AUTHENTICATED_ACTOR_ONLY_CLIENT_USER_ID_FORBIDDEN",
+    "frontendAuthority": "SERVER_DERIVED_STATE_RENDER_ONLY",
+    "timestamps": "ISO_8601_UTC",
+    "timezone": "IANA",
+    "errors": "STANDARD_ERROR_ENVELOPE",
+    "offline": "LAST_KNOWN_PENDING_SYNC_NOT_AUTHORITY"
+  },
+  "endpoints": [
+    {"method":"POST","path":"/api/v1/auth/email/challenges","owner":"core.auth","ux":"Sign in / request email challenge","auth":"PUBLIC"},
+    {"method":"POST","path":"/api/v1/auth/email/complete","owner":"core.auth","ux":"Sign in / complete email challenge","auth":"PUBLIC"},
+    {"method":"POST","path":"/api/v1/auth/providers/exchange","owner":"core.auth","ux":"Sign in with Apple or Google","auth":"PUBLIC"},
+    {"method":"POST","path":"/api/v1/auth/refresh","owner":"core.auth","ux":"Restore authenticated session","auth":"REFRESH_CREDENTIAL"},
+    {"method":"GET","path":"/api/v1/me/session","owner":"core.auth","ux":"Account Center / current session","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/sessions","owner":"core.auth","ux":"Account Center / devices and sessions","auth":"BEARER","pagination":"offset+limit"},
+    {"method":"DELETE","path":"/api/v1/me/sessions/{sessionId}","owner":"core.auth","ux":"Account Center / revoke device","auth":"BEARER"},
+    {"method":"DELETE","path":"/api/v1/me/sessions","owner":"core.auth","ux":"Account Center / sign out everywhere","auth":"BEARER","reauth":"RECENT_AUTH"},
+    {"method":"POST","path":"/api/v1/me/logout","owner":"core.auth","ux":"Sign out","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/login-identities","owner":"core.auth","ux":"Account Center / login methods","auth":"BEARER"},
+    {"method":"POST","path":"/api/v1/me/login-identities","owner":"core.auth","ux":"Account Center / link login method","auth":"BEARER","reauth":"RECENT_AUTH"},
+    {"method":"DELETE","path":"/api/v1/me/login-identities/{identityId}","owner":"core.auth","ux":"Account Center / unlink login method","auth":"BEARER","reauth":"RECENT_AUTH"},
+    {"method":"POST","path":"/api/v1/me/reauthenticate","owner":"core.auth","ux":"Confirm sensitive account action","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/profile","owner":"core.identity","ux":"Account Center / profile","auth":"BEARER"},
+    {"method":"PATCH","path":"/api/v1/me/profile/preferences","owner":"core.identity","ux":"Account Center / preferences","auth":"BEARER","concurrency":"expectedVersion"},
+    {"method":"PATCH","path":"/api/v1/me/profile/localization","owner":"core.identity","ux":"Account Center / language country timezone","auth":"BEARER","concurrency":"expectedVersion"},
+    {"method":"GET","path":"/api/v1/me/consents","owner":"core.identity","ux":"Privacy / consent history","auth":"BEARER","pagination":"offset+limit"},
+    {"method":"POST","path":"/api/v1/me/consents/{consentType}/grant","owner":"core.identity","ux":"Privacy / grant consent","auth":"BEARER"},
+    {"method":"POST","path":"/api/v1/me/consents/{consentType}/withdraw","owner":"core.identity","ux":"Privacy / withdraw consent","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/lifecycle","owner":"core.lifecycle","ux":"Account Center / current lifecycle","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/lifecycle/history","owner":"core.lifecycle","ux":"Account Center / lifecycle history","auth":"BEARER","pagination":"offset+limit"},
+    {"method":"GET","path":"/api/v1/me/entitlements","owner":"core.billing","ux":"Paywall and feature access / entitlements","auth":"BEARER"},
+    {"method":"GET","path":"/api/v1/me/subscription","owner":"core.billing","ux":"Account Center / subscription","auth":"BEARER"},
+    {"method":"POST","path":"/api/v1/me/billing/restore","owner":"core.billing","ux":"Account Center / restore purchases","auth":"BEARER","idempotency":"Idempotency-Key"},
+    {"method":"GET","path":"/api/v1/me/account-center","owner":"CORE-API-01","ux":"Account Center / display-ready aggregate","auth":"BEARER"}
+  ],
+  "uxCoverage": [
+    {"scenario":"Signed out / email login","action":"request and complete challenge","endpoint":"POST auth/email/challenges -> POST auth/email/complete","success":"session credentials","errors":["AUTH_INVALID","AUTH_EXPIRED","RATE_LIMITED"],"loading":"SUBMITTING","empty":"N/A","degraded":"provider unavailable -> error envelope","offline":"cannot authenticate; retain signed-out UI","sourceOfTruth":"core.auth","privacy":"email input only at auth boundary","observability":"api request metrics + auth service telemetry","tests":"HTTP contract + auth service"},
+    {"scenario":"Session restore","action":"refresh","endpoint":"POST auth/refresh","success":"rotated session credentials","errors":["AUTH_INVALID","AUTH_EXPIRED","SESSION_REVOKED"],"loading":"RESTORING","empty":"signed out","degraded":"retry without promoting stale local auth","offline":"last UI state is not authenticated authority","sourceOfTruth":"core.auth","privacy":"refresh credential never logged","observability":"correlated request","tests":"HTTP contract + rotation tests"},
+    {"scenario":"Account Center","action":"open","endpoint":"GET me/account-center","success":"display-ready aggregate","errors":["AUTH_REQUIRED","CORE_API_UNAVAILABLE"],"loading":"SKELETON","empty":"nullable profile/subscription states","degraded":"show last-known with sync-needed marker","offline":"last-known only","sourceOfTruth":"core.auth+core.identity+core.lifecycle+core.billing","privacy":"minimum-necessary projection","observability":"correlated request","tests":"aggregate HTTP contract"},
+    {"scenario":"Profile settings","action":"edit preferences/localization","endpoint":"PATCH me/profile/preferences or localization","success":"new canonical profile version","errors":["VALIDATION_ERROR","STALE_VERSION_CONFLICT"],"loading":"SAVING","empty":"N/A","degraded":"retain draft and refresh server state","offline":"pending UI only; server version remains authority","sourceOfTruth":"core.identity","privacy":"authenticated user only","observability":"profile service metrics","tests":"optimistic concurrency + HTTP mapping"},
+    {"scenario":"Lifecycle display","action":"open current/history","endpoint":"GET me/lifecycle and history","success":"server-derived seven-period projection","errors":["AUTH_REQUIRED","LIFECYCLE_NOT_FOUND"],"loading":"SKELETON","empty":"primary may be null","degraded":"last-known read-only state","offline":"no local derivation","sourceOfTruth":"core.lifecycle","privacy":"authenticated user only","observability":"lifecycle read metrics","tests":"enum/time representation"},
+    {"scenario":"Subscription and premium access","action":"read entitlements/subscription","endpoint":"GET me/entitlements + GET me/subscription","success":"server-verified projection","errors":["AUTH_REQUIRED","PROVIDER_NOT_CONFIGURED"],"loading":"SKELETON","empty":"no subscription is valid state","degraded":"TEMPORARILY_UNAVAILABLE / NEEDS_RECONCILIATION","offline":"cached access is not billing authority","sourceOfTruth":"core.billing","privacy":"no receipts or transaction references","observability":"billing metrics","tests":"billing + redaction HTTP tests"},
+    {"scenario":"Restore purchases","action":"restore","endpoint":"POST me/billing/restore","success":"reconciled entitlements","errors":["IDEMPOTENCY_KEY_REQUIRED","RATE_LIMITED","PROVIDER_NOT_CONFIGURED"],"loading":"SYNCING","empty":"empty entitlement list allowed","degraded":"retry sync action","offline":"queue user intent only, do not grant access","sourceOfTruth":"core.billing","privacy":"provider receipts remain inside adapter","observability":"billing reconciliation metrics","tests":"idempotency header + billing reconciliation"}
+  ],
+  "delegations": [
+    {"scope":"Lifecycle Router + 7 Deep Onboarding","owner":"ONB-API-01"},
+    {"scope":"Daily Check-in 2.0","owner":"CI-API-01"},
+    {"scope":"Diary and Medical","owner":"DM-API-01"},
+    {"scope":"Home / Plan Today / My Day","owner":"HOME-API-01"},
+    {"scope":"Couple / Buddy","owner":"COUPLE-API-01"},
+    {"scope":"Deep Focus","owner":"DF-API-01"},
+    {"scope":"AI Agent Platform","owner":"AGENT-API-01"},
+    {"scope":"My World","owner":"MW-API-01"}
+  ],
+  "internalOnly": ["core.context raw snapshots","core.fields raw registry","core.timeline/outbox","platform.ai provider DTOs","platform.database","platform.jobs","platform.storage","platform.cache"],
+  "liveProviderVerification": "UNVERIFIED_UNTIL_REGISTERED_APPLE_GOOGLE_CREDENTIALS_ARE_EXERCISED"
+}

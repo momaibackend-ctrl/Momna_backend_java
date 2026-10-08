@@ -42,11 +42,11 @@ ALTER TABLE momna.canonical_field_values ADD COLUMN IF NOT EXISTS sensitivity_cl
 ALTER TABLE momna.canonical_field_values ADD COLUMN IF NOT EXISTS applied_merge_policy TEXT;
 UPDATE momna.canonical_field_values v SET privacy_classification=d.sensitivity_class, consent_scope=d.sensitivity_class, sensitivity_classification=d.sensitivity_class, applied_merge_policy='LATEST' FROM momna.canonical_field_definitions d WHERE v.field_id=d.field_id AND v.privacy_classification IS NULL;
 
-DO $$ DECLARE c RECORD; BEGIN
-  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid='momna.canonical_field_values'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%typed_value%reference_id%' LOOP
-    EXECUTE format('ALTER TABLE momna.canonical_field_values DROP CONSTRAINT %I', c.conname);
+DO 'DECLARE c RECORD; BEGIN
+  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid=''momna.canonical_field_values''::regclass AND contype=''c'' AND pg_get_constraintdef(oid) LIKE ''%typed_value%reference_id%'' LOOP
+    EXECUTE format(''ALTER TABLE momna.canonical_field_values DROP CONSTRAINT %I'', c.conname);
   END LOOP;
-END $$;
+END';
 ALTER TABLE momna.canonical_field_values ADD CONSTRAINT canonical_field_values_knowledge_payload_check CHECK (
     (knowledge_state='KNOWN' AND ((typed_value IS NOT NULL) <> (reference_id IS NOT NULL))) OR
     (knowledge_state IN ('UNKNOWN','NOT_ASKED','DECLINED') AND typed_value IS NULL AND reference_id IS NULL AND reference_provider IS NULL)

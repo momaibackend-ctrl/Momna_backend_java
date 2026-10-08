@@ -65,7 +65,7 @@ CREATE TABLE momna.checkin_idempotency (
     user_id TEXT NOT NULL REFERENCES momna.user_profiles(user_id) ON DELETE RESTRICT,
     operation TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
-    fingerprint_sha256 CHAR(64) NOT NULL CHECK (fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
+    fingerprint_sha256 VARCHAR(64) NOT NULL CHECK (fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
     result_session_id TEXT NOT NULL,
     result_revision BIGINT NOT NULL CHECK (result_revision >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -77,7 +77,7 @@ CREATE INDEX idx_checkin_idempotency_session
     ON momna.checkin_idempotency(user_id, result_session_id, created_at DESC);
 
 CREATE TABLE momna.checkin_adjustment_signals (
-    signal_id CHAR(64) PRIMARY KEY CHECK (signal_id ~ '^[0-9a-f]{64}$'),
+    signal_id VARCHAR(64) PRIMARY KEY CHECK (signal_id ~ '^[0-9a-f]{64}$'),
     user_id TEXT NOT NULL,
     session_id TEXT NOT NULL,
     signal_code TEXT NOT NULL,

@@ -56,7 +56,7 @@ CREATE INDEX idx_checkin_sessions_consumed
 CREATE TABLE momna.checkin_answers (
     session_id TEXT NOT NULL REFERENCES momna.checkin_sessions(session_id) ON DELETE CASCADE,
     item_code TEXT NOT NULL,
-    value SMALLINT NOT NULL CHECK (value IN (0,1,2)),
+    value INTEGER NOT NULL CHECK (value IN (0,1,2)),
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (session_id, item_code)
 );
@@ -65,7 +65,7 @@ CREATE TABLE momna.checkin_idempotency (
     user_id TEXT NOT NULL REFERENCES momna.user_profiles(user_id) ON DELETE RESTRICT,
     operation TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
-    fingerprint_sha256 CHAR(64) NOT NULL CHECK (fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
+    fingerprint_sha256 VARCHAR(64) NOT NULL CHECK (fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
     result_session_id TEXT NOT NULL,
     result_revision BIGINT NOT NULL CHECK (result_revision >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -77,7 +77,7 @@ CREATE INDEX idx_checkin_idempotency_session
     ON momna.checkin_idempotency(user_id, result_session_id, created_at DESC);
 
 CREATE TABLE momna.checkin_adjustment_signals (
-    signal_id CHAR(64) PRIMARY KEY CHECK (signal_id ~ '^[0-9a-f]{64}$'),
+    signal_id VARCHAR(64) PRIMARY KEY CHECK (signal_id ~ '^[0-9a-f]{64}$'),
     user_id TEXT NOT NULL,
     session_id TEXT NOT NULL,
     signal_code TEXT NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE momna.checkin_adjustment_signals (
     local_date DATE NOT NULL,
     period_at_time TEXT NOT NULL CHECK (period_at_time IN ('MENARCHE','CYCLE','PLANNING','PREGNANCY','POSTPARTUM','PERIMENOPAUSE','MENOPAUSE')),
     item_code TEXT NOT NULL,
-    state_points SMALLINT NOT NULL CHECK (state_points IN (0,1,2)),
+    state_points INTEGER NOT NULL CHECK (state_points IN (0,1,2)),
     tier TEXT NOT NULL CHECK (tier IN ('NONE','MILD','MODERATE','STRONG')),
     score_contribution NUMERIC(20,6) NOT NULL CHECK (score_contribution > 0),
     completion_ratio NUMERIC(8,6) NOT NULL CHECK (completion_ratio >= 0 AND completion_ratio <= 1),

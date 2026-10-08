@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -110,6 +111,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiError> stateConflict(IllegalStateException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of("STATE_CONFLICT", "State changed; refresh and retry"));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiError> notFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiError.of("NOT_FOUND", "Resource not found"));
     }
 
     @ExceptionHandler(Exception.class)

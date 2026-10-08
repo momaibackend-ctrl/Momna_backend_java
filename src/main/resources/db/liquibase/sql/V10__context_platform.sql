@@ -38,11 +38,9 @@ CREATE INDEX IF NOT EXISTS idx_context_snapshots_fingerprint
 CREATE OR REPLACE FUNCTION momna.reject_context_snapshot_update()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
-BEGIN
-    RAISE EXCEPTION 'context snapshots are immutable';
-END;
-$$;
+AS 'BEGIN
+    RAISE EXCEPTION ''context snapshots are immutable'';
+END;';
 
 DROP TRIGGER IF EXISTS trg_context_snapshot_immutable ON momna.context_snapshots;
 CREATE TRIGGER trg_context_snapshot_immutable

@@ -78,6 +78,17 @@ public final class FlowConditionEvaluator {
             }
             return result;
         }
+        if (raw instanceof Map<?, ?> wrapped) {
+            // Canonical field payloads carry a typed wrapper. Only OBJECT
+            // represents a collection; ENUM/NUMBER scalars must fail closed.
+            if (wrapped.containsKey("kind")) {
+                if (!"OBJECT".equals(String.valueOf(wrapped.get("kind")))
+                    || !(wrapped.get("value") instanceof Map<?, ?> nestedValues)) {
+                    return List.of();
+                }
+                raw = nestedValues;
+            }
+        }
         if (raw instanceof Map<?, ?> map) {
             var result = new ArrayList<Map<String, Object>>();
             for (var value : map.values()) {

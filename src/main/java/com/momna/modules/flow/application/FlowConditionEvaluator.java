@@ -126,11 +126,27 @@ public final class FlowConditionEvaluator {
 
         if (value instanceof Map<?, ?> map) {
             var nestedValue = map.get("value");
-            if (nestedValue != null && !(nestedValue instanceof Map<?, ?>) && !(nestedValue instanceof Collection<?>)) {
+            var kind = map.get("kind");
+            if ("OBJECT".equals(kind) && nestedValue instanceof Map<?, ?> object) {
+                return object.entrySet().stream()
+                    .sorted(Comparator.comparing(e -> String.valueOf(e.getKey())))
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(java.util.stream.Collectors.joining("|"));
+            }
+            if ("NUMBER".equals(kind) && nestedValue != null) {
+                try {
+                    return new BigDecimal(String.valueOf(nestedValue))
+                        .stripTrailingZeros().toPlainString();
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+            if (nestedValue != null && !(nestedValue instanceof Map<?, ?>)
+                && !(nestedValue instanceof Collection<?>)) {
                 return String.valueOf(nestedValue);
             }
-            var kind = map.get("kind");
-            if (kind != null && nestedValue != null) return String.valueOf(nestedValue);
+            // A structured RECORD/COLLECTION does not have scalar equality semantics.
+            if (kind != null) return null;
         }
         if (value instanceof String || value instanceof Number || value instanceof Boolean) {
             return String.valueOf(value);

@@ -495,4 +495,70 @@ class AuthenticatedApiHttpE2eTest {
         var stale=client.send(staleRequest,HttpResponse.BodyHandlers.ofString());
         assertEquals(409,stale.statusCode(),stale.body());
     }
+
+    @Test
+    void onboardingCycleCompletesAllRequiredScreensAndRecoversResult() throws Exception {
+        String email="complete-cycle-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+        var start=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                .put("period","CYCLE").toString(),token,"start-"+UUID.randomUUID());
+        assertEquals(200,start.statusCode(),start.body());
+        var state=json.readTree(start.body());
+        String id=state.path("instanceId").asText();
+        int version=state.path("definitionVersion").asInt();
+        String root="/api/v1/flow-instances/"+id;
+
+        var premature=postWithKey(root+"/complete",
+            json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",state.path("revision").asLong()).toString(),
+            token,"premature-"+UUID.randomUUID());
+        assertEquals(409,premature.statusCode(),premature.body());
+
+        int answered=0;
+        while (state.path("currentStep").isObject() && answered<100) {
+            var step=state.path("currentStep");
+            String field=step.path("fieldId").asText();
+            var body=json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",state.path("revision").asLong())
+                .put("mode","SUBMIT");
+            body.putObject("value").put("kind","ENUM").put("value","no");
+            var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+
+                root+"/answers/"+field))
+                .header("Content-Type","application/json")
+                .header("Authorization","Bearer "+token)
+                .header("Idempotency-Key","cycle-field-"+answered+"-"+UUID.randomUUID())
+                .PUT(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+            var updated=client.send(request,HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,updated.statusCode(),"field="+field+" "+updated.body());
+            var next=json.readTree(updated.body());
+            assertTrue(next.path("revision").asLong()>state.path("revision").asLong(),field);
+            state=next;
+            answered++;
+        }
+        assertTrue(answered>=10,"Cycle onboarding must exercise real user screens");
+        assertTrue(answered<100,"Cycle flow must terminate, not loop");
+        assertTrue(state.path("currentStep").isMissingNode() || state.path("currentStep").isNull(),
+            "No required/optional step should remain after answering");
+
+        var finished=postWithKey(root+"/complete",
+            json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",state.path("revision").asLong()).toString(),
+            token,"complete-"+UUID.randomUUID());
+        assertEquals(200,finished.statusCode(),finished.body());
+        assertTrue(json.readTree(finished.body()).path("completed").asBoolean());
+        var recovered=get(root+"/result",token);
+        assertEquals(200,recovered.statusCode(),recovered.body());
+        assertTrue(json.readTree(recovered.body()).path("completed").asBoolean());
+        assertEquals(answered,json.readTree(recovered.body()).path("answers").size());
+    }
 }

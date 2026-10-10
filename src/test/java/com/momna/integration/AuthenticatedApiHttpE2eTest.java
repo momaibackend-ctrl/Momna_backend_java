@@ -865,4 +865,100 @@ class AuthenticatedApiHttpE2eTest {
                 "Changes must be shown only for very_recent here");
         }
     }
+
+    @Test
+    void menarcheOnboardingBackChangeSkipResumeAndReplayOverHttp() throws Exception {
+        String email="mn-nav-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+
+        var started=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                .put("period","MENARCHE").toString(),token,"mn-start-"+UUID.randomUUID());
+        assertEquals(200,started.statusCode(),started.body());
+        var state=json.readTree(started.body());
+        String root="/api/v1/flow-instances/"+state.path("instanceId").asText();
+        int version=state.path("definitionVersion").asInt();
+        String first=state.path("currentStep").path("fieldId").asText();
+        assertEquals("onboarding.menarche.goal",first);
+
+        var firstBody=json.createObjectNode().put("mode","SUBMIT")
+            .put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong());
+        firstBody.putObject("value").put("kind","ENUM").put("value","no");
+        String key="mn-answer-"+UUID.randomUUID();
+        var firstResponse=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key",key)
+            .PUT(HttpRequest.BodyPublishers.ofString(firstBody.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,firstResponse.statusCode(),firstResponse.body());
+        var afterFirst=json.readTree(firstResponse.body());
+        assertTrue(afterFirst.path("revision").asLong()>state.path("revision").asLong());
+
+        var replay=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key",key)
+            .PUT(HttpRequest.BodyPublishers.ofString(firstBody.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,replay.statusCode(),replay.body());
+        assertTrue(json.readTree(replay.body()).path("idempotentReplay").asBoolean());
+
+        var stale=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","mn-stale-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(firstBody.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(409,stale.statusCode(),stale.body());
+
+        var back=postWithKey(root+"/actions/BACK",json.createObjectNode()
+            .put("expectedDefinitionVersion",version)
+            .put("expectedRevision",afterFirst.path("revision").asLong()).toString(),
+            token,"mn-back-"+UUID.randomUUID());
+        assertEquals(200,back.statusCode(),back.body());
+        var backState=json.readTree(back.body());
+        assertEquals(first,backState.path("currentStep").path("fieldId").asText());
+
+        var changedBody=json.createObjectNode().put("mode","CHANGE")
+            .put("expectedDefinitionVersion",version)
+            .put("expectedRevision",backState.path("revision").asLong());
+        changedBody.putObject("value").put("kind","ENUM").put("value","yes");
+        var changed=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","mn-change-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(changedBody.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,changed.statusCode(),changed.body());
+        var changedState=json.readTree(changed.body());
+        var resumed=get(root,token);
+        assertEquals(200,resumed.statusCode(),resumed.body());
+        assertEquals(changedState.path("revision").asLong(),
+            json.readTree(resumed.body()).path("revision").asLong());
+        var result=get(root+"/result",token);
+        assertEquals(200,result.statusCode(),result.body());
+        assertEquals("yes",json.readTree(result.body()).path("answers")
+            .path(first).path("value").asText());
+
+        var nextStep=changedState.path("currentStep");
+        assertTrue(nextStep.isObject(),changed.body());
+        var skip=postWithKey(root+"/steps/"+nextStep.path("stepId").asText()+"/skip",
+            json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",changedState.path("revision").asLong()).toString(),
+            token,"mn-skip-"+UUID.randomUUID());
+        assertEquals(200,skip.statusCode(),skip.body());
+        assertTrue(json.readTree(skip.body()).path("revision").asLong()
+            > changedState.path("revision").asLong());
+    }
 }

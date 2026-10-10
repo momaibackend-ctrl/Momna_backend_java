@@ -110,7 +110,8 @@ public final class RouterRoutingTable {
 
     public static Decision route(Map<String, String> answers) {
         for (var rule : RULES) {
-            if (rule.values().contains(answers.get(rule.fieldId()))) {
+            if (answers.containsKey(rule.fieldId())
+                && rule.values().contains(answers.get(rule.fieldId()))) {
                 return new Decision(
                     rule.period(),
                     rule.substage(),

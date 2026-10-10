@@ -961,4 +961,98 @@ class AuthenticatedApiHttpE2eTest {
         assertTrue(json.readTree(skip.body()).path("revision").asLong()
             > changedState.path("revision").asLong());
     }
+
+    @Test
+    void menarcheMorningAndEveningCheckinEachPersistAndFinalizeOverHttp() throws Exception {
+        for (String phase : java.util.List.of("MORNING", "EVENING")) {
+            String email="mn-check-"+phase.toLowerCase()+"-"+UUID.randomUUID()+"@example.test";
+            DELIVERED_CODE.set(null);
+            var challenge=post("/api/v1/auth/email/challenges",
+                json.createObjectNode().put("email",email).toString(),null);
+            assertEquals(202,challenge.statusCode(),challenge.body());
+            var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+                .put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+            assertEquals(200,login.statusCode(),login.body());
+            var credential=json.readTree(login.body());
+            String token=credential.path("accessCredential").asText();
+            String authSessionId=credential.path("session").path("sessionId").asText();
+            String userId=authSessions.findById(authSessionId).orElseThrow().getUserId();
+
+            // Offset makes the requested phase OPEN independent of CI runner hour.
+            int targetHour=phase.equals("MORNING") ? 6 : 18;
+            int utcHour=java.time.ZonedDateTime.now(ZoneOffset.UTC).getHour();
+            int hours=targetHour-utcHour;
+            if(hours>11) hours-=24;
+            if(hours< -12) hours+=24;
+            String timezone=ZoneOffset.ofHours(hours).getId();
+            var profile=new UserProfileEntity(userId,Instant.now());
+            profile.updateLocalization("en","en-US","US",timezone,Instant.now());
+            userProfiles.saveAndFlush(profile);
+            lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+                UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+                null,Instant.now().minusSeconds(86400),null,
+                "menarche-http-fixture",1.0,true
+            ));
+
+            var today=get("/api/v1/check-in/today",token);
+            assertEquals(200,today.statusCode(),phase+" "+today.body());
+            assertEquals("MENARCHE",json.readTree(today.body())
+                .path("lifecyclePeriod").asText());
+
+            var start=postWithKey("/api/v1/check-in/sessions",
+                json.createObjectNode().put("phase",phase).toString(),token,
+                "start-"+phase+"-"+UUID.randomUUID());
+            assertEquals(201,start.statusCode(),phase+" "+start.body());
+            var state=json.readTree(start.body());
+            assertEquals("DRAFT",state.path("status").asText());
+            assertEquals(phase,state.path("phase").asText());
+            assertEquals("MENARCHE",state.path("lifecyclePeriodAtTime").asText());
+            String root="/api/v1/check-in/sessions/"+state.path("sessionId").asText();
+            String item=state.path("items").get(0).path("itemCode").asText();
+            assertFalse(item.isBlank());
+
+            var change=json.createObjectNode()
+                .put("expectedRevision",state.path("revision").asLong());
+            change.putArray("answerChanges").addObject()
+                .put("itemCode",item).put("value",1);
+            var partial=patchWithKey(root,change.toString(),token,
+                "answer-"+phase+"-"+UUID.randomUUID());
+            assertEquals(200,partial.statusCode(),phase+" "+partial.body());
+            var changed=json.readTree(partial.body());
+            assertEquals("PARTIAL",changed.path("status").asText());
+            var remove=json.createObjectNode()
+                .put("expectedRevision",changed.path("revision").asLong());
+            remove.putArray("answerChanges").addObject()
+                .put("itemCode",item).putNull("value");
+            var backToDraft=patchWithKey(root,remove.toString(),token,
+                "remove-"+phase+"-"+UUID.randomUUID());
+            assertEquals(200,backToDraft.statusCode(),phase+" "+backToDraft.body());
+            assertEquals("DRAFT",json.readTree(backToDraft.body()).path("status").asText());
+
+            var answerAgain=json.createObjectNode().put("expectedRevision",
+                json.readTree(backToDraft.body()).path("revision").asLong());
+            answerAgain.putArray("answerChanges").addObject()
+                .put("itemCode",item).put("value",2);
+            var second=patchWithKey(root,answerAgain.toString(),token,
+                "again-"+phase+"-"+UUID.randomUUID());
+            assertEquals(200,second.statusCode(),phase+" "+second.body());
+
+            String submitKey="submit-"+phase+"-"+UUID.randomUUID();
+            String submitBody=json.createObjectNode().put("expectedRevision",
+                json.readTree(second.body()).path("revision").asLong()).toString();
+            var submit=postWithKey(root+"/submit",submitBody,token,submitKey);
+            assertEquals(200,submit.statusCode(),phase+" "+submit.body());
+            assertEquals("SUBMITTED",json.readTree(submit.body())
+                .path("session").path("status").asText());
+            var replay=postWithKey(root+"/submit",submitBody,token,submitKey);
+            assertEquals(200,replay.statusCode(),phase+" "+replay.body());
+            assertEquals("SUBMITTED",json.readTree(replay.body())
+                .path("session").path("status").asText());
+            var saved=get(root,token);
+            assertEquals(200,saved.statusCode(),phase+" "+saved.body());
+            assertEquals("SUBMITTED",json.readTree(saved.body()).path("status").asText());
+        }
+    }
 }

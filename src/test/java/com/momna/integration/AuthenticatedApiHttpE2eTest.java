@@ -288,4 +288,88 @@ class AuthenticatedApiHttpE2eTest {
             "checkin-after-final-"+UUID.randomUUID());
         assertEquals(409,blocked.statusCode(),blocked.body());
     }
+
+    @Test
+    void accountProfileConsentLifecycleAndBillingHttpContracts() throws Exception {
+        String email="account-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var ch=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,ch.statusCode(),ch.body());
+        var login=post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(ch.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String bearer=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        var initial=get("/api/v1/me/profile",bearer);
+        assertEquals(200,initial.statusCode(),initial.body());
+        long originalVersion=json.readTree(initial.body()).path("version").asLong();
+
+        var preferences=json.createObjectNode().put("measurementSystem","METRIC")
+            .put("expectedVersion",originalVersion);
+        preferences.putObject("unitPreferences").put("weight","kg");
+        preferences.putObject("notificationPreferences").put("daily",true);
+        var updated=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+"/api/v1/me/profile/preferences"))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+bearer)
+            .method("PATCH",HttpRequest.BodyPublishers.ofString(preferences.toString()))
+            .build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,updated.statusCode(),updated.body());
+        long newVersion=json.readTree(updated.body()).path("version").asLong();
+        assertTrue(newVersion>originalVersion);
+
+        var local=json.createObjectNode().put("preferredLanguage","es")
+            .put("locale","es-ES").put("countryRegion","ES")
+            .put("timezone","Europe/Madrid").put("expectedVersion",newVersion);
+        var localized=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+"/api/v1/me/profile/localization"))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+bearer)
+            .method("PATCH",HttpRequest.BodyPublishers.ofString(local.toString()))
+            .build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,localized.statusCode(),localized.body());
+        assertEquals("Europe/Madrid",json.readTree(localized.body())
+            .path("timezone").asText());
+
+        // Optimistic locking must reject writes based on stale profile versions.
+        var stale=client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:"+port+"/api/v1/me/profile/localization"))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+bearer)
+            .method("PATCH",HttpRequest.BodyPublishers.ofString(local.toString()))
+            .build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(409,stale.statusCode(),stale.body());
+
+        var consentBody=json.createObjectNode().put("policyVersion","1").toString();
+        var granted=post("/api/v1/me/consents/privacy/grant",consentBody,bearer);
+        assertEquals(200,granted.statusCode(),granted.body());
+        assertEquals("GRANTED",json.readTree(granted.body()).path("state").asText());
+        assertEquals(200,get("/api/v1/me/consents",bearer).statusCode());
+        var withdrawn=post("/api/v1/me/consents/privacy/withdraw",consentBody,bearer);
+        assertEquals(200,withdrawn.statusCode(),withdrawn.body());
+        assertEquals("WITHDRAWN",json.readTree(withdrawn.body()).path("state").asText());
+
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.CYCLE,
+            null,Instant.now().minusSeconds(3600),null,"test-fixture",1.0,true));
+        var lifecycle=get("/api/v1/me/lifecycle",bearer);
+        assertEquals(200,lifecycle.statusCode(),lifecycle.body());
+        assertEquals("CYCLE",json.readTree(lifecycle.body()).path("primary")
+            .path("period").asText());
+        assertEquals(200,get("/api/v1/me/lifecycle/history",bearer).statusCode());
+
+        assertEquals(200,get("/api/v1/me/entitlements",bearer).statusCode());
+        assertEquals(200,get("/api/v1/me/subscription",bearer).statusCode());
+        assertEquals(200,get("/api/v1/me/account-center",bearer).statusCode());
+        assertEquals(200,get("/api/v1/me/sessions",bearer).statusCode());
+    }
 }

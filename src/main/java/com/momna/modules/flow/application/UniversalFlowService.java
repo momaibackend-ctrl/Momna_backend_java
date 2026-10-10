@@ -1,6 +1,7 @@
 package com.momna.modules.flow.application;
 
 import com.momna.modules.flow.domain.*;
+import com.momna.core.fields.infrastructure.CanonicalFieldValueRepository;
 import com.momna.modules.flow.infrastructure.*;
 import java.time.Clock;
 import java.time.Instant;
@@ -15,18 +16,21 @@ public class UniversalFlowService {
     private final FlowInstanceRepository instances;
     private final FlowAnswerRepository answers;
     private final FlowOperationResultRepository operations;
+    private final CanonicalFieldValueRepository transitionValues;
     private final Clock clock = Clock.systemUTC();
 
     public UniversalFlowService(
         FlowDefinitionRepository definitions,
         FlowInstanceRepository instances,
         FlowAnswerRepository answers,
-        FlowOperationResultRepository operations
+        FlowOperationResultRepository operations,
+        CanonicalFieldValueRepository transitionValues
     ) {
         this.definitions = definitions;
         this.instances = instances;
         this.answers = answers;
         this.operations = operations;
+        this.transitionValues = transitionValues;
     }
 
     @Transactional
@@ -333,6 +337,23 @@ public class UniversalFlowService {
 
     private Map<String, Map<String, Object>> activeAnswerPayloads(UUID instanceId) {
         var values = new LinkedHashMap<String, Map<String, Object>>();
+        var instance = instances.findById(instanceId).orElseThrow();
+        // Conditional period questions can depend on values selected in the router.
+        // Resolve only this user's transition-scoped values, not global profile data.
+        if (instance.getTransitionScopeId() != null) {
+            var seen = new HashSet<String>();
+            var now = clock.instant();
+            for (var value : transitionValues
+                .findByUserIdAndScopeTypeAndScopeIdOrderByRecordedAtDesc(
+                    instance.getUserId(), "TRANSITION", instance.getTransitionScopeId())) {
+                if (!"ROUTER_TO_PERIOD_PREFILL".equals(value.getPurpose())
+                    || value.getTypedValue() == null
+                    || value.getValidFrom().isAfter(now)
+                    || (value.getValidUntil() != null && !now.isBefore(value.getValidUntil()))
+                    || !seen.add(value.getFieldId())) continue;
+                values.put("transition:" + value.getFieldId(), value.getTypedValue());
+            }
+        }
         for (var answer : answers.findByInstanceIdAndActiveTrueOrderByAnsweredAtAscAnswerIdAsc(instanceId)) {
             if (answer.getAnswerStatus() == FlowAnswerStatus.ANSWERED && answer.getPayload() != null) {
                 values.put(answer.getFieldId(), answer.getPayload());

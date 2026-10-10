@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.List;
 import net.jqwik.api.ForAll;
-import net.jqwik.api.IntRange;
+import net.jqwik.api.constraints.IntRange;
 import net.jqwik.api.Property;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;

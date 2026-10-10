@@ -949,7 +949,7 @@ class AuthenticatedApiHttpE2eTest {
         var result=get(root+"/result",token);
         assertEquals(200,result.statusCode(),result.body());
         assertEquals("yes",json.readTree(result.body()).path("answers")
-            .path(first).path("value").path("value").asText());
+            .path(first).path("value").asText());
 
         var nextStep=changedState.path("currentStep");
         assertTrue(nextStep.isObject(),changed.body());

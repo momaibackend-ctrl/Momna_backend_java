@@ -1,0 +1,1261 @@
+{
+  "info": {
+    "name": "Momna Java API Security Boundary Coverage",
+    "description": "All documented API operations: unauthenticated/invalid request checks only. DOES NOT prove success-path or state-transition parity.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication boundary for all protected API operations",
+      "item": [
+        {
+          "name": "POST /api/v1/flow-instances rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/flow-instances/{instanceId} rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-2"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/v1/flow-instances/{instanceId}/answers/{fieldId} rejects unauthenticated caller",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-3"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/answers/00000000-0000-4000-8000-000000000001",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/flow-instances/{instanceId}/actions/{action} rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-4"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/actions/00000000-0000-4000-8000-000000000001",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/flow-instances/{instanceId}/complete rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-5"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/flow-instances/{instanceId}/result rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-6"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/result"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/flow-instances/{instanceId}/router/confirm rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-7"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/router/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/session rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-8"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/session"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/sessions rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-9"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/sessions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/v1/me/sessions rejects unauthenticated caller",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-10"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/sessions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/v1/me/sessions/{sessionId} rejects unauthenticated caller",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-11"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/sessions/00000000-0000-4000-8000-000000000001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/logout rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-12"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/logout",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/login-identities rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-13"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/login-identities"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/login-identities rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-14"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/login-identities",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/v1/me/login-identities/{identityId} rejects unauthenticated caller",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-15"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/login-identities/00000000-0000-4000-8000-000000000001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/reauthenticate rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-16"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/reauthenticate",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/profile rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-17"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/me/profile/preferences rejects unauthenticated caller",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-18"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/preferences",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/me/profile/localization rejects unauthenticated caller",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-19"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/localization",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/consents rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-20"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/consents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/consents/{consentType}/grant rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-21"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/consents/00000000-0000-4000-8000-000000000001/grant",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/consents/{consentType}/withdraw rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-22"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/consents/00000000-0000-4000-8000-000000000001/withdraw",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/lifecycle rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-23"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/lifecycle"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/lifecycle/history rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-24"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/lifecycle/history"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/entitlements rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-25"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/entitlements"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/subscription rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-26"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/subscription"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/me/billing/restore rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-27"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/billing/restore",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/me/account-center rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-28"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/account-center"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/flow-instances/{instanceId}/steps/{stepId}/skip rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-29"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/steps/00000000-0000-4000-8000-000000000001/skip",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/flow-instances/{instanceId}/actions/{actionCode} rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-30"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-4000-8000-000000000001/actions/00000000-0000-4000-8000-000000000001",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/check-in/today rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-31"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/today"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-32"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/check-in/sessions/{sessionId} rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-33"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/check-in/sessions/{sessionId} rejects unauthenticated caller",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-34"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-35"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/clarifications/00000000-0000-4000-8000-000000000001/answer",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/submit rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/submit",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Invalid authentication payloads",
+      "item": [
+        {
+          "name": "POST /api/v1/auth/email/challenges rejects invalid body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/email/challenges",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invalid payload rejected, never creates session', function () { pm.expect(pm.response.code).to.be.oneOf([400,401,422]); });",
+                  "pm.test('no credentials in error', function () { pm.expect(pm.response.text()).not.to.include('refreshCredential'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/email/complete rejects invalid body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/email/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invalid payload rejected, never creates session', function () { pm.expect(pm.response.code).to.be.oneOf([400,401,422]); });",
+                  "pm.test('no credentials in error', function () { pm.expect(pm.response.text()).not.to.include('refreshCredential'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/providers/exchange rejects invalid body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/providers/exchange",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invalid payload rejected, never creates session', function () { pm.expect(pm.response.code).to.be.oneOf([400,401,422]); });",
+                  "pm.test('no credentials in error', function () { pm.expect(pm.response.text()).not.to.include('refreshCredential'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/refresh rejects invalid body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invalid payload rejected, never creates session', function () { pm.expect(pm.response.code).to.be.oneOf([400,401,422]); });",
+                  "pm.test('no credentials in error', function () { pm.expect(pm.response.text()).not.to.include('refreshCredential'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

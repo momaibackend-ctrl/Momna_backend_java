@@ -1254,7 +1254,7 @@ class AuthenticatedApiHttpE2eTest {
         var now=Instant.now();
         var entity=new CheckinSessionEntity(
             UUID.randomUUID().toString(),userId,CheckinPhase.MORNING,
-            java.time.LocalDate.of(2026,10,9),"MENARCHE",null,"UTC",1,"rules-1",
+            java.time.LocalDate.of(2026,10,9),"MENARCHE",null,"UTC",3,"weighted-v3",
             java.util.List.of("mood"),
             now.minusSeconds(7200),now.minusSeconds(3600),now.minusSeconds(7100));
         checkinSessions.saveAndFlush(entity);

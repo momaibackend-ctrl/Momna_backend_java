@@ -561,4 +561,68 @@ class AuthenticatedApiHttpE2eTest {
         assertTrue(json.readTree(recovered.body()).path("completed").asBoolean());
         assertEquals(answered,json.readTree(recovered.body()).path("answers").size());
     }
+
+    @Test
+    void remainingSixPeriodOnboardingsCompleteOverHttp() throws Exception {
+        String email="all-periods-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+
+        for (var period : java.util.List.of(
+            "MENARCHE","PLANNING","PREGNANCY","POSTPARTUM","PERIMENOPAUSE","MENOPAUSE"
+        )) {
+            var start=postWithKey("/api/v1/flow-instances",
+                json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                    .put("period",period).toString(),token,
+                "start-"+period+"-"+UUID.randomUUID());
+            assertEquals(200,start.statusCode(),period+": "+start.body());
+            var state=json.readTree(start.body());
+            String instanceId=state.path("instanceId").asText();
+            String root="/api/v1/flow-instances/"+instanceId;
+            int definitionVersion=state.path("definitionVersion").asInt();
+            int steps=0;
+            while (state.path("currentStep").isObject() && steps<150) {
+                String field=state.path("currentStep").path("fieldId").asText();
+                var body=json.createObjectNode()
+                    .put("expectedDefinitionVersion",definitionVersion)
+                    .put("expectedRevision",state.path("revision").asLong())
+                    .put("mode","SUBMIT");
+                body.putObject("value").put("kind","ENUM").put("value","no");
+                var request=HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:"+port+root+"/answers/"+field))
+                    .header("Content-Type","application/json")
+                    .header("Authorization","Bearer "+token)
+                    .header("Idempotency-Key","period-answer-"+period+"-"+steps+"-"+UUID.randomUUID())
+                    .PUT(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+                var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,response.statusCode(),period+" field="+field+" "+response.body());
+                var next=json.readTree(response.body());
+                assertTrue(next.path("revision").asLong()>state.path("revision").asLong(),period);
+                state=next;
+                steps++;
+            }
+            assertTrue(steps>0 && steps<150,period+" flow must terminate within 150 steps");
+            assertFalse(state.path("currentStep").isObject(),period+" no step remains");
+
+            var completed=postWithKey(root+"/complete",
+                json.createObjectNode().put("expectedDefinitionVersion",definitionVersion)
+                    .put("expectedRevision",state.path("revision").asLong()).toString(),
+                token,"complete-"+period+"-"+UUID.randomUUID());
+            assertEquals(200,completed.statusCode(),period+": "+completed.body());
+            assertTrue(json.readTree(completed.body()).path("completed").asBoolean(),period);
+            var recovered=get(root+"/result",token);
+            assertEquals(200,recovered.statusCode(),period+": "+recovered.body());
+            assertTrue(json.readTree(recovered.body()).path("completed").asBoolean(),period);
+            assertEquals(instanceId,json.readTree(recovered.body())
+                .path("instanceId").asText(),period);
+        }
+    }
 }

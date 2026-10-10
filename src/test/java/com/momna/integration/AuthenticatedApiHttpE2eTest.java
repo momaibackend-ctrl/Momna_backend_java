@@ -1055,4 +1055,104 @@ class AuthenticatedApiHttpE2eTest {
             assertEquals("SUBMITTED",json.readTree(saved.body()).path("status").asText());
         }
     }
+
+    @Test
+    void menarcheRepeatedOnboardingAndFinalizedCheckinRejectMutations() throws Exception {
+        String email="mn-repeat-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var creds=json.readTree(login.body());
+        String token=creds.path("accessCredential").asText();
+        String userId=authSessions.findById(creds.path("session").path("sessionId").asText())
+            .orElseThrow().getUserId();
+
+        for(int iteration=0;iteration<2;iteration++) {
+            var start=postWithKey("/api/v1/flow-instances",
+                json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                    .put("period","MENARCHE").toString(),token,
+                "menarche-repeat-"+iteration+"-"+UUID.randomUUID());
+            assertEquals(200,start.statusCode(),start.body());
+            var state=json.readTree(start.body());
+            String root="/api/v1/flow-instances/"+state.path("instanceId").asText();
+            int version=state.path("definitionVersion").asInt();
+            int n=0;
+            while(state.path("currentStep").isObject() && n<100) {
+                String field=state.path("currentStep").path("fieldId").asText();
+                var answer=json.createObjectNode().put("mode","SUBMIT")
+                    .put("expectedDefinitionVersion",version)
+                    .put("expectedRevision",state.path("revision").asLong());
+                answer.putObject("value").put("kind","ENUM")
+                    .put("value",iteration==0 ? "no" : "yes");
+                var response=client.send(HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:"+port+root+"/answers/"+field))
+                    .header("Content-Type","application/json")
+                    .header("Authorization","Bearer "+token)
+                    .header("Idempotency-Key","repeat-answer-"+n+"-"+UUID.randomUUID())
+                    .PUT(HttpRequest.BodyPublishers.ofString(answer.toString())).build(),
+                    HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,response.statusCode(),response.body());
+                state=json.readTree(response.body());n++;
+            }
+            assertTrue(n>=12 && n<100);
+            var completed=postWithKey(root+"/complete",
+                json.createObjectNode().put("expectedDefinitionVersion",version)
+                    .put("expectedRevision",state.path("revision").asLong()).toString(),
+                token,"repeat-complete-"+UUID.randomUUID());
+            assertEquals(200,completed.statusCode(),completed.body());
+            assertTrue(json.readTree(completed.body()).path("completed").asBoolean());
+            var persisted=get(root+"/result",token);
+            assertEquals(200,persisted.statusCode(),persisted.body());
+            assertEquals(iteration==0 ? "no" : "yes",json.readTree(persisted.body())
+                .path("answers").path("onboarding.menarche.goal")
+                .path("value").asText());
+            var afterCompletion=client.send(HttpRequest.newBuilder(URI.create(
+                "http://127.0.0.1:"+port+root+"/answers/onboarding.menarche.goal"))
+                .header("Content-Type","application/json")
+                .header("Authorization","Bearer "+token)
+                .header("Idempotency-Key","late-change-"+UUID.randomUUID())
+                .PUT(HttpRequest.BodyPublishers.ofString(json.createObjectNode()
+                    .put("mode","CHANGE")
+                    .put("expectedDefinitionVersion",version)
+                    .put("expectedRevision",state.path("revision").asLong())
+                    .set("value",json.createObjectNode().put("kind","ENUM")
+                        .put("value","another")).toString())).build(),
+                HttpResponse.BodyHandlers.ofString());
+            assertEquals(409,afterCompletion.statusCode(),afterCompletion.body());
+        }
+
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,
+            "menarche-negative-test",1.0,true));
+        var phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var startedCheckin=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "negative-checkin-"+UUID.randomUUID());
+        assertEquals(201,startedCheckin.statusCode(),startedCheckin.body());
+        var session=json.readTree(startedCheckin.body());
+        String path="/api/v1/check-in/sessions/"+session.path("sessionId").asText();
+        var submitted=postWithKey(path+"/submit",json.createObjectNode()
+            .put("expectedRevision",session.path("revision").asLong()).toString(),
+            token,"negative-submit-"+UUID.randomUUID());
+        assertEquals(200,submitted.statusCode(),submitted.body());
+        var mutation=json.createObjectNode().put("expectedRevision",
+            json.readTree(submitted.body()).path("session").path("revision").asLong());
+        mutation.putArray("answerChanges").addObject()
+            .put("itemCode",session.path("items").get(0).path("itemCode").asText())
+            .put("value",1);
+        var forbidden=patchWithKey(path,mutation.toString(),token,
+            "negative-patch-"+UUID.randomUUID());
+        assertEquals(409,forbidden.statusCode(),forbidden.body());
+    }
 }

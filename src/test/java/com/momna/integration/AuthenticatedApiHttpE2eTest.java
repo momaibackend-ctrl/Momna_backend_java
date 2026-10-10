@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.momna.modules.auth.application.EmailChallengeDelivery;
 import com.momna.modules.auth.infrastructure.AuthSessionRepository;
+import com.momna.modules.checkin.infrastructure.CheckinSessionRepository;
+import com.momna.modules.checkin.infrastructure.CheckinSessionEntity;
+import com.momna.modules.checkin.domain.CheckinPhase;
 import com.momna.modules.profile.infrastructure.*;
 import com.momna.modules.lifecycle.infrastructure.*;
 import com.momna.modules.lifecycle.domain.LifecyclePeriod;
@@ -60,6 +63,7 @@ class AuthenticatedApiHttpE2eTest {
     int port;
 
     @Autowired AuthSessionRepository authSessions;
+    @Autowired CheckinSessionRepository checkinSessions;
     @Autowired UserProfileRepository userProfiles;
     @Autowired LifecyclePeriodHistoryRepository lifecycleHistory;
 
@@ -1225,5 +1229,54 @@ class AuthenticatedApiHttpE2eTest {
         var answers=json.readTree(after.body()).path("answers");
         assertFalse(answers.has(safety),"Stale hidden safety answer was retained");
         assertEquals("no",answers.path(relationship).path("value").asText());
+    }
+
+    @Test
+    void menarcheExpiredSessionAutoFinalizesThroughAuthenticatedHttpAndRejectsEdits() throws Exception {
+        String email="mn-auto-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String token=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+
+        // Set up a genuinely expired persisted Menarche session. The only
+        // test seam is the clock-dependent fixture; every behavior is HTTP.
+        var now=Instant.now();
+        var entity=new CheckinSessionEntity(
+            UUID.randomUUID().toString(),userId,CheckinPhase.MORNING,
+            java.time.LocalDate.of(2026,10,9),"MENARCHE",null,"UTC",1,"rules-1",
+            java.util.List.of("mood"),
+            now.minusSeconds(7200),now.minusSeconds(3600),now.minusSeconds(7100));
+        checkinSessions.saveAndFlush(entity);
+        String path="/api/v1/check-in/sessions/"+entity.getSessionId();
+        var expired=get(path,token);
+        assertEquals(200,expired.statusCode(),expired.body());
+        var data=json.readTree(expired.body());
+        assertEquals("AUTO_FINALIZED",data.path("status").asText(),expired.body());
+        assertEquals("WINDOW_CLOSED",data.path("finalizationReason").asText());
+        assertFalse(data.path("finalizedAt").isNull());
+
+        var second=get(path,token);
+        assertEquals(200,second.statusCode(),second.body());
+        assertEquals("AUTO_FINALIZED",json.readTree(second.body()).path("status").asText());
+        assertEquals(data.path("revision").asLong(),
+            json.readTree(second.body()).path("revision").asLong(),
+            "Auto-finalization must be idempotent on repeat GET");
+        var edit=json.createObjectNode()
+            .put("expectedRevision",data.path("revision").asLong());
+        edit.putArray("answerChanges").addObject()
+            .put("itemCode","mood").put("value",1);
+        var rejected=patchWithKey(path,edit.toString(),token,
+            "expired-edit-"+UUID.randomUUID());
+        assertEquals(409,rejected.statusCode(),rejected.body());
     }
 }

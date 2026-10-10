@@ -115,4 +115,48 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(401,get("/api/v1/me/session",secondAccess).statusCode(),
             "Replay must invalidate access in the same family");
     }
+
+    @Test
+    void onboardingRouterCanStartResumeAndReplayWithoutDuplicatingInstance() throws Exception {
+        String email = "router-" + UUID.randomUUID() + "@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge = post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var challengeId = json.readTree(challenge.body()).path("challengeId").asText();
+        var code = DELIVERED_CODE.get();
+        assertNotNull(code);
+        var login = post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email).put("challengeId",challengeId)
+                .put("code",code).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String access = json.readTree(login.body()).path("accessCredential").asText();
+        assertFalse(access.isBlank());
+
+        var key = "router-e2e-" + UUID.randomUUID();
+        var body = json.createObjectNode().put("flowType","LIFECYCLE_ROUTER").toString();
+        var request = HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:" + port + "/api/v1/flow-instances"))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer " + access)
+            .header("Idempotency-Key",key)
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build();
+        var started = client.send(request,HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,started.statusCode(),started.body());
+        var state = json.readTree(started.body());
+        var instanceId = state.path("instanceId").asText();
+        assertFalse(instanceId.isBlank());
+        assertEquals("IN_PROGRESS",state.path("status").asText());
+
+        var resumed = get("/api/v1/flow-instances/"+instanceId,access);
+        assertEquals(200,resumed.statusCode(),resumed.body());
+        assertEquals(instanceId,json.readTree(resumed.body()).path("instanceId").asText());
+
+        var replay = client.send(request,HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,replay.statusCode(),replay.body());
+        var replayed = json.readTree(replay.body());
+        assertEquals(instanceId,replayed.path("instanceId").asText());
+        assertTrue(replayed.path("idempotentReplay").asBoolean());
+    }
 }

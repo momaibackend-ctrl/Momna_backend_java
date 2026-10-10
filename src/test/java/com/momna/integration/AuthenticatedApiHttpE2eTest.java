@@ -1248,6 +1248,7 @@ class AuthenticatedApiHttpE2eTest {
         String userId=authSessions.findById(credentials.path("session")
             .path("sessionId").asText()).orElseThrow().getUserId();
 
+        userProfiles.saveAndFlush(new UserProfileEntity(userId, Instant.now()));
         // Set up a genuinely expired persisted Menarche session. The only
         // test seam is the clock-dependent fixture; every behavior is HTTP.
         var now=Instant.now();

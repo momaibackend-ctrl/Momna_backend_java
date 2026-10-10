@@ -3,6 +3,14 @@ package com.momna.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.momna.modules.auth.application.EmailChallengeDelivery;
+import com.momna.modules.auth.infrastructure.AuthSessionRepository;
+import com.momna.modules.profile.infrastructure.*;
+import com.momna.modules.lifecycle.infrastructure.*;
+import com.momna.modules.lifecycle.domain.LifecyclePeriod;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -50,6 +58,10 @@ class AuthenticatedApiHttpE2eTest {
 
     @Value("${local.server.port}")
     int port;
+
+    @Autowired AuthSessionRepository authSessions;
+    @Autowired UserProfileRepository userProfiles;
+    @Autowired LifecyclePeriodHistoryRepository lifecycleHistory;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class DeliveryConfig {
@@ -158,5 +170,122 @@ class AuthenticatedApiHttpE2eTest {
         var replayed = json.readTree(replay.body());
         assertEquals(instanceId,replayed.path("instanceId").asText());
         assertTrue(replayed.path("idempotentReplay").asBoolean());
+    }
+
+    private HttpResponse<String> postWithKey(String path, String body,
+                                             String bearer, String key) throws Exception {
+        return client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:" + port + path))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer " + bearer)
+            .header("Idempotency-Key",key)
+            .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+            HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> patchWithKey(String path, String body,
+                                              String bearer, String key) throws Exception {
+        return client.send(HttpRequest.newBuilder(
+            URI.create("http://127.0.0.1:" + port + path))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer " + bearer)
+            .header("Idempotency-Key",key)
+            .method("PATCH",HttpRequest.BodyPublishers.ofString(body)).build(),
+            HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    void checkinDraftPartialRemoveSubmitReplayAndImmutableFinalState() throws Exception {
+        String email = "checkin-" + UUID.randomUUID() + "@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge = post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        String challengeId = json.readTree(challenge.body()).path("challengeId").asText();
+        String code = DELIVERED_CODE.get();
+        assertNotNull(code);
+        var login = post("/api/v1/auth/email/complete", json.createObjectNode()
+            .put("email",email).put("challengeId",challengeId).put("code",code)
+            .toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credential = json.readTree(login.body());
+        String access = credential.path("accessCredential").asText();
+        String authSessionId = credential.path("session").path("sessionId").asText();
+        String userId = authSessions.findById(authSessionId).orElseThrow().getUserId();
+
+        // Seed only prerequisite canonical profile/lifecycle records. All Check-in
+        // transitions below go through actual authenticated HTTP controllers.
+        Instant now = Instant.now();
+        var profile = new UserProfileEntity(userId,now);
+        profile.updateLocalization("en","en-US","US","UTC",now);
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.CYCLE,
+            null,now.minusSeconds(86400),null,"test-fixture",1.0,true
+        ));
+
+        var today = get("/api/v1/check-in/today",access);
+        assertEquals(200,today.statusCode(),today.body());
+        assertTrue(json.readTree(today.body()).path("phases").isArray());
+        String phase = LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var started = postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),access,
+            "checkin-start-" + UUID.randomUUID());
+        assertEquals(201,started.statusCode(),started.body());
+        var initial=json.readTree(started.body());
+        assertEquals("DRAFT",initial.path("status").asText());
+        String sessionId=initial.path("sessionId").asText();
+        long revision=initial.path("revision").asLong();
+        String item=initial.path("items").get(0).path("itemCode").asText();
+        assertFalse(item.isBlank());
+        String endpoint="/api/v1/check-in/sessions/"+sessionId;
+
+        var body1=json.createObjectNode().put("expectedRevision",revision);
+        var changes1=body1.putArray("answerChanges");
+        changes1.addObject().put("itemCode",item).put("value",1);
+        var partial=patchWithKey(endpoint,body1.toString(),access,
+            "checkin-answer-"+UUID.randomUUID());
+        assertEquals(200,partial.statusCode(),partial.body());
+        var partialJson=json.readTree(partial.body());
+        assertEquals("PARTIAL",partialJson.path("status").asText());
+        assertTrue(partialJson.path("revision").asLong()>revision);
+        revision=partialJson.path("revision").asLong();
+
+        var body2=json.createObjectNode().put("expectedRevision",revision);
+        body2.putArray("answerChanges").addObject().put("itemCode",item).putNull("value");
+        var removed=patchWithKey(endpoint,body2.toString(),access,
+            "checkin-remove-"+UUID.randomUUID());
+        assertEquals(200,removed.statusCode(),removed.body());
+        var removedJson=json.readTree(removed.body());
+        assertEquals("DRAFT",removedJson.path("status").asText());
+        revision=removedJson.path("revision").asLong();
+
+        var body3=json.createObjectNode().put("expectedRevision",revision);
+        body3.putArray("answerChanges").addObject().put("itemCode",item).put("value",2);
+        var second=patchWithKey(endpoint,body3.toString(),access,
+            "checkin-second-"+UUID.randomUUID());
+        assertEquals(200,second.statusCode(),second.body());
+        revision=json.readTree(second.body()).path("revision").asLong();
+
+        var submitBody=json.createObjectNode().put("expectedRevision",revision).toString();
+        String submitKey="checkin-submit-"+UUID.randomUUID();
+        var submit=postWithKey(endpoint+"/submit",submitBody,access,submitKey);
+        assertEquals(200,submit.statusCode(),submit.body());
+        assertEquals("SUBMITTED",json.readTree(submit.body())
+            .path("session").path("status").asText());
+
+        var replay=postWithKey(endpoint+"/submit",submitBody,access,submitKey);
+        assertEquals(200,replay.statusCode(),replay.body());
+        assertEquals("SUBMITTED",json.readTree(replay.body())
+            .path("session").path("status").asText());
+
+        var saved=get(endpoint,access);
+        assertEquals(200,saved.statusCode(),saved.body());
+        assertEquals("SUBMITTED",json.readTree(saved.body()).path("status").asText());
+
+        var blocked=patchWithKey(endpoint,body3.toString(),access,
+            "checkin-after-final-"+UUID.randomUUID());
+        assertEquals(409,blocked.statusCode(),blocked.body());
     }
 }

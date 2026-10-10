@@ -784,7 +784,7 @@ class AuthenticatedApiHttpE2eTest {
     @Test
     void menarcheOnboardingConditionalBranchesFromRouter() throws Exception {
         for (String onset : java.util.List.of("very_recent", "within_two_years")) {
-            String email="menarche-variant-"+onset+"-"+UUID.randomUUID()+"@example.test";
+            String email="menarche-variant-"+onset.replace("_","")+"-"+UUID.randomUUID()+"@example.test";
             DELIVERED_CODE.set(null);
             var challenge=post("/api/v1/auth/email/challenges",
                 json.createObjectNode().put("email",email).toString(),null);

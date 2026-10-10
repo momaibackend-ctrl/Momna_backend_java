@@ -372,4 +372,51 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(200,get("/api/v1/me/account-center",bearer).statusCode());
         assertEquals(200,get("/api/v1/me/sessions",bearer).statusCode());
     }
+
+    @Test
+    void allSevenPeriodOnboardingRoutesStartResumeAndReplay() throws Exception {
+        String email = "period-e2e-" + UUID.randomUUID() + "@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge = post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var credentials = post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,credentials.statusCode(),credentials.body());
+        String bearer = json.readTree(credentials.body()).path("accessCredential").asText();
+        assertFalse(bearer.isBlank());
+
+        for (String period : java.util.List.of(
+            "MENARCHE", "CYCLE", "PLANNING", "PREGNANCY",
+            "POSTPARTUM", "PERIMENOPAUSE", "MENOPAUSE"
+        )) {
+            String key = "period-" + period + "-" + UUID.randomUUID();
+            String requestBody = json.createObjectNode()
+                .put("flowType","PERIOD_ONBOARDING").put("period",period).toString();
+            var request = HttpRequest.newBuilder(URI.create(
+                "http://127.0.0.1:" + port + "/api/v1/flow-instances"
+            )).header("Content-Type","application/json")
+                .header("Authorization","Bearer " + bearer)
+                .header("Idempotency-Key",key)
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
+            var started = client.send(request,HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,started.statusCode(),period + ": " + started.body());
+            var state = json.readTree(started.body());
+            assertEquals("IN_PROGRESS",state.path("status").asText(),period);
+            assertEquals("period-onboarding-"+period.toLowerCase(java.util.Locale.ROOT),
+                state.path("definitionKey").asText(),period);
+            String instanceId = state.path("instanceId").asText();
+            assertFalse(instanceId.isBlank(),period);
+            assertTrue(state.path("currentStep").hasNonNull("fieldId"),period);
+            var resumed = get("/api/v1/flow-instances/"+instanceId,bearer);
+            assertEquals(200,resumed.statusCode(),period + ": " + resumed.body());
+            assertEquals(instanceId,json.readTree(resumed.body()).path("instanceId").asText(),period);
+            var replay = client.send(request,HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,replay.statusCode(),period + ": " + replay.body());
+            assertEquals(instanceId,json.readTree(replay.body()).path("instanceId").asText(),period);
+            assertTrue(json.readTree(replay.body()).path("idempotentReplay").asBoolean(),period);
+        }
+    }
 }

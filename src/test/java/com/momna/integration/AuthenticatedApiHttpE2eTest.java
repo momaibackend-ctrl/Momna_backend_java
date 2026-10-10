@@ -419,4 +419,80 @@ class AuthenticatedApiHttpE2eTest {
             assertTrue(json.readTree(replay.body()).path("idempotentReplay").asBoolean(),period);
         }
     }
+
+    @Test
+    void onboardingCycleSkipBackAnswerReplayAndStaleRevision() throws Exception {
+        String email="cycle-transition-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",
+            json.createObjectNode().put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+        String startKey="cycle-start-"+UUID.randomUUID();
+        var started=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                .put("period","CYCLE").toString(),token,startKey);
+        assertEquals(200,started.statusCode(),started.body());
+        var initial=json.readTree(started.body());
+        String id=initial.path("instanceId").asText();
+        String firstStep=initial.path("currentStep").path("stepId").asText();
+        String firstField=initial.path("currentStep").path("fieldId").asText();
+        int version=initial.path("definitionVersion").asInt();
+        long revision=initial.path("revision").asLong();
+        assertTrue(initial.path("currentStep").path("skippable").asBoolean());
+
+        var skipBody=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",revision).toString();
+        var skipped=postWithKey("/api/v1/flow-instances/"+id+"/steps/"+firstStep+"/skip",
+            skipBody,token,"skip-"+UUID.randomUUID());
+        assertEquals(200,skipped.statusCode(),skipped.body());
+        var skippedJson=json.readTree(skipped.body());
+        assertTrue(skippedJson.path("revision").asLong()>revision);
+        revision=skippedJson.path("revision").asLong();
+
+        var backBody=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",revision).toString();
+        var back=postWithKey("/api/v1/flow-instances/"+id+"/actions/BACK",
+            backBody,token,"back-"+UUID.randomUUID());
+        assertEquals(200,back.statusCode(),back.body());
+        var returned=json.readTree(back.body());
+        assertEquals(firstStep,returned.path("currentStep").path("stepId").asText());
+        long beforeAnswer=returned.path("revision").asLong();
+
+        var answerBody=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",beforeAnswer).put("mode","SUBMIT");
+        answerBody.putObject("value").put("kind","ENUM").put("value","track_cycle");
+        String answerKey="answer-"+UUID.randomUUID();
+        String path="/api/v1/flow-instances/"+id+"/answers/"+firstField;
+        var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+token)
+            .header("Idempotency-Key",answerKey)
+            .PUT(HttpRequest.BodyPublishers.ofString(answerBody.toString())).build();
+        var answered=client.send(request,HttpResponse.BodyHandlers.ofString());
+        if (answered.statusCode() != 200) System.err.println("ONBOARDING_ANSWER_FAILURE HTTP="+answered.statusCode()+" body="+answered.body());
+        assertEquals(200,answered.statusCode(),answered.body());
+        var answeredJson=json.readTree(answered.body());
+        assertTrue(answeredJson.path("revision").asLong()>beforeAnswer);
+        assertFalse(answeredJson.path("idempotentReplay").asBoolean());
+
+        var replay=client.send(request,HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,replay.statusCode(),replay.body());
+        assertTrue(json.readTree(replay.body()).path("idempotentReplay").asBoolean());
+        assertEquals(answeredJson.path("revision").asLong(),
+            json.readTree(replay.body()).path("revision").asLong());
+
+        var staleRequest=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","stale-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(answerBody.toString())).build();
+        var stale=client.send(staleRequest,HttpResponse.BodyHandlers.ofString());
+        assertEquals(409,stale.statusCode(),stale.body());
+    }
 }

@@ -120,7 +120,10 @@ public class UniversalFlowService {
         }
         if (existing != null) {
             existing.deactivate(clock.instant());
-            answers.save(existing);
+            // The partial unique index allows just one active answer per field.
+            // Hibernate otherwise may INSERT the replacement before it UPDATEs
+            // the previous active row, causing uq_flow_active_answer violation.
+            answers.saveAndFlush(existing);
         }
 
         answers.save(new FlowAnswerEntity(

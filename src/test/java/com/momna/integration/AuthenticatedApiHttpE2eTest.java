@@ -780,4 +780,89 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(200,saved.statusCode(),saved.body());
         assertEquals("SUBMITTED",json.readTree(saved.body()).path("status").asText());
     }
+
+    @Test
+    void menarcheOnboardingConditionalBranchesFromRouter() throws Exception {
+        for (String onset : java.util.List.of("very_recent", "within_two_years")) {
+            String email="mn-"+onset.replace("_","")+"-"+UUID.randomUUID()+"@example.test";
+            DELIVERED_CODE.set(null);
+            var challenge=post("/api/v1/auth/email/challenges",
+                json.createObjectNode().put("email",email).toString(),null);
+            assertEquals(202,challenge.statusCode(),challenge.body());
+            var login=post("/api/v1/auth/email/complete",
+                json.createObjectNode().put("email",email)
+                    .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                    .put("code",DELIVERED_CODE.get()).toString(),null);
+            assertEquals(200,login.statusCode(),login.body());
+            String token=json.readTree(login.body()).path("accessCredential").asText();
+            var started=postWithKey("/api/v1/flow-instances",
+                json.createObjectNode().put("flowType","LIFECYCLE_ROUTER").toString(),
+                token,"onset-router-"+UUID.randomUUID());
+            assertEquals(200,started.statusCode(),started.body());
+            var router=json.readTree(started.body());
+            String root="/api/v1/flow-instances/"+router.path("instanceId").asText();
+            int v=router.path("definitionVersion").asInt();
+            for (int count=0;router.path("currentStep").isObject() && count<40;count++) {
+                String field=router.path("currentStep").path("fieldId").asText();
+                var data=json.createObjectNode().put("mode","SUBMIT")
+                    .put("expectedDefinitionVersion",v)
+                    .put("expectedRevision",router.path("revision").asLong());
+                data.putObject("value").put("kind","ENUM").put("value",
+                    field.equals("onboarding.router.menarche_status") ? onset : "no");
+                var request=HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:"+port+root+"/answers/"+field))
+                    .header("Content-Type","application/json")
+                    .header("Authorization","Bearer "+token)
+                    .header("Idempotency-Key","router-"+count+"-"+UUID.randomUUID())
+                    .PUT(HttpRequest.BodyPublishers.ofString(data.toString())).build();
+                var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,response.statusCode(),field+" "+response.body());
+                router=json.readTree(response.body());
+            }
+            assertFalse(router.path("currentStep").isObject(),onset);
+            var completed=postWithKey(root+"/complete",json.createObjectNode()
+                .put("expectedDefinitionVersion",v)
+                .put("expectedRevision",router.path("revision").asLong()).toString(),
+                token,"router-complete-"+UUID.randomUUID());
+            assertEquals(200,completed.statusCode(),completed.body());
+            var confirmation=postWithKey(root+"/router/confirm","{}",token,
+                "router-confirm-"+UUID.randomUUID());
+            assertEquals(200,confirmation.statusCode(),confirmation.body());
+            var result=json.readTree(confirmation.body());
+            assertEquals("MENARCHE",result.path("selectedPeriod").asText(),onset);
+            var period=result.path("periodFlow");
+            String periodRoot="/api/v1/flow-instances/"+period.path("instanceId").asText();
+            int version=period.path("definitionVersion").asInt();
+            var visited=new java.util.LinkedHashSet<String>();
+            int count=0;
+            while(period.path("currentStep").isObject() && count<60) {
+                String field=period.path("currentStep").path("fieldId").asText();
+                visited.add(field);
+                var data=json.createObjectNode().put("mode","SUBMIT")
+                    .put("expectedDefinitionVersion",version)
+                    .put("expectedRevision",period.path("revision").asLong());
+                data.putObject("value").put("kind","ENUM").put("value","no");
+                var request=HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:"+port+periodRoot+"/answers/"+field))
+                    .header("Content-Type","application/json")
+                    .header("Authorization","Bearer "+token)
+                    .header("Idempotency-Key","period-"+count+"-"+UUID.randomUUID())
+                    .PUT(HttpRequest.BodyPublishers.ofString(data.toString())).build();
+                var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,response.statusCode(),field+" "+response.body());
+                period=json.readTree(response.body());
+                count++;
+            }
+            assertTrue(count>12 && count<60,onset+" count="+count);
+            assertTrue(visited.contains("onboarding.menarche.first_experience"),
+                "First experience must appear for "+onset+"; visited "+visited);
+            assertTrue(visited.contains("onboarding.menarche.last_period"),
+                "Last period must appear for "+onset+"; visited "+visited);
+            assertFalse(visited.contains("onboarding.menarche.first_period_worry"),
+                "First-period worry belongs to not_started, not "+onset);
+            assertEquals("very_recent".equals(onset),
+                visited.contains("onboarding.menarche.changes"),
+                "Changes must be shown only for very_recent here");
+        }
+    }
 }

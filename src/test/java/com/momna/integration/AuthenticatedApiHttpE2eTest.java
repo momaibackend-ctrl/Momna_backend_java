@@ -475,6 +475,7 @@ class AuthenticatedApiHttpE2eTest {
             .header("Idempotency-Key",answerKey)
             .PUT(HttpRequest.BodyPublishers.ofString(answerBody.toString())).build();
         var answered=client.send(request,HttpResponse.BodyHandlers.ofString());
+        if (answered.statusCode() != 200) System.err.println("ONBOARDING_ANSWER_FAILURE HTTP="+answered.statusCode()+" body="+answered.body());
         assertEquals(200,answered.statusCode(),answered.body());
         var answeredJson=json.readTree(answered.body());
         assertTrue(answeredJson.path("revision").asLong()>beforeAnswer);

@@ -29,6 +29,7 @@ public class AuthApplicationService {
     private final CredentialHasher hasher;
     private final OpaqueCredentialGenerator credentials;
     private final ObjectProvider<EmailChallengeDelivery> emailDelivery;
+    private final RefreshReuseRevocationService replayRevocations;
     private final java.util.Map<AuthProvider, ProviderCredentialVerifier> providerVerifiers;
     private final Clock clock = Clock.systemUTC();
 
@@ -42,6 +43,7 @@ public class AuthApplicationService {
         CredentialHasher hasher,
         OpaqueCredentialGenerator credentials,
         ObjectProvider<EmailChallengeDelivery> emailDelivery,
+        RefreshReuseRevocationService replayRevocations,
         ObjectProvider<ProviderCredentialVerifier> providerVerifiers
     ) {
         this.accounts = accounts;
@@ -53,6 +55,7 @@ public class AuthApplicationService {
         this.hasher = hasher;
         this.credentials = credentials;
         this.emailDelivery = emailDelivery;
+        this.replayRevocations = replayRevocations;
         this.providerVerifiers = providerVerifiers.orderedStream()
             .collect(java.util.stream.Collectors.toUnmodifiableMap(
                 ProviderCredentialVerifier::provider,
@@ -235,15 +238,9 @@ public class AuthApplicationService {
 
         var reused = refreshHistory.findById(refreshHash).orElse(null);
         if (reused != null) {
-            for (var familySession : sessions.findByFamilyId(reused.getFamilyId())) {
-                if (familySession.getStatus() == AuthSessionStatus.ACTIVE) {
-                    familySession.revoke(now, null);
-                }
-            }
-            publish("SessionRevoked", "unknown", now, Map.of(
-                "familyId", reused.getFamilyId(),
-                "reason", "refresh_reuse"
-            ));
+            // Must commit before throwing: this transaction is rolled back
+            // by the expected AuthException (otherwise revoked sessions survive).
+            replayRevocations.revokeFamilyInNewTransaction(reused.getFamilyId(), now);
             throw new AuthException("SESSION_REVOKED", "Refresh credential reuse detected");
         }
 

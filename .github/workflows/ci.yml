@@ -89,6 +89,10 @@ jobs:
           test -s "$REPORT_DIR/newman.xml"
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('build/reports/newman/newman.json','utf8')).run||{};const e=(r.executions||[]).length,q=Number(r.stats?.requests?.total??e),a=Number(r.stats?.assertions?.total??0),f=(r.failures||[]).length;console.log({executions:e,requests:q,assertions:a,failures:f});if(e<1||q<1||a<1||f>0)process.exit(1)"
           test "$NEWMAN_EXIT" -eq 0
+          # Negative-path coverage is separate from the existing smoke suite.
+          npx --yes newman@6.2.1 run postman/momna-api-security-boundaries.postman_collection.json --env-var "baseUrl=http://127.0.0.1:$PORT" --reporters cli,json,junit --reporter-json-export "$REPORT_DIR/security-boundaries.json" --reporter-junit-export "$REPORT_DIR/security-boundaries.xml"
+          test -s "$REPORT_DIR/security-boundaries.json"
+          test -s "$REPORT_DIR/security-boundaries.xml"
       - name: Publish Newman E2E evidence
         if: always()
         continue-on-error: true
@@ -98,5 +102,7 @@ jobs:
           path: |
             build/reports/newman/newman.json
             build/reports/newman/newman.xml
+            build/reports/newman/security-boundaries.json
+            build/reports/newman/security-boundaries.xml
           if-no-files-found: warn
           retention-days: 14

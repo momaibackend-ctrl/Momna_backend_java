@@ -1155,4 +1155,75 @@ class AuthenticatedApiHttpE2eTest {
             "negative-patch-"+UUID.randomUUID());
         assertEquals(409,forbidden.statusCode(),forbidden.body());
     }
+
+    @Test
+    void menarcheChangingConditionInvalidatesPreviouslyAnsweredBranch() throws Exception {
+        String email="mn-condition-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+        var started=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+                .put("period","MENARCHE").toString(),token,"condition-start-"+UUID.randomUUID());
+        assertEquals(200,started.statusCode(),started.body());
+        var flow=json.readTree(started.body());
+        String root="/api/v1/flow-instances/"+flow.path("instanceId").asText();
+        int version=flow.path("definitionVersion").asInt();
+        String relationship="onboarding.menarche.relationship";
+        String safety="onboarding.menarche.relationship_safety";
+        var visited=new java.util.HashSet<String>();
+        int count=0;
+        while(flow.path("currentStep").isObject() && count<100) {
+            String field=flow.path("currentStep").path("fieldId").asText();
+            visited.add(field);
+            var answer=json.createObjectNode().put("mode","SUBMIT")
+                .put("expectedDefinitionVersion",version)
+                .put("expectedRevision",flow.path("revision").asLong());
+            answer.putObject("value").put("kind","ENUM")
+                .put("value",field.equals(relationship)?"yes":"no");
+            var response=client.send(HttpRequest.newBuilder(URI.create(
+                "http://127.0.0.1:"+port+root+"/answers/"+field))
+                .header("Content-Type","application/json")
+                .header("Authorization","Bearer "+token)
+                .header("Idempotency-Key","condition-answer-"+count+"-"+UUID.randomUUID())
+                .PUT(HttpRequest.BodyPublishers.ofString(answer.toString())).build(),
+                HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,response.statusCode(),field+": "+response.body());
+            flow=json.readTree(response.body());
+            count++;
+        }
+        assertTrue(visited.contains(relationship),"Relationship question not shown");
+        assertTrue(visited.contains(safety),"Relationship safety branch not activated");
+        var before=get(root+"/result",token);
+        assertEquals(200,before.statusCode(),before.body());
+        assertTrue(json.readTree(before.body()).path("answers").has(safety));
+
+        var changed=json.createObjectNode().put("mode","CHANGE")
+            .put("expectedDefinitionVersion",version)
+            .put("expectedRevision",flow.path("revision").asLong());
+        changed.putObject("value").put("kind","ENUM").put("value","no");
+        var response=client.send(HttpRequest.newBuilder(URI.create(
+            "http://127.0.0.1:"+port+root+"/answers/"+relationship))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","condition-change-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(changed.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,response.statusCode(),response.body());
+        var revised=json.readTree(response.body());
+        assertTrue(revised.path("invalidatedFieldIds").toString().contains(safety),
+            revised.toString());
+        var after=get(root+"/result",token);
+        assertEquals(200,after.statusCode(),after.body());
+        var answers=json.readTree(after.body()).path("answers");
+        assertFalse(answers.has(safety),"Stale hidden safety answer was retained");
+        assertEquals("no",answers.path(relationship).path("value").asText());
+    }
 }

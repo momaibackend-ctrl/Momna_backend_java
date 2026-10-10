@@ -625,4 +625,159 @@ class AuthenticatedApiHttpE2eTest {
                 .path("instanceId").asText(),period);
         }
     }
+
+    /**
+     * Stateful Menarche journey: sign-in -> lifecycle router -> automatic
+     * MENARCHE selection -> period onboarding -> persisted result -> check-in.
+     */
+    @Test
+    void menarcheRouterOnboardingAndCheckinEndToEnd() throws Exception {
+        String email="menarche-e2e-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credential=json.readTree(login.body());
+        String token=credential.path("accessCredential").asText();
+        String authSessionId=credential.path("session").path("sessionId").asText();
+        String userId=authSessions.findById(authSessionId).orElseThrow().getUserId();
+
+        var start=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","LIFECYCLE_ROUTER").toString(),
+            token,"menarche-router-"+UUID.randomUUID());
+        assertEquals(200,start.statusCode(),start.body());
+        JsonNode state=json.readTree(start.body());
+        String routerId=state.path("instanceId").asText();
+        String routerPath="/api/v1/flow-instances/"+routerId;
+        int routerVersion=state.path("definitionVersion").asInt();
+        int n=0;
+        while(state.path("currentStep").isObject() && n<40) {
+            String field=state.path("currentStep").path("fieldId").asText();
+            String choice=field.equals("onboarding.router.menarche_status")
+                ? "not_started" : "no";
+            var payload=json.createObjectNode()
+                .put("expectedDefinitionVersion",routerVersion)
+                .put("expectedRevision",state.path("revision").asLong())
+                .put("mode","SUBMIT");
+            payload.putObject("value").put("kind","ENUM").put("value",choice);
+            var request=HttpRequest.newBuilder(URI.create(
+                "http://127.0.0.1:"+port+routerPath+"/answers/"+field))
+                .header("Content-Type","application/json")
+                .header("Authorization","Bearer "+token)
+                .header("Idempotency-Key","router-field-"+n+"-"+UUID.randomUUID())
+                .PUT(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+            var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,response.statusCode(),field+": "+response.body());
+            state=json.readTree(response.body());n++;
+        }
+        assertTrue(n>=4 && n<40,"Router must reach a terminal step");
+        assertFalse(state.path("currentStep").isObject());
+        var completed=postWithKey(routerPath+"/complete",
+            json.createObjectNode()
+                .put("expectedDefinitionVersion",routerVersion)
+                .put("expectedRevision",state.path("revision").asLong()).toString(),
+            token,"finish-router-"+UUID.randomUUID());
+        assertEquals(200,completed.statusCode(),completed.body());
+        String confirmKey="confirm-menarche-"+UUID.randomUUID();
+        var confirmed=postWithKey(routerPath+"/router/confirm","{}",token,confirmKey);
+        assertEquals(200,confirmed.statusCode(),confirmed.body());
+        var confirmation=json.readTree(confirmed.body());
+        assertEquals("MENARCHE",confirmation.path("selectedPeriod").asText(),
+            confirmed.body());
+        assertFalse(confirmation.path("selectedManually").asBoolean());
+        JsonNode flow=confirmation.path("periodFlow");
+        String onboardingId=flow.path("instanceId").asText();
+        assertFalse(onboardingId.isBlank());
+        String onboardingPath="/api/v1/flow-instances/"+onboardingId;
+        int definitionVersion=flow.path("definitionVersion").asInt();
+
+        var early=postWithKey(onboardingPath+"/complete",json.createObjectNode()
+            .put("expectedDefinitionVersion",definitionVersion)
+            .put("expectedRevision",flow.path("revision").asLong()).toString(),
+            token,"premature-menarche-"+UUID.randomUUID());
+        assertEquals(409,early.statusCode(),early.body());
+
+        int answered=0;
+        while(flow.path("currentStep").isObject() && answered<100) {
+            String field=flow.path("currentStep").path("fieldId").asText();
+            var payload=json.createObjectNode()
+                .put("expectedDefinitionVersion",definitionVersion)
+                .put("expectedRevision",flow.path("revision").asLong())
+                .put("mode","SUBMIT");
+            payload.putObject("value").put("kind","ENUM").put("value","no");
+            var request=HttpRequest.newBuilder(URI.create(
+                "http://127.0.0.1:"+port+onboardingPath+"/answers/"+field))
+                .header("Content-Type","application/json")
+                .header("Authorization","Bearer "+token)
+                .header("Idempotency-Key","menarche-answer-"+answered+"-"+UUID.randomUUID())
+                .PUT(HttpRequest.BodyPublishers.ofString(payload.toString())).build();
+            var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+            assertEquals(200,response.statusCode(),field+": "+response.body());
+            flow=json.readTree(response.body());answered++;
+        }
+        assertTrue(answered>=12 && answered<100,
+            "Menarche onboarding must traverse its actual active screens");
+        assertFalse(flow.path("currentStep").isObject());
+        var finishOnboarding=postWithKey(onboardingPath+"/complete",
+            json.createObjectNode()
+                .put("expectedDefinitionVersion",definitionVersion)
+                .put("expectedRevision",flow.path("revision").asLong()).toString(),
+            token,"finish-menarche-"+UUID.randomUUID());
+        assertEquals(200,finishOnboarding.statusCode(),finishOnboarding.body());
+        var persisted=get(onboardingPath+"/result",token);
+        assertEquals(200,persisted.statusCode(),persisted.body());
+        assertTrue(json.readTree(persisted.body()).path("completed").asBoolean());
+        assertEquals(answered,json.readTree(persisted.body()).path("answers").size());
+
+        var lifecycle=get("/api/v1/me/lifecycle",token);
+        assertEquals(200,lifecycle.statusCode(),lifecycle.body());
+        assertTrue(lifecycle.body().contains("MENARCHE"),lifecycle.body());
+        // Check-in must use the period confirmed by the router, not CYCLE.
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        var today=get("/api/v1/check-in/today",token);
+        assertEquals(200,today.statusCode(),today.body());
+        assertEquals("MENARCHE",json.readTree(today.body())
+            .path("lifecyclePeriod").asText());
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var begin=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "menarche-checkin-"+UUID.randomUUID());
+        assertEquals(201,begin.statusCode(),begin.body());
+        var session=json.readTree(begin.body());
+        assertEquals("DRAFT",session.path("status").asText());
+        assertEquals("MENARCHE",session.path("lifecyclePeriodAtTime").asText());
+        String sessionPath="/api/v1/check-in/sessions/"+
+            session.path("sessionId").asText();
+        String item=session.path("items").get(0).path("itemCode").asText();
+        var change=json.createObjectNode()
+            .put("expectedRevision",session.path("revision").asLong());
+        change.putArray("answerChanges").addObject()
+            .put("itemCode",item).put("value",1);
+        var partial=patchWithKey(sessionPath,change.toString(),token,
+            "menarche-partial-"+UUID.randomUUID());
+        assertEquals(200,partial.statusCode(),partial.body());
+        var partialState=json.readTree(partial.body());
+        assertEquals("PARTIAL",partialState.path("status").asText());
+        var stale=patchWithKey(sessionPath,change.toString(),token,
+            "menarche-stale-"+UUID.randomUUID());
+        assertEquals(409,stale.statusCode(),stale.body());
+        var finishCheckin=postWithKey(sessionPath+"/submit",
+            json.createObjectNode()
+                .put("expectedRevision",partialState.path("revision").asLong())
+                .toString(),token,"menarche-submit-"+UUID.randomUUID());
+        assertEquals(200,finishCheckin.statusCode(),finishCheckin.body());
+        assertEquals("SUBMITTED",json.readTree(finishCheckin.body())
+            .path("session").path("status").asText());
+        var saved=get(sessionPath,token);
+        assertEquals(200,saved.statusCode(),saved.body());
+        assertEquals("SUBMITTED",json.readTree(saved.body()).path("status").asText());
+    }
 }

@@ -336,7 +336,11 @@ public class CheckinApplicationService {
         if (session.getConsumedAt() != null || !isMutable(session)) {
             allowed.add("OPEN_MY_DAY");
         } else if (session.isSafetyBlocking()) {
-            allowed.add("ANSWER_SAFETY");
+            // A critical emergency decision cannot be downgraded by another answer.
+            // Emergency contact guidance remains in safety.allowedActions.
+            if (!"CRITICAL".equals(session.getSafetySeverity())) {
+                allowed.add("ANSWER_SAFETY");
+            }
         } else if (now.isBefore(session.getWindowClosesAt())) {
             allowed.add("EDIT_ANSWERS");
             allowed.add("SUBMIT");

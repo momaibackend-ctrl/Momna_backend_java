@@ -357,7 +357,15 @@ public class CheckinApplicationService {
                 session.getWindowOpensAt(),
                 session.getWindowClosesAt()
             ),
-            new SafetyView(session.getSafetyState().name(), session.isSafetyBlocking()),
+            new SafetyView(
+                session.getSafetyState().name(),
+                session.getSafetyDecisionVersion(),
+                session.getSafetyRouteCode(),
+                session.getSafetySeverity(),
+                session.isSafetyBlocking(),
+                session.getSafetyClarification(),
+                session.getSafetyAllowedActions()
+            ),
             session.getFinalizedAt(),
             session.getFinalizationReason() == null ? null : session.getFinalizationReason().name(),
             session.getConsumedAt(),

@@ -66,6 +66,10 @@ public class CheckinApplicationService {
         var now = clock.instant();
         var day = contexts.resolve(userId, now);
 
+        var fingerprint = sha("start|" + phase + "|" + day.localDate() + "|" + day.period());
+        var replay = replay(userId, "start", idempotencyKey, fingerprint);
+        if (replay != null) return new StartResult(view(replay, now), false);
+
         var existing = sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
             userId, phase, day.localDate(), day.period().name()
         ).orElse(null);
@@ -86,10 +90,6 @@ public class CheckinApplicationService {
                 "Check-in window is not open"
             );
         }
-
-        var fingerprint = sha("start|" + phase + "|" + day.localDate() + "|" + day.period());
-        var replay = replay(userId, "start", idempotencyKey, fingerprint);
-        if (replay != null) return new StartResult(view(replay, now), false);
 
         var definition = definitions.latest(day.period(), phase);
         var candidate = new CheckinSessionEntity(

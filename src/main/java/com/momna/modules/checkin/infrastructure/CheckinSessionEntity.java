@@ -167,6 +167,26 @@ public class CheckinSessionEntity {
     public BigDecimal getCompletionRatio() { return completionRatio; }
     public CheckinSafetyState getSafetyState() { return safetyState; }
     public boolean isSafetyBlocking() { return safetyBlocking; }
+    public String getSafetyDecisionVersion() { return safetyDecisionVersion; }
+    public String getSafetyRouteCode() { return safetyRouteCode; }
+    public String getSafetySeverity() { return safetySeverity; }
+    public Map<String, Object> getSafetyClarification() { return safetyClarification == null ? null : Map.copyOf(safetyClarification); }
+    public List<String> getSafetyAllowedActions() { return List.copyOf(safetyAllowedActions); }
+
+    public void applySafety(
+        CheckinSafetyState state, String decisionVersion, String routeCode,
+        String severity, boolean blocking, Map<String, Object> clarification,
+        Collection<String> allowedActions, Instant at
+    ) {
+        this.safetyState = Objects.requireNonNull(state);
+        this.safetyDecisionVersion = decisionVersion;
+        this.safetyRouteCode = routeCode;
+        this.safetySeverity = severity;
+        this.safetyBlocking = blocking;
+        this.safetyClarification = clarification == null ? null : new LinkedHashMap<>(clarification);
+        this.safetyAllowedActions = new ArrayList<>(allowedActions);
+        this.updatedAt = at;
+    }
     public Instant getWindowOpensAt() { return windowOpensAt; }
     public Instant getWindowClosesAt() { return windowClosesAt; }
     public Instant getFinalizedAt() { return finalizedAt; }

@@ -1519,6 +1519,28 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(200,persisted.statusCode(),persisted.body());
         assertEquals(snapshot.path("revision").asLong(),
             json.readTree(persisted.body()).path("revision").asLong());
+        // A matching, server-issued clarification must not be resolved by
+        // accepting arbitrary client input before the safety rules exist.
+        String clarificationId="safety-"+UUID.randomUUID();
+        var activeClarification=json.createObjectNode().put("id",clarificationId)
+            .put("routeCode","MENARCHE_DIZZINESS");
+        jdbc.update("UPDATE momna.checkin_sessions " +
+            "SET safety_clarification = CAST(? AS jsonb) WHERE session_id = ?",
+            activeClarification.toString(),sessionId);
+        var beforeReview=get(root,token);
+        assertEquals(200,beforeReview.statusCode(),beforeReview.body());
+        long safetyRevision=json.readTree(beforeReview.body()).path("revision").asLong();
+        var awaitingRules=postWithKey(
+            root+"/safety/clarifications/"+clarificationId+"/answer",
+            json.createObjectNode().put("expectedRevision",safetyRevision)
+                .put("value","not_sure").toString(),
+            token,"safety-review-"+UUID.randomUUID());
+        assertEquals(503,awaitingRules.statusCode(),awaitingRules.body());
+        var unchanged=get(root,token);
+        assertEquals(200,unchanged.statusCode(),unchanged.body());
+        var unchangedJson=json.readTree(unchanged.body());
+        assertTrue(unchangedJson.path("safety").path("blocking").asBoolean());
+        assertEquals(safetyRevision,unchangedJson.path("revision").asLong());
     }
 
 }

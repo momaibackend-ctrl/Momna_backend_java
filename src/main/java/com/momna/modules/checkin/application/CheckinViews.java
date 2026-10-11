@@ -3,6 +3,7 @@ package com.momna.modules.checkin.application;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 
 public final class CheckinViews {
     private CheckinViews() {}
@@ -66,5 +67,17 @@ public final class CheckinViews {
 
     public record AnswerView(String itemCode, int value) {}
     public record WindowView(String state, Instant opensAt, Instant closesAt) {}
-    public record SafetyView(String state, boolean blocking) {}
+    public record SafetyView(
+        String state,
+        String decisionVersion,
+        String routeCode,
+        String severity,
+        boolean blocking,
+        Map<String, Object> clarification,
+        Set<String> allowedActions
+    ) {
+        public SafetyView(String state, boolean blocking) {
+            this(state, null, null, null, blocking, null, Set.of());
+        }
+    }
 }

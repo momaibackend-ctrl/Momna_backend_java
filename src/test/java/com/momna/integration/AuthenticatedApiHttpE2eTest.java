@@ -1343,4 +1343,78 @@ class AuthenticatedApiHttpE2eTest {
             token,"expired-submit-"+UUID.randomUUID());
         assertEquals(409,submit.statusCode(),submit.body());
     }
+
+    @Test
+    void menarcheThresholdRiskRequiresClarificationAndRemainsBlockedAfterExpiry() throws Exception {
+        String email="mn-risk-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var creds=json.readTree(login.body());
+        String token=creds.path("accessCredential").asText();
+        String userId=authSessions.findById(creds.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"risk-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var started=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "risk-start-"+UUID.randomUUID());
+        assertEquals(201,started.statusCode(),started.body());
+        var state=json.readTree(started.body());
+        String root="/api/v1/check-in/sessions/"+state.path("sessionId").asText();
+        var patchBody=json.createObjectNode()
+            .put("expectedRevision",state.path("revision").asLong());
+        var changes=patchBody.putArray("answerChanges");
+        for(var item:state.path("items")) {
+            changes.addObject().put("itemCode",item.path("itemCode").asText())
+                .put("value",2);
+        }
+        var answer=patchWithKey(root,patchBody.toString(),token,
+            "risk-answers-"+UUID.randomUUID());
+        assertEquals(200,answer.statusCode(),answer.body());
+        var updated=json.readTree(answer.body());
+        var safety=updated.path("safety");
+        assertEquals("CLARIFICATION_REQUIRED",safety.path("state").asText(),answer.body());
+        assertTrue(safety.path("blocking").asBoolean());
+        assertTrue(safety.path("routeCode").asText().startsWith("MENARCHE_"));
+        assertEquals(64,safety.path("clarification").path("clarificationId").asText().length());
+        assertTrue(updated.path("allowedActions").toString().contains("ANSWER_SAFETY"));
+
+        var submit=postWithKey(root+"/submit",json.createObjectNode()
+            .put("expectedRevision",updated.path("revision").asLong()).toString(),
+            token,"blocked-submit-"+UUID.randomUUID());
+        assertEquals(409,submit.statusCode(),submit.body());
+        var invalidClarification=postWithKey(root+"/safety/clarifications/obsolete/answer",
+            json.createObjectNode().put("expectedRevision",updated.path("revision").asLong())
+                .put("value","yes").toString(),token,"obsolete-"+UUID.randomUUID());
+        assertEquals(409,invalidClarification.statusCode(),invalidClarification.body());
+        // No clinician-reviewed answer-to-signal mapping exists in the source model.
+        // A current clarification must fail closed, not silently allow submission.
+        var currentClarification=postWithKey(root+"/safety/clarifications/"+
+            safety.path("clarification").path("clarificationId").asText()+"/answer",
+            json.createObjectNode().put("expectedRevision",updated.path("revision").asLong())
+                .put("value","unreviewed").toString(),token,"unreviewed-"+UUID.randomUUID());
+        assertEquals(503,currentClarification.statusCode(),currentClarification.body());
+
+        jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),
+            state.path("sessionId").asText());
+        var expired=get(root,token);
+        assertEquals(200,expired.statusCode(),expired.body());
+        assertEquals("PARTIAL",json.readTree(expired.body()).path("status").asText(),
+            "Safety-blocked session must not be auto-finalized");
+        assertTrue(json.readTree(expired.body()).path("safety").path("blocking").asBoolean());
+    }
 }

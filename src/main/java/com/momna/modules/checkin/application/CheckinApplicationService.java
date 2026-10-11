@@ -24,6 +24,7 @@ public class CheckinApplicationService {
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
     private final CheckinDayContextService contexts;
+    private final CheckinSafetyRoutingService safetyRouting;
     private final Clock clock = Clock.systemUTC();
 
     public CheckinApplicationService(
@@ -33,7 +34,8 @@ public class CheckinApplicationService {
         CheckinAdjustmentSignalRepository adjustmentSignals,
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
-        CheckinDayContextService contexts
+        CheckinDayContextService contexts,
+        CheckinSafetyRoutingService safetyRouting
     ) {
         this.sessions = sessions;
         this.answers = answers;
@@ -42,9 +44,10 @@ public class CheckinApplicationService {
         this.definitions = definitions;
         this.scoring = scoring;
         this.contexts = contexts;
+        this.safetyRouting = safetyRouting;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TodayView today(String userId) {
         var now = clock.instant();
         var day = contexts.resolve(userId, now);
@@ -192,6 +195,7 @@ public class CheckinApplicationService {
             answerMap,
             Map.of()
         );
+        safetyRouting.evaluate(current, score, now);
         persistAdjustmentSignals(current, score, now);
 
         try {
@@ -234,6 +238,32 @@ public class CheckinApplicationService {
         return new FinalizeResult(view(current, now), downstreamNone());
     }
 
+    @Transactional
+    public SessionView answerSafety(
+        String userId,
+        String sessionId,
+        String clarificationId,
+        long expectedRevision,
+        String value,
+        String idempotencyKey
+    ) {
+        requireIdempotencyKey(idempotencyKey);
+        var current = owned(userId, sessionId);
+        if (current.getRevision() != expectedRevision) {
+            throw new CheckinException("STALE_REVISION",
+                "Check-in revision conflict");
+        }
+        if (!isMutable(current)) {
+            throw new CheckinException("CHECKIN_SESSION_FINALIZED",
+                "Check-in session is finalized");
+        }
+        safetyRouting.validateClarification(current, clarificationId, value);
+        // The governed clarification catalog is not yet present. The only
+        // allowed outcome until it is supplied is fail-closed from the guard.
+        throw new CheckinException("DEPENDENCY_UNAVAILABLE",
+            "Reviewed safety clarification definitions are unavailable");
+    }
+
     private PhaseSummary phaseSummary(
         String userId,
         CheckinDayContextService.DayContext day,
@@ -244,6 +274,13 @@ public class CheckinApplicationService {
         var stored = sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
             userId, phase, day.localDate(), day.period().name()
         ).orElse(null);
+        // Match Kotlin: a Today read also finalizes past-due unblocked sessions.
+        if (stored != null && isMutable(stored)
+            && !now.isBefore(stored.getWindowClosesAt())
+            && !stored.isSafetyBlocking()) {
+            stored.autoFinalize(now);
+            stored = sessions.saveAndFlush(stored);
+        }
 
         var action = stored == null
             ? ("OPEN".equals(window.stateAt(now)) ? "START" : "NONE")
@@ -306,7 +343,15 @@ public class CheckinApplicationService {
                 session.getWindowOpensAt(),
                 session.getWindowClosesAt()
             ),
-            new SafetyView(session.getSafetyState().name(), session.isSafetyBlocking()),
+            new SafetyView(
+                session.getSafetyState().name(),
+                session.getSafetyDecisionVersion(),
+                session.getSafetyRouteCode(),
+                session.getSafetySeverity(),
+                session.isSafetyBlocking(),
+                session.getSafetyClarification(),
+                Set.copyOf(session.getSafetyAllowedActions())
+            ),
             session.getFinalizedAt(),
             session.getFinalizationReason() == null ? null : session.getFinalizationReason().name(),
             session.getConsumedAt(),

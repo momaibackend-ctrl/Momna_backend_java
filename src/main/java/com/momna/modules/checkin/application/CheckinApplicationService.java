@@ -68,7 +68,14 @@ public class CheckinApplicationService {
 
         var fingerprint = sha("start|" + phase + "|" + day.localDate() + "|" + day.period());
         var replay = replay(userId, "start", idempotencyKey, fingerprint);
-        if (replay != null) return new StartResult(view(replay, now), false);
+        if (replay != null) {
+            if (isMutable(replay) && !now.isBefore(replay.getWindowClosesAt())
+                && !replay.isSafetyBlocking()) {
+                replay.autoFinalize(now);
+                replay = sessions.saveAndFlush(replay);
+            }
+            return new StartResult(view(replay, now), false);
+        }
 
         var existing = sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
             userId, phase, day.localDate(), day.period().name()

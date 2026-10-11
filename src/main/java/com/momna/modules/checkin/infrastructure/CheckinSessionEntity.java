@@ -170,6 +170,8 @@ public class CheckinSessionEntity {
     public Map<String, Object> getSafetyClarification() {
         return safetyClarification == null ? null : Map.copyOf(safetyClarification);
     }
+    public String getSafetyDecisionVersion() { return safetyDecisionVersion; }
+    public List<String> getSafetyAllowedActions() { return List.copyOf(safetyAllowedActions); }
     public String getSafetyRouteCode() { return safetyRouteCode; }
     public String getSafetySeverity() { return safetySeverity; }
     public void resolveSafetyClarification(Instant at) {

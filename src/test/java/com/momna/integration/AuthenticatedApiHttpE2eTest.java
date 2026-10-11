@@ -1525,10 +1525,18 @@ class AuthenticatedApiHttpE2eTest {
         var activeClarification=json.createObjectNode().put("id",clarificationId)
             .put("routeCode","MENARCHE_DIZZINESS");
         jdbc.update("UPDATE momna.checkin_sessions " +
-            "SET safety_clarification = CAST(? AS jsonb) WHERE session_id = ?",
-            activeClarification.toString(),sessionId);
+            "SET safety_clarification = CAST(? AS jsonb), " +
+            "safety_decision_version = ?, safety_route_code = ?, safety_severity = ?, " +
+            "safety_allowed_actions = CAST(? AS jsonb) WHERE session_id = ?",
+            activeClarification.toString(), "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
+            "MENARCHE_DIZZINESS", "HIGH", "[\"CONTACT_CLINICIAN\"]", sessionId);
         var beforeReview=get(root,token);
         assertEquals(200,beforeReview.statusCode(),beforeReview.body());
+        var safetyJson=json.readTree(beforeReview.body()).path("safety");
+        assertEquals("MENARCHE_DIZZINESS",safetyJson.path("routeCode").asText());
+        assertEquals("HIGH",safetyJson.path("severity").asText());
+        assertEquals(clarificationId,safetyJson.path("clarification").path("id").asText());
+        assertTrue(safetyJson.path("allowedActions").toString().contains("CONTACT_CLINICIAN"));
         long safetyRevision=json.readTree(beforeReview.body()).path("revision").asLong();
         var staleSafetyAnswer=postWithKey(
             root+"/safety/clarifications/"+clarificationId+"/answer",

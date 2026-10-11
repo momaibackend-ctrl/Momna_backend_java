@@ -1437,6 +1437,19 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(200,same.statusCode(),same.body());
         assertEquals(json.readTree(first.body()).path("sessionId").asText(),
             json.readTree(same.body()).path("sessionId").asText());
+        jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),
+            json.readTree(first.body()).path("sessionId").asText());
+        var expiredReplay=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,key);
+        assertEquals(200,expiredReplay.statusCode(),expiredReplay.body());
+        assertEquals("AUTO_FINALIZED",
+            json.readTree(expiredReplay.body()).path("status").asText());
+        var repeatAfterExpiry=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,key);
+        assertEquals(200,repeatAfterExpiry.statusCode(),repeatAfterExpiry.body());
+        assertEquals(json.readTree(expiredReplay.body()).path("revision").asLong(),
+            json.readTree(repeatAfterExpiry.body()).path("revision").asLong());
         var conflict=postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase",other).toString(),token,key);
         assertEquals(409,conflict.statusCode(),conflict.body());

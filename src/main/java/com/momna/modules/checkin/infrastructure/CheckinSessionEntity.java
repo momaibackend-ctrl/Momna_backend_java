@@ -167,6 +167,21 @@ public class CheckinSessionEntity {
     public BigDecimal getCompletionRatio() { return completionRatio; }
     public CheckinSafetyState getSafetyState() { return safetyState; }
     public boolean isSafetyBlocking() { return safetyBlocking; }
+    public Map<String, Object> getSafetyClarification() {
+        return safetyClarification == null ? null : Map.copyOf(safetyClarification);
+    }
+    public String getSafetyRouteCode() { return safetyRouteCode; }
+    public String getSafetySeverity() { return safetySeverity; }
+    public void resolveSafetyClarification(Instant at) {
+        if (!safetyBlocking || safetyClarification == null) {
+            throw new IllegalStateException("No active safety clarification");
+        }
+        safetyState = CheckinSafetyState.RESOLVED;
+        safetyBlocking = false;
+        safetyClarification = null;
+        safetyAllowedActions = new ArrayList<>();
+        updatedAt = at;
+    }
     public Instant getWindowOpensAt() { return windowOpensAt; }
     public Instant getWindowClosesAt() { return windowClosesAt; }
     public Instant getFinalizedAt() { return finalizedAt; }

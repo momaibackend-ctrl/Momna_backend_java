@@ -191,6 +191,26 @@ public class CheckinSessionEntity {
     public Instant getConsumedAt() { return consumedAt; }
     public String getConsumedByRef() { return consumedByRef; }
 
+    public void applySafetyDecision(
+        CheckinSafetyState state,
+        String decisionVersion,
+        String routeCode,
+        String severity,
+        boolean blocking,
+        Map<String, Object> clarification,
+        Collection<String> allowedActions,
+        Instant at
+    ) {
+        this.safetyState = Objects.requireNonNull(state);
+        this.safetyDecisionVersion = decisionVersion;
+        this.safetyRouteCode = routeCode;
+        this.safetySeverity = severity;
+        this.safetyBlocking = blocking;
+        this.safetyClarification = clarification == null ? null : new LinkedHashMap<>(clarification);
+        this.safetyAllowedActions = new ArrayList<>(Objects.requireNonNull(allowedActions));
+        this.updatedAt = at;
+    }
+
     public void updateCompletion(int answered, Instant at) {
         this.completionRatio = applicableItemCodes.isEmpty()
             ? BigDecimal.ZERO

@@ -1319,6 +1319,17 @@ class AuthenticatedApiHttpE2eTest {
         // then exercise the real public HTTP API rather than invoking a service.
         jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
             java.sql.Timestamp.from(Instant.now().minusSeconds(30)),sessionId);
+        var todayAfterExpiry=get("/api/v1/check-in/today",token);
+        assertEquals(200,todayAfterExpiry.statusCode(),todayAfterExpiry.body());
+        var phaseStatus="";
+        for(var dayPhase : json.readTree(todayAfterExpiry.body()).path("phases")) {
+            if(phase.equals(dayPhase.path("phase").asText())) {
+                phaseStatus=dayPhase.path("sessionStatus").asText();
+                break;
+            }
+        }
+        assertEquals("AUTO_FINALIZED",phaseStatus,
+            "First Today access after window closure must finalize existing session");
         var observed=get(root,token);
         assertEquals(200,observed.statusCode(),observed.body());
         var finalized=json.readTree(observed.body());

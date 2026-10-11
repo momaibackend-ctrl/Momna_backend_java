@@ -1354,4 +1354,52 @@ class AuthenticatedApiHttpE2eTest {
             token,"expired-submit-"+UUID.randomUUID());
         assertEquals(409,submit.statusCode(),submit.body());
     }
+
+    @Test
+    void menarcheExpiredSessionAutoFinalizesWhenStartOrResumeIsRepeated() throws Exception {
+        String email="mn-resume-expired-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String token=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"resume-expiry-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        String request=json.createObjectNode().put("phase",phase).toString();
+        var first=postWithKey("/api/v1/check-in/sessions",request,token,
+            "resume-first-"+UUID.randomUUID());
+        assertEquals(201,first.statusCode(),first.body());
+        var state=json.readTree(first.body());
+        assertEquals("DRAFT",state.path("status").asText());
+        jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),
+            state.path("sessionId").asText());
+        var resumed=postWithKey("/api/v1/check-in/sessions",request,token,
+            "resume-after-close-"+UUID.randomUUID());
+        assertEquals(200,resumed.statusCode(),resumed.body());
+        var finalized=json.readTree(resumed.body());
+        assertEquals(state.path("sessionId").asText(),finalized.path("sessionId").asText());
+        assertEquals("AUTO_FINALIZED",finalized.path("status").asText());
+        assertEquals("WINDOW_CLOSED",finalized.path("finalizationReason").asText());
+        var repeat=postWithKey("/api/v1/check-in/sessions",request,token,
+            "resume-again-"+UUID.randomUUID());
+        assertEquals(200,repeat.statusCode(),repeat.body());
+        assertEquals(finalized.path("revision").asLong(),
+            json.readTree(repeat.body()).path("revision").asLong());
+    }
+
 }

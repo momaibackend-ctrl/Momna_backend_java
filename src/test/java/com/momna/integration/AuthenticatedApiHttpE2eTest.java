@@ -1402,4 +1402,44 @@ class AuthenticatedApiHttpE2eTest {
             json.readTree(repeat.body()).path("revision").asLong());
     }
 
+
+    @Test
+    void menarcheRepeatedStartCannotBypassIdempotencyFingerprintConflict() throws Exception {
+        String email="mn-idempotency-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String token=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"idempotency-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        String other=phase.equals("MORNING")?"EVENING":"MORNING";
+        String key="menarche-idempotency-"+UUID.randomUUID();
+        var first=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,key);
+        assertEquals(201,first.statusCode(),first.body());
+        var same=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,key);
+        assertEquals(200,same.statusCode(),same.body());
+        assertEquals(json.readTree(first.body()).path("sessionId").asText(),
+            json.readTree(same.body()).path("sessionId").asText());
+        var conflict=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",other).toString(),token,key);
+        assertEquals(409,conflict.statusCode(),conflict.body());
+    }
+
 }

@@ -60,7 +60,7 @@ public class CheckinSafetyRoutingService {
         var decisionVersion = "safety.clinical.v1:safety.catalog.v1:" + route;
         var clarificationId = sha(session.getSessionId() + "|" + route + "|" + decisionVersion);
         var clarification = new LinkedHashMap<String, Object>();
-        clarification.put("id", clarificationId);
+        clarification.put("clarificationId", clarificationId);
         clarification.put("presentationKey", "checkin.safety." + route.toLowerCase(Locale.ROOT));
         // No unreviewed clinical choices are emitted to the user.
         clarification.put("options", List.of());
@@ -79,7 +79,7 @@ public class CheckinSafetyRoutingService {
             || session.getSafetyDecisionVersion() == null
             || session.getSafetyRouteCode() == null
             || session.getSafetyClarification() == null
-            || !Objects.equals(session.getSafetyClarification().get("id"), clarificationId)) {
+            || !Objects.equals(session.getSafetyClarification().get("clarificationId"), clarificationId)) {
             throw new CheckinException("SAFETY_CLARIFICATION_NOT_CURRENT",
                 "The clarification is not current");
         }

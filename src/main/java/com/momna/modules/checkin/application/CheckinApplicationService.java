@@ -265,6 +265,11 @@ public class CheckinApplicationService {
             || value == null || value.isBlank()) {
             throw new IllegalArgumentException("Clarification id and value are required");
         }
+        var fingerprint = sha("safety-answer|" + sessionId + "|" + expectedRevision
+            + "|" + clarificationId + "|" + value);
+        var replay = replay(userId, "safety-answer", idempotencyKey, fingerprint);
+        if (replay != null) return view(replay, clock.instant());
+
         var current = owned(userId, sessionId);
         if (current.getRevision() != expectedRevision) {
             throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
@@ -272,14 +277,18 @@ public class CheckinApplicationService {
         if (!isMutable(current) || current.getConsumedAt() != null) {
             throw new CheckinException("CHECKIN_SESSION_FINALIZED", "Session is immutable");
         }
-        var active = current.getSafetyClarification();
-        if (!current.isSafetyBlocking() || active == null
-            || !clarificationId.equals(String.valueOf(active.get("id")))) {
-            throw new CheckinException("SAFETY_CLARIFICATION_NOT_CURRENT",
-                "No matching active clarification");
+        var now = clock.instant();
+        safety.answer(current, clarificationId, value, now);
+        if (!current.isSafetyBlocking() && !now.isBefore(current.getWindowClosesAt())) {
+            current.autoFinalize(now);
         }
-        throw new CheckinException("SAFETY_REVIEW_REQUIRED",
-            "Safety decision rules must be evaluated before resolving");
+        try {
+            current = sessions.saveAndFlush(current);
+        } catch (OptimisticLockingFailureException conflict) {
+            throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
+        }
+        remember(userId, "safety-answer", idempotencyKey, fingerprint, current);
+        return view(current, now);
     }
 
     private PhaseSummary phaseSummary(

@@ -4,6 +4,7 @@ import com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.CheckinSessionEntity;
 import com.momna.modules.checkin.scoring.CheckinScoringResult;
+import com.momna.platform.safety.CanonicalSafetyService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -21,8 +22,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class CheckinSafetyRoutingService {
     private final WeightedCheckinDefinitionCatalog definitions;
-    public CheckinSafetyRoutingService(WeightedCheckinDefinitionCatalog definitions) {
+    private final CanonicalSafetyService platformSafety;
+    public CheckinSafetyRoutingService(
+        WeightedCheckinDefinitionCatalog definitions,
+        CanonicalSafetyService platformSafety
+    ) {
         this.definitions = definitions;
+        this.platformSafety = platformSafety;
     }
 
     public void evaluate(
@@ -57,7 +63,10 @@ public class CheckinSafetyRoutingService {
         var route = candidate == null
             ? "SAFETY_REVIEW_REQUIRED"
             : definitions.safetyRouteForItem(candidate.itemCode());
-        var decisionVersion = "safety.clinical.v1:safety.catalog.v1:" + route;
+        // CORE-BE-12 is the sole owner of risk classification and its versions.
+        var safetyDecision = platformSafety.evaluate(Set.of("URGENT_CLINICAL_RISK"));
+        var decisionVersion = safetyDecision.ruleVersion() + ":" +
+            safetyDecision.catalogVersion() + ":" + route;
         var clarificationId = sha(session.getSessionId() + "|" + route + "|" + decisionVersion);
         var clarification = new LinkedHashMap<String, Object>();
         clarification.put("clarificationId", clarificationId);
@@ -66,8 +75,8 @@ public class CheckinSafetyRoutingService {
         clarification.put("options", List.of());
         session.applySafety(
             CheckinSafetyState.CLARIFICATION_REQUIRED,
-            decisionVersion, route, "HIGH", true,
-            clarification, List.of("DEFER_AI", "CONTACT_CLINICIAN"), now
+            decisionVersion, route, safetyDecision.severity().name(), true,
+            clarification, safetyDecision.allowedActions(), now
         );
     }
 

@@ -252,6 +252,33 @@ public class CheckinApplicationService {
         return new FinalizeResult(view(current, now), downstreamNone());
     }
 
+    @Transactional
+    public SessionView answerSafetyClarification(
+        String userId, String sessionId, String clarificationId,
+        long expectedRevision, String value, String idempotencyKey
+    ) {
+        requireIdempotencyKey(idempotencyKey);
+        if (clarificationId == null || clarificationId.isBlank()
+            || value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Clarification id and value are required");
+        }
+        var current = owned(userId, sessionId);
+        if (current.getRevision() != expectedRevision) {
+            throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
+        }
+        if (!isMutable(current) || current.getConsumedAt() != null) {
+            throw new CheckinException("CHECKIN_SESSION_FINALIZED", "Session is immutable");
+        }
+        var active = current.getSafetyClarification();
+        if (!current.isSafetyBlocking() || active == null
+            || !clarificationId.equals(String.valueOf(active.get("id")))) {
+            throw new CheckinException("SAFETY_CLARIFICATION_NOT_CURRENT",
+                "No matching active clarification");
+        }
+        throw new CheckinException("SAFETY_REVIEW_REQUIRED",
+            "Safety decision rules must be evaluated before resolving");
+    }
+
     private PhaseSummary phaseSummary(
         String userId,
         CheckinDayContextService.DayContext day,

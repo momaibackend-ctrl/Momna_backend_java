@@ -1564,4 +1564,76 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(resolvedJson.path("revision").asLong(),unchangedJson.path("revision").asLong());
     }
 
+
+    @Test
+    void menarcheHighWeightedRiskOpensClarificationThenResolvesOverHttp() throws Exception {
+        String email="mn-safety-real-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String bearer=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"weighted-risk-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var created=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),
+            bearer,"safety-start-"+UUID.randomUUID());
+        assertEquals(201,created.statusCode(),created.body());
+        var initial=json.readTree(created.body());
+        String root="/api/v1/check-in/sessions/"+initial.path("sessionId").asText();
+        var payload=json.createObjectNode().put("expectedRevision",
+            initial.path("revision").asLong());
+        var changes=payload.putArray("answerChanges");
+        for (var item : initial.path("items")) {
+            changes.addObject().put("itemCode",item.path("itemCode").asText())
+                .put("value",2);
+        }
+        var answered=patchWithKey(root,payload.toString(),bearer,
+            "safety-weighted-"+UUID.randomUUID());
+        assertEquals(200,answered.statusCode(),answered.body());
+        var blocked=json.readTree(answered.body());
+        assertTrue(blocked.path("safety").path("blocking").asBoolean(),answered.body());
+        assertEquals("CLARIFICATION_REQUIRED",blocked.path("safety").path("state").asText());
+        var clarification=blocked.path("safety").path("clarification");
+        assertTrue(clarification.path("options").isArray());
+        assertEquals(3,clarification.path("options").size());
+        String cid=clarification.path("id").asText();
+        assertFalse(cid.isBlank());
+        String key="safety-resolve-"+UUID.randomUUID();
+        String resolution=json.createObjectNode()
+            .put("expectedRevision",blocked.path("revision").asLong())
+            .put("value","not_severe").toString();
+        var resolved=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
+            resolution,bearer,key);
+        assertEquals(200,resolved.statusCode(),resolved.body());
+        var finalState=json.readTree(resolved.body());
+        assertEquals("RESOLVED",finalState.path("safety").path("state").asText());
+        assertFalse(finalState.path("safety").path("blocking").asBoolean());
+        assertTrue(finalState.path("safety").path("allowedActions").toString()
+            .contains("CONTACT_CLINICIAN"));
+        var replay=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
+            resolution,bearer,key);
+        assertEquals(200,replay.statusCode(),replay.body());
+        assertEquals(finalState.path("revision").asLong(),
+            json.readTree(replay.body()).path("revision").asLong());
+        var conflict=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
+            json.createObjectNode().put("expectedRevision",blocked.path("revision").asLong())
+                .put("value","severe").toString(),bearer,key);
+        assertEquals(409,conflict.statusCode(),conflict.body());
+    }
+
 }

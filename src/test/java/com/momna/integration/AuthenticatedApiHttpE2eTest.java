@@ -1707,4 +1707,70 @@ class AuthenticatedApiHttpE2eTest {
             .path("safety").path("severity").asText());
     }
 
+
+    @Test
+    void menarcheSafetyResolutionAfterWindowCloseAutoFinalizesOverHttp() throws Exception {
+        String email="mn-safety-expired-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var cred=json.readTree(login.body());
+        String token=cred.path("accessCredential").asText();
+        String userId=authSessions.findById(cred.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var now=Instant.now();
+        var profile=new UserProfileEntity(userId,now);
+        profile.updateLocalization("en","en-US","US","UTC",now);
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,now.minusSeconds(86400),null,"safety-deadline-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var started=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "deadline-start-"+UUID.randomUUID());
+        assertEquals(201,started.statusCode(),started.body());
+        var initial=json.readTree(started.body());
+        String sid=initial.path("sessionId").asText();
+        String path="/api/v1/check-in/sessions/"+sid;
+        String cid="expired-"+UUID.randomUUID();
+        jdbc.update("UPDATE momna.checkin_sessions SET safety_blocking = true, " +
+            "safety_state = 'CLARIFICATION_REQUIRED', safety_severity = 'HIGH', " +
+            "safety_route_code = 'MENARCHE_DIZZINESS', safety_decision_version = ?, " +
+            "safety_clarification = CAST(? AS jsonb), " +
+            "safety_allowed_actions = CAST(? AS jsonb), window_closes_at = ? " +
+            "WHERE session_id = ?",
+            "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
+            json.createObjectNode().put("id",cid).toString(),
+            "[\"CONTACT_CLINICIAN\"]",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),sid);
+        var blocked=get(path,token);
+        assertEquals(200,blocked.statusCode(),blocked.body());
+        assertEquals("DRAFT",json.readTree(blocked.body()).path("status").asText());
+        assertTrue(json.readTree(blocked.body()).path("safety").path("blocking").asBoolean());
+        var resolved=postWithKey(path+"/safety/clarifications/"+cid+"/answer",
+            json.createObjectNode()
+                .put("expectedRevision",json.readTree(blocked.body())
+                    .path("revision").asLong())
+                .put("value","not_sure").toString(),
+            token,"deadline-answer-"+UUID.randomUUID());
+        assertEquals(200,resolved.statusCode(),resolved.body());
+        var data=json.readTree(resolved.body());
+        assertEquals("AUTO_FINALIZED",data.path("status").asText());
+        assertEquals("WINDOW_CLOSED",data.path("finalizationReason").asText());
+        assertFalse(data.path("safety").path("blocking").asBoolean());
+        assertEquals("HIGH",data.path("safety").path("severity").asText());
+        var again=get(path,token);
+        assertEquals(200,again.statusCode(),again.body());
+        assertEquals(data.path("revision").asLong(),json.readTree(again.body())
+            .path("revision").asLong());
+    }
+
 }

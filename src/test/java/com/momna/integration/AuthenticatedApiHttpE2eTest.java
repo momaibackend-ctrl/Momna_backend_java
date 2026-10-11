@@ -1639,4 +1639,72 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(409,conflict.statusCode(),conflict.body());
     }
 
+
+    @Test
+    void menarcheEmergencyClarificationIsIrreversibleOverHttp() throws Exception {
+        String email="mn-emergency-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String token=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var now=Instant.now();
+        var profile=new UserProfileEntity(userId,now);
+        profile.updateLocalization("en","en-US","US","UTC",now);
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,now.minusSeconds(86400),null,"safety-emergency-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var created=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "emergency-start-"+UUID.randomUUID());
+        assertEquals(201,created.statusCode(),created.body());
+        var initial=json.readTree(created.body());
+        String sessionId=initial.path("sessionId").asText();
+        String root="/api/v1/check-in/sessions/"+sessionId;
+        String clarificationId="critical-"+UUID.randomUUID();
+        jdbc.update("UPDATE momna.checkin_sessions SET safety_blocking = true, " +
+            "safety_state = 'CLARIFICATION_REQUIRED', safety_severity = 'HIGH', " +
+            "safety_decision_version = ?, safety_route_code = ?, " +
+            "safety_clarification = CAST(? AS jsonb), " +
+            "safety_allowed_actions = CAST(? AS jsonb) WHERE session_id = ?",
+            "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
+            "MENARCHE_DIZZINESS",
+            json.createObjectNode().put("id",clarificationId).toString(),
+            "[\"CONTACT_CLINICIAN\"]",sessionId);
+        var active=get(root,token);
+        assertEquals(200,active.statusCode(),active.body());
+        long before=json.readTree(active.body()).path("revision").asLong();
+        var emergency=postWithKey(root+"/safety/clarifications/"+clarificationId+"/answer",
+            json.createObjectNode().put("expectedRevision",before)
+                .put("value","severe").toString(),
+            token,"emergency-answer-"+UUID.randomUUID());
+        assertEquals(200,emergency.statusCode(),emergency.body());
+        var decision=json.readTree(emergency.body());
+        assertEquals("CRITICAL",decision.path("safety").path("severity").asText());
+        assertTrue(decision.path("safety").path("blocking").asBoolean());
+        assertTrue(decision.path("safety").path("allowedActions").toString()
+            .contains("CONTACT_EMERGENCY_SERVICES"));
+        assertFalse(decision.path("allowedActions").toString().contains("ANSWER_SAFETY"));
+        assertEquals("CLARIFICATION_REQUIRED",decision.path("safety").path("state").asText());
+        var downgrade=postWithKey(root+"/safety/clarifications/"+clarificationId+"/answer",
+            json.createObjectNode().put("expectedRevision",decision.path("revision").asLong())
+                .put("value","not_severe").toString(),
+            token,"emergency-downgrade-"+UUID.randomUUID());
+        assertEquals(409,downgrade.statusCode(),downgrade.body());
+        var retained=get(root,token);
+        assertEquals("CRITICAL",json.readTree(retained.body())
+            .path("safety").path("severity").asText());
+    }
+
 }

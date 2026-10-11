@@ -1519,8 +1519,8 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(200,persisted.statusCode(),persisted.body());
         assertEquals(snapshot.path("revision").asLong(),
             json.readTree(persisted.body()).path("revision").asLong());
-        // A matching, server-issued clarification must not be resolved by
-        // accepting arbitrary client input before the safety rules exist.
+        // A matching, server-issued clarification is evaluated by the
+        // canonical deterministic safety policy.
         String clarificationId="safety-"+UUID.randomUUID();
         var activeClarification=json.createObjectNode().put("id",clarificationId)
             .put("routeCode","MENARCHE_DIZZINESS");
@@ -1549,12 +1549,19 @@ class AuthenticatedApiHttpE2eTest {
             json.createObjectNode().put("expectedRevision",safetyRevision)
                 .put("value","not_sure").toString(),
             token,"safety-review-"+UUID.randomUUID());
-        assertEquals(503,awaitingRules.statusCode(),awaitingRules.body());
+        assertEquals(200,awaitingRules.statusCode(),awaitingRules.body());
+        var resolvedJson=json.readTree(awaitingRules.body());
+        assertEquals("RESOLVED",resolvedJson.path("safety").path("state").asText());
+        assertEquals("HIGH",resolvedJson.path("safety").path("severity").asText());
+        assertFalse(resolvedJson.path("safety").path("blocking").asBoolean());
+        assertTrue(resolvedJson.path("safety").path("allowedActions").toString()
+            .contains("CONTACT_CLINICIAN"));
+        assertTrue(resolvedJson.path("revision").asLong()>safetyRevision);
         var unchanged=get(root,token);
         assertEquals(200,unchanged.statusCode(),unchanged.body());
         var unchangedJson=json.readTree(unchanged.body());
-        assertTrue(unchangedJson.path("safety").path("blocking").asBoolean());
-        assertEquals(safetyRevision,unchangedJson.path("revision").asLong());
+        assertFalse(unchangedJson.path("safety").path("blocking").asBoolean());
+        assertEquals(resolvedJson.path("revision").asLong(),unchangedJson.path("revision").asLong());
     }
 
 }

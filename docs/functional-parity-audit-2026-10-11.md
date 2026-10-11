@@ -43,3 +43,11 @@ Excluded from this team's scope: deployment, infrastructure provisioning, operat
 ## Status
 
 **FUNCTIONAL PARITY: BLOCKED for runtime verification.** Test coverage exists, but has not been executed in this audit. No application code has been modified by this audit document.
+
+## Verified CI evidence on current main (2026-10-11)
+
+- Commit: `ae026c8d361a8f1eb357bbe790511517d7054ed9`.
+- GitHub Actions run: https://github.com/momaibackend-ctrl/Momna_backend_java/actions/runs/38152390859 (success).
+- Successful steps include: Java 25 setup, Gradle `./gradlew clean test bootJar --no-daemon`, Docker image build, Java application startup with disposable PostgreSQL 16, Postman/Newman core-foundation collection, security-boundaries collection, Newman evidence upload.
+- CI proof **does not demonstrate** that every original Kotlin endpoint and every period-specific Check-in/My Day path has been tested. The workflow explicitly executes `momna-core-foundation.postman_collection.json` and `momna-api-security-boundaries.postman_collection.json`.
+- A broader Backend Autopilot repository HTTP E2E job was dispatched against this exact commit: `1de4e904-3c07-47cf-8fdf-07e47cf7b571`, workflow https://github.com/momaibackend-ctrl/backend-autopilot/actions/runs/38160968491. Its result was RUNNING at last observation; **do not count it as PASS until evidence reports success**.

@@ -1530,6 +1530,12 @@ class AuthenticatedApiHttpE2eTest {
         var beforeReview=get(root,token);
         assertEquals(200,beforeReview.statusCode(),beforeReview.body());
         long safetyRevision=json.readTree(beforeReview.body()).path("revision").asLong();
+        var staleSafetyAnswer=postWithKey(
+            root+"/safety/clarifications/"+clarificationId+"/answer",
+            json.createObjectNode().put("expectedRevision",safetyRevision+1)
+                .put("value","not_sure").toString(),
+            token,"safety-stale-"+UUID.randomUUID());
+        assertEquals(409,staleSafetyAnswer.statusCode(),staleSafetyAnswer.body());
         var awaitingRules=postWithKey(
             root+"/safety/clarifications/"+clarificationId+"/answer",
             json.createObjectNode().put("expectedRevision",safetyRevision)

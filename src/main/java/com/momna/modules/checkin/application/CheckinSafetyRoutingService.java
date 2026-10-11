@@ -52,11 +52,11 @@ public class CheckinSafetyRoutingService {
                 .thenComparingInt(x -> orders.getOrDefault(x.itemCode(), Integer.MAX_VALUE))
                 .thenComparing(CheckinScoringResult.Contribution::itemCode))
             .findFirst()
-            .orElseThrow(() -> new CheckinException(
-                "SAFETY_ROUTE_VERSION_MISMATCH",
-                "Risk threshold reached without a governed route"
-            ));
-        var route = definitions.safetyRouteForItem(candidate.itemCode());
+            .orElse(null);
+        // The canonical model requires fail-closed routing on unknown bindings.
+        var route = candidate == null
+            ? "SAFETY_REVIEW_REQUIRED"
+            : definitions.safetyRouteForItem(candidate.itemCode());
         var decisionVersion = "safety.clinical.v1:safety.catalog.v1:" + route;
         var clarificationId = sha(session.getSessionId() + "|" + route + "|" + decisionVersion);
         var clarification = new LinkedHashMap<String, Object>();

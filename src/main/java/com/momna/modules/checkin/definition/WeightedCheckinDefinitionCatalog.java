@@ -18,6 +18,11 @@ public class WeightedCheckinDefinitionCatalog {
     private static final String ENTRY = "daily_checkin_weighted_model_v3.json";
 
     private final Map<Key, Definition> definitions;
+    private Map<String, String> safetyRouteBindings = Map.of();
+
+    public String safetyRouteForItem(String itemCode) {
+        return safetyRouteBindings.get(itemCode);
+    }
 
     public WeightedCheckinDefinitionCatalog(ObjectMapper objectMapper) {
         this.definitions = load(objectMapper);
@@ -56,6 +61,24 @@ public class WeightedCheckinDefinitionCatalog {
             var jsonBytes = extractJson(zip);
             var sha = hex(MessageDigest.getInstance("SHA-256").digest(jsonBytes));
             var root = mapper.readTree(jsonBytes);
+
+            var bindings = new LinkedHashMap<String, String>();
+            for (var binding : root.path("item_safety_routes")) {
+                var item = binding.path("item_code").asText();
+                var route = binding.path("route_code").asText();
+                if (item.isBlank() || route.isBlank() || bindings.putIfAbsent(item, route) != null) {
+                    throw new IllegalStateException("Invalid canonical safety route binding");
+                }
+            }
+            var routes = new HashSet<String>();
+            for (var route : root.path("safety_route_catalog")) {
+                routes.add(route.path("code").asText());
+            }
+            if (bindings.size() != 22 || routes.size() != 20
+                || !routes.containsAll(bindings.values())) {
+                throw new IllegalStateException("Canonical safety route catalog invalid");
+            }
+            this.safetyRouteBindings = Map.copyOf(bindings);
 
             var multipliers = root.path("profile_multipliers");
             var out = new LinkedHashMap<Key, Definition>();

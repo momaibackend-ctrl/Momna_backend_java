@@ -6,6 +6,7 @@ import com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.*;
 import com.momna.modules.checkin.scoring.WeightedCheckinScoringEngine;
+import com.momna.modules.checkin.safety.MenarcheSafetyDecisionService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -23,6 +24,7 @@ public class CheckinApplicationService {
     private final CheckinAdjustmentSignalRepository adjustmentSignals;
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
+    private final MenarcheSafetyDecisionService safety = new MenarcheSafetyDecisionService();
     private final CheckinDayContextService contexts;
     private final Clock clock = Clock.systemUTC();
 
@@ -211,6 +213,7 @@ public class CheckinApplicationService {
             Map.of()
         );
         persistAdjustmentSignals(current, score, now);
+        safety.evaluate(current, score, now);
 
         try {
             current = sessions.saveAndFlush(current);

@@ -1403,7 +1403,7 @@ class AuthenticatedApiHttpE2eTest {
         // No clinician-reviewed answer-to-signal mapping exists in the source model.
         // A current clarification must fail closed, not silently allow submission.
         var currentClarification=postWithKey(root+"/safety/clarifications/"+
-            safety.path("clarification").path("id").asText()+"/answer",
+            safety.path("clarification").path("clarificationId").asText()+"/answer",
             json.createObjectNode().put("expectedRevision",updated.path("revision").asLong())
                 .put("value","unreviewed").toString(),token,"unreviewed-"+UUID.randomUUID());
         assertEquals(503,currentClarification.statusCode(),currentClarification.body());

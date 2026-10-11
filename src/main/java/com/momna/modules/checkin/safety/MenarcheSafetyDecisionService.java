@@ -22,6 +22,8 @@ public class MenarcheSafetyDecisionService {
     private static final String RULE_VERSION = "safety.clinical.v1";
     private static final String CATALOG_VERSION = "safety.catalog.v1";
     private final MenarcheSafetyRouteSelector selector = new MenarcheSafetyRouteSelector();
+    private final MenarcheSafetyClarificationCatalog catalog =
+        new MenarcheSafetyClarificationCatalog();
 
     public void evaluate(CheckinSessionEntity session, CheckinScoringResult score, Instant at) {
         if (!"MENARCHE".equals(session.getPeriodAtTime())) return;
@@ -34,14 +36,11 @@ public class MenarcheSafetyDecisionService {
         String route = selector.select(score).orElse("SAFETY_REVIEW_REQUIRED");
         String version = RULE_VERSION + ":" + CATALOG_VERSION + ":" + route;
         String id = fingerprint(session.getSessionId() + "|" + route + "|" + version);
-        String labelKey = "checkin.safety." + route.toLowerCase(java.util.Locale.ROOT);
-        var options = List.of(
-            Map.of("value", "severe", "labelKey", labelKey + ".severe"),
-            Map.of("value", "not_severe", "labelKey", labelKey + ".not_severe"),
-            Map.of("value", "not_sure", "labelKey", labelKey + ".not_sure")
-        );
+        var definition = catalog.definition(route);
+        var options = definition.options().stream().map(o ->
+            Map.of("value", o.value(), "labelKey", o.labelKey())).toList();
         var clarification = Map.<String, Object>of(
-            "id", id, "presentationKey", labelKey, "options", options
+            "id", id, "presentationKey", definition.presentationKey(), "options", options
         );
         session.applySafetyDecision(CheckinSafetyState.CLARIFICATION_REQUIRED,
             version, route, "HIGH", true, clarification,
@@ -60,19 +59,26 @@ public class MenarcheSafetyDecisionService {
             throw new CheckinException("SAFETY_STATE_BLOCKING",
                 "Emergency decision must not be downgraded");
         }
-        switch (value) {
-            case "severe" -> session.applySafetyDecision(
-                CheckinSafetyState.CLARIFICATION_REQUIRED,
+        var rule = catalog.option(session.getSafetyRouteCode(), value);
+        if (rule == null) {
+            throw new CheckinException("SAFETY_VALUE_INVALID",
+                "Unknown safety clarification option");
+        }
+        var signals = rule.signalKeys();
+        if (signals.contains("MEDICAL_EMERGENCY")) {
+            session.applySafetyDecision(CheckinSafetyState.CLARIFICATION_REQUIRED,
                 session.getSafetyDecisionVersion(), session.getSafetyRouteCode(),
                 "CRITICAL", true, clarification,
                 List.of("CONTACT_EMERGENCY_SERVICES"), at);
-            case "not_severe", "not_sure" -> session.applySafetyDecision(
-                CheckinSafetyState.RESOLVED,
+        } else if (signals.contains("URGENT_CLINICAL_RISK")) {
+            session.applySafetyDecision(CheckinSafetyState.RESOLVED,
                 session.getSafetyDecisionVersion(), session.getSafetyRouteCode(),
                 "HIGH", false, null,
                 List.of("DEFER_AI", "CONTACT_CLINICIAN"), at);
-            default -> throw new CheckinException("SAFETY_VALUE_INVALID",
-                "Unknown safety clarification option");
+        } else {
+            session.applySafetyDecision(CheckinSafetyState.RESOLVED,
+                session.getSafetyDecisionVersion(), session.getSafetyRouteCode(),
+                "NONE", false, null, List.of("CONTINUE"), at);
         }
     }
 

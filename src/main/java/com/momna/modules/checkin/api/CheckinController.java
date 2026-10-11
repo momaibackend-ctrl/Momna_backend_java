@@ -83,6 +83,20 @@ public class CheckinController {
         );
     }
 
+    @PostMapping("/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer")
+    public SessionView answerSafety(
+        Authentication authentication,
+        @PathVariable String sessionId,
+        @PathVariable String clarificationId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @Valid @RequestBody SafetyAnswerRequest request
+    ) {
+        return checkin.answerSafetyClarification(
+            actor(authentication).userId(), sessionId, clarificationId,
+            request.expectedRevision(), request.value(), idempotencyKey
+        );
+    }
+
     private AuthenticatedActor actor(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedActor actor)) {
             throw new AuthException("AUTH_REQUIRED", "Authentication required");
@@ -111,4 +125,5 @@ public class CheckinController {
     ) {}
 
     public record SubmitRequest(@NotNull Long expectedRevision) {}
+    public record SafetyAnswerRequest(@NotNull Long expectedRevision, @NotBlank String value) {}
 }

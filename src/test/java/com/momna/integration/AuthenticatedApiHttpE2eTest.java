@@ -1389,7 +1389,7 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals("CLARIFICATION_REQUIRED",safety.path("state").asText(),answer.body());
         assertTrue(safety.path("blocking").asBoolean());
         assertTrue(safety.path("routeCode").asText().startsWith("MENARCHE_"));
-        assertEquals(64,safety.path("clarification").path("id").asText().length());
+        assertEquals(64,safety.path("clarification").path("clarificationId").asText().length());
         assertTrue(updated.path("allowedActions").toString().contains("ANSWER_SAFETY"));
 
         var submit=postWithKey(root+"/submit",json.createObjectNode()

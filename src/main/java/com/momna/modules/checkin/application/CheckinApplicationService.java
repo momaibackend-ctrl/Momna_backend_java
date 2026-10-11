@@ -69,7 +69,14 @@ public class CheckinApplicationService {
         var existing = sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
             userId, phase, day.localDate(), day.period().name()
         ).orElse(null);
-        if (existing != null) return new StartResult(view(existing, now), false);
+        if (existing != null) {
+            if (isMutable(existing) && !now.isBefore(existing.getWindowClosesAt())
+                && !existing.isSafetyBlocking()) {
+                existing.autoFinalize(now);
+                existing = sessions.saveAndFlush(existing);
+            }
+            return new StartResult(view(existing, now), false);
+        }
 
         var window = day.window(phase);
         var windowState = window.stateAt(now);

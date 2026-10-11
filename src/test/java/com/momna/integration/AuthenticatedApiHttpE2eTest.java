@@ -1582,13 +1582,16 @@ class AuthenticatedApiHttpE2eTest {
         String userId=authSessions.findById(credentials.path("session")
             .path("sessionId").asText()).orElseThrow().getUserId();
         var profile=new UserProfileEntity(userId,Instant.now());
-        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        // Select a fixed-offset timezone where local time is in the morning,
+        // independently of when the CI runner executes.
+        String tz=LocalTime.now(ZoneOffset.ofHours(2)).isBefore(LocalTime.NOON)
+            ? "Etc/GMT-2" : "Etc/GMT+10";
+        profile.updateLocalization("en","en-US","US",tz,Instant.now());
         userProfiles.saveAndFlush(profile);
         lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
             UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
             null,Instant.now().minusSeconds(86400),null,"weighted-risk-e2e",1.0,true));
-        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
-            ? "MORNING" : "EVENING";
+        String phase="MORNING";
         var created=postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase",phase).toString(),
             bearer,"safety-start-"+UUID.randomUUID());

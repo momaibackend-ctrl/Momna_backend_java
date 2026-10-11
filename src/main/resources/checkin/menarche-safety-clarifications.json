@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "source": "java-policy-defaults-built-on-canonical-safety-signals",
+  "clinicalReviewStatus": "PROVISIONAL",
+  "routes": [
+    {
+      "routeCode": "MENARCHE_HEADACHE",
+      "presentationKey": "checkin.safety.menarche_headache",
+      "options": [
+        {
+          "value": "severe",
+          "labelKey": "checkin.safety.menarche_headache.severe",
+          "signalKeys": [
+            "MEDICAL_EMERGENCY"
+          ]
+        },
+        {
+          "value": "not_severe",
+          "labelKey": "checkin.safety.menarche_headache.not_severe",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        },
+        {
+          "value": "not_sure",
+          "labelKey": "checkin.safety.menarche_headache.not_sure",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        }
+      ]
+    },
+    {
+      "routeCode": "MENARCHE_DIZZINESS",
+      "presentationKey": "checkin.safety.menarche_dizziness",
+      "options": [
+        {
+          "value": "severe",
+          "labelKey": "checkin.safety.menarche_dizziness.severe",
+          "signalKeys": [
+            "MEDICAL_EMERGENCY"
+          ]
+        },
+        {
+          "value": "not_severe",
+          "labelKey": "checkin.safety.menarche_dizziness.not_severe",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        },
+        {
+          "value": "not_sure",
+          "labelKey": "checkin.safety.menarche_dizziness.not_sure",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        }
+      ]
+    },
+    {
+      "routeCode": "MENARCHE_BLEEDING",
+      "presentationKey": "checkin.safety.menarche_bleeding",
+      "options": [
+        {
+          "value": "severe",
+          "labelKey": "checkin.safety.menarche_bleeding.severe",
+          "signalKeys": [
+            "MEDICAL_EMERGENCY"
+          ]
+        },
+        {
+          "value": "not_severe",
+          "labelKey": "checkin.safety.menarche_bleeding.not_severe",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        },
+        {
+          "value": "not_sure",
+          "labelKey": "checkin.safety.menarche_bleeding.not_sure",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        }
+      ]
+    },
+    {
+      "routeCode": "SAFETY_REVIEW_REQUIRED",
+      "presentationKey": "checkin.safety.safety_review_required",
+      "options": [
+        {
+          "value": "severe",
+          "labelKey": "checkin.safety.safety_review_required.severe",
+          "signalKeys": [
+            "MEDICAL_EMERGENCY"
+          ]
+        },
+        {
+          "value": "not_severe",
+          "labelKey": "checkin.safety.safety_review_required.not_severe",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        },
+        {
+          "value": "not_sure",
+          "labelKey": "checkin.safety.safety_review_required.not_sure",
+          "signalKeys": [
+            "URGENT_CLINICAL_RISK"
+          ]
+        }
+      ]
+    }
+  ]
+}

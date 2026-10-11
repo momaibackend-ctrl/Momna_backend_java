@@ -169,6 +169,10 @@ public class CheckinApplicationService {
         if (current.getRevision() != expectedRevision) {
             throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
         }
+        if (current.isSafetyBlocking()) {
+            throw new CheckinException("SAFETY_CLARIFICATION_REQUIRED",
+                "Answer the active safety clarification before changing check-in answers");
+        }
 
         var applicable = new HashSet<>(current.getApplicableItemCodes());
         for (var change : changes) {

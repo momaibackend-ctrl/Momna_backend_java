@@ -1508,6 +1508,13 @@ class AuthenticatedApiHttpE2eTest {
             .put("expectedRevision",snapshot.path("revision").asLong()).toString(),
             token,"blocked-submit-"+UUID.randomUUID());
         assertEquals(409,submit.statusCode(),submit.body());
+        var invalidSafetyAnswer=postWithKey(
+            root+"/safety/clarifications/not-current/answer",
+            json.createObjectNode()
+                .put("expectedRevision",snapshot.path("revision").asLong())
+                .put("value","not_sure").toString(),
+            token,"safety-request-"+UUID.randomUUID());
+        assertEquals(409,invalidSafetyAnswer.statusCode(),invalidSafetyAnswer.body());
         var persisted=get(root,token);
         assertEquals(200,persisted.statusCode(),persisted.body());
         assertEquals(snapshot.path("revision").asLong(),

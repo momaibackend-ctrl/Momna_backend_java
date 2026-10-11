@@ -1455,4 +1455,63 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals(409,conflict.statusCode(),conflict.body());
     }
 
+
+    @Test
+    void menarcheSafetyBlockingRejectsAnswerMutationsAndSubmitOverHttp() throws Exception {
+        String email="mn-safety-block-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credentials=json.readTree(login.body());
+        String token=credentials.path("accessCredential").asText();
+        String userId=authSessions.findById(credentials.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"blocked-safety-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var created=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),
+            token,"blocked-start-"+UUID.randomUUID());
+        assertEquals(201,created.statusCode(),created.body());
+        var initial=json.readTree(created.body());
+        String sessionId=initial.path("sessionId").asText();
+        jdbc.update("UPDATE momna.checkin_sessions " +
+            "SET safety_blocking = true, safety_state = 'CLARIFICATION_REQUIRED' " +
+            "WHERE session_id = ?",sessionId);
+        String root="/api/v1/check-in/sessions/"+sessionId;
+        var blocked=get(root,token);
+        assertEquals(200,blocked.statusCode(),blocked.body());
+        var snapshot=json.readTree(blocked.body());
+        assertTrue(snapshot.path("safety").path("blocking").asBoolean());
+        assertTrue(snapshot.path("allowedActions").toString().contains("ANSWER_SAFETY"));
+        assertFalse(snapshot.path("allowedActions").toString().contains("EDIT_ANSWERS"));
+        var change=json.createObjectNode()
+            .put("expectedRevision",snapshot.path("revision").asLong());
+        change.putArray("answerChanges").addObject()
+            .put("itemCode",initial.path("items").get(0).path("itemCode").asText())
+            .put("value",1);
+        var patch=patchWithKey(root,change.toString(),token,
+            "blocked-patch-"+UUID.randomUUID());
+        assertEquals(409,patch.statusCode(),patch.body());
+        var submit=postWithKey(root+"/submit",json.createObjectNode()
+            .put("expectedRevision",snapshot.path("revision").asLong()).toString(),
+            token,"blocked-submit-"+UUID.randomUUID());
+        assertEquals(409,submit.statusCode(),submit.body());
+        var persisted=get(root,token);
+        assertEquals(200,persisted.statusCode(),persisted.body());
+        assertEquals(snapshot.path("revision").asLong(),
+            json.readTree(persisted.body()).path("revision").asLong());
+    }
+
 }

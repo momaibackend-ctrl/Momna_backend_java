@@ -44,7 +44,7 @@ public class CheckinApplicationService {
         this.contexts = contexts;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TodayView today(String userId) {
         var now = clock.instant();
         var day = contexts.resolve(userId, now);
@@ -244,6 +244,12 @@ public class CheckinApplicationService {
         var stored = sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
             userId, phase, day.localDate(), day.period().name()
         ).orElse(null);
+        if (stored != null && isMutable(stored)
+            && !now.isBefore(stored.getWindowClosesAt())
+            && !stored.isSafetyBlocking()) {
+            stored.autoFinalize(now);
+            stored = sessions.saveAndFlush(stored);
+        }
 
         var action = stored == null
             ? ("OPEN".equals(window.stateAt(now)) ? "START" : "NONE")

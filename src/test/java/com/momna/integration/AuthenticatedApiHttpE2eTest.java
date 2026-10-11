@@ -66,6 +66,7 @@ class AuthenticatedApiHttpE2eTest {
     @Autowired CheckinSessionRepository checkinSessions;
     @Autowired UserProfileRepository userProfiles;
     @Autowired LifecyclePeriodHistoryRepository lifecycleHistory;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class DeliveryConfig {
@@ -1279,5 +1280,67 @@ class AuthenticatedApiHttpE2eTest {
         var rejected=patchWithKey(path,edit.toString(),token,
             "expired-edit-"+UUID.randomUUID());
         assertEquals(409,rejected.statusCode(),rejected.body());
+    }
+
+    @Test
+    void menarcheExpiredCheckinAutoFinalizesOnHttpReadAndRejectsFurtherChanges() throws Exception {
+        String email="mn-expired-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+            .put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        var credential=json.readTree(login.body());
+        String token=credential.path("accessCredential").asText();
+        String userId=authSessions.findById(credential.path("session")
+            .path("sessionId").asText()).orElseThrow().getUserId();
+        var profile=new UserProfileEntity(userId,Instant.now());
+        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
+        userProfiles.saveAndFlush(profile);
+        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
+            null,Instant.now().minusSeconds(86400),null,"expired-window-e2e",1.0,true));
+        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+            ? "MORNING" : "EVENING";
+        var start=postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase",phase).toString(),token,
+            "expiring-start-"+UUID.randomUUID());
+        assertEquals(201,start.statusCode(),start.body());
+        var state=json.readTree(start.body());
+        String sessionId=state.path("sessionId").asText();
+        String root="/api/v1/check-in/sessions/"+sessionId;
+        assertEquals("DRAFT",state.path("status").asText());
+
+        // Simulate clock passing the immutable session window through PostgreSQL,
+        // then exercise the real public HTTP API rather than invoking a service.
+        jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),sessionId);
+        var observed=get(root,token);
+        assertEquals(200,observed.statusCode(),observed.body());
+        var finalized=json.readTree(observed.body());
+        assertEquals("AUTO_FINALIZED",finalized.path("status").asText());
+        assertEquals("WINDOW_CLOSED",finalized.path("finalizationReason").asText());
+        assertTrue(finalized.path("finalizedAt").isTextual());
+        var repeat=get(root,token);
+        assertEquals(200,repeat.statusCode(),repeat.body());
+        assertEquals(finalized.path("revision").asLong(),
+            json.readTree(repeat.body()).path("revision").asLong(),
+            "Repeated reads must not finalize twice");
+        var mutation=json.createObjectNode()
+            .put("expectedRevision",finalized.path("revision").asLong());
+        mutation.putArray("answerChanges").addObject()
+            .put("itemCode",state.path("items").get(0).path("itemCode").asText())
+            .put("value",1);
+        var denied=patchWithKey(root,mutation.toString(),token,
+            "expired-answer-"+UUID.randomUUID());
+        assertEquals(409,denied.statusCode(),denied.body());
+        var submit=postWithKey(root+"/submit",json.createObjectNode()
+            .put("expectedRevision",finalized.path("revision").asLong()).toString(),
+            token,"expired-submit-"+UUID.randomUUID());
+        assertEquals(409,submit.statusCode(),submit.body());
     }
 }

@@ -1773,4 +1773,74 @@ class AuthenticatedApiHttpE2eTest {
             .path("revision").asLong());
     }
 
+
+    @Test
+    void remainingSixPeriodsCheckinCreateAnswerSubmitAndReadOverAuthenticatedHttp() throws Exception {
+        for (LifecyclePeriod period : java.util.List.of(
+                LifecyclePeriod.CYCLE, LifecyclePeriod.PLANNING,
+                LifecyclePeriod.PREGNANCY, LifecyclePeriod.POSTPARTUM,
+                LifecyclePeriod.PERIMENOPAUSE, LifecyclePeriod.MENOPAUSE)) {
+            String email="ci-"+period.name().substring(0,3).toLowerCase()+"-"+UUID.randomUUID()+"@example.test";
+            DELIVERED_CODE.set(null);
+            var challenge=post("/api/v1/auth/email/challenges",
+                json.createObjectNode().put("email",email).toString(),null);
+            assertEquals(202,challenge.statusCode(),period+" "+challenge.body());
+            var login=post("/api/v1/auth/email/complete",json.createObjectNode()
+                .put("email",email)
+                .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+                .put("code",DELIVERED_CODE.get()).toString(),null);
+            assertEquals(200,login.statusCode(),period+" "+login.body());
+            var credentials=json.readTree(login.body());
+            String token=credentials.path("accessCredential").asText();
+            String userId=authSessions.findById(
+                credentials.path("session").path("sessionId").asText()
+            ).orElseThrow().getUserId();
+            Instant now=Instant.now();
+            var profile=new UserProfileEntity(userId,now);
+            profile.updateLocalization("en","en-US","US","UTC",now);
+            userProfiles.saveAndFlush(profile);
+            lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
+                UUID.randomUUID().toString(),userId,period,null,
+                now.minusSeconds(86400),null,"all-periods-checkin-http",1.0,true));
+            var today=get("/api/v1/check-in/today",token);
+            assertEquals(200,today.statusCode(),period+" "+today.body());
+            assertEquals(period.name(),json.readTree(today.body())
+                .path("lifecyclePeriod").asText(),period.name());
+            String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
+                ? "MORNING" : "EVENING";
+            var start=postWithKey("/api/v1/check-in/sessions",
+                json.createObjectNode().put("phase",phase).toString(),token,
+                "period-start-"+UUID.randomUUID());
+            assertEquals(201,start.statusCode(),period+" "+start.body());
+            var initial=json.readTree(start.body());
+            assertEquals("DRAFT",initial.path("status").asText(),period.name());
+            assertEquals(period.name(),initial.path("lifecyclePeriodAtTime").asText());
+            assertTrue(initial.path("items").isArray() && !initial.path("items").isEmpty(),
+                period+" "+start.body());
+            String endpoint="/api/v1/check-in/sessions/"+initial.path("sessionId").asText();
+            String item=initial.path("items").get(0).path("itemCode").asText();
+            var patchBody=json.createObjectNode().put("expectedRevision",
+                initial.path("revision").asLong());
+            patchBody.putArray("answerChanges").addObject()
+                .put("itemCode",item).put("value",1);
+            var partial=patchWithKey(endpoint,patchBody.toString(),token,
+                "period-answer-"+UUID.randomUUID());
+            assertEquals(200,partial.statusCode(),period+" "+partial.body());
+            var afterPatch=json.readTree(partial.body());
+            assertEquals("PARTIAL",afterPatch.path("status").asText(),period.name());
+            var submit=postWithKey(endpoint+"/submit",
+                json.createObjectNode().put("expectedRevision",
+                    afterPatch.path("revision").asLong()).toString(),
+                token,"period-submit-"+UUID.randomUUID());
+            assertEquals(200,submit.statusCode(),period+" "+submit.body());
+            assertEquals("SUBMITTED",json.readTree(submit.body())
+                .path("session").path("status").asText(),period.name());
+            var stored=get(endpoint,token);
+            assertEquals(200,stored.statusCode(),period+" "+stored.body());
+            assertEquals("SUBMITTED",json.readTree(stored.body()).path("status").asText());
+            var forbidden=patchWithKey(endpoint,patchBody.toString(),token,
+                "period-after-submit-"+UUID.randomUUID());
+            assertEquals(409,forbidden.statusCode(),period+" "+forbidden.body());
+        }
+    }
 }

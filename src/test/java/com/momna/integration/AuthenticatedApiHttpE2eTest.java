@@ -1780,7 +1780,7 @@ class AuthenticatedApiHttpE2eTest {
                 LifecyclePeriod.CYCLE, LifecyclePeriod.PLANNING,
                 LifecyclePeriod.PREGNANCY, LifecyclePeriod.POSTPARTUM,
                 LifecyclePeriod.PERIMENOPAUSE, LifecyclePeriod.MENOPAUSE)) {
-            String email="period-checkin-"+period.name().toLowerCase()+"-"+UUID.randomUUID()+"@example.test";
+            String email="ci-"+period.name().substring(0,3).toLowerCase()+"-"+UUID.randomUUID()+"@example.test";
             DELIVERED_CODE.set(null);
             var challenge=post("/api/v1/auth/email/challenges",
                 json.createObjectNode().put("email",email).toString(),null);

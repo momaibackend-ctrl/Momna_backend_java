@@ -51,3 +51,13 @@ Excluded from this team's scope: deployment, infrastructure provisioning, operat
 - Successful steps include: Java 25 setup, Gradle `./gradlew clean test bootJar --no-daemon`, Docker image build, Java application startup with disposable PostgreSQL 16, Postman/Newman core-foundation collection, security-boundaries collection, Newman evidence upload.
 - CI proof **does not demonstrate** that every original Kotlin endpoint and every period-specific Check-in/My Day path has been tested. The workflow explicitly executes `momna-core-foundation.postman_collection.json` and `momna-api-security-boundaries.postman_collection.json`.
 - A broader Backend Autopilot repository HTTP E2E job was dispatched against this exact commit: `1de4e904-3c07-47cf-8fdf-07e47cf7b571`, workflow https://github.com/momaibackend-ctrl/backend-autopilot/actions/runs/38160968491. Its result was RUNNING at last observation; **do not count it as PASS until evidence reports success**.
+
+## Follow-up on 2026-10-12: E2E coverage diagnosis and contract fix
+
+- Backend Autopilot completed the prior E2E job on `ae026c8d361a8f1eb357bbe790511517d7054ed9`: `NOT_PROVEN / COVERAGE_INCOMPLETE`.
+- Evidence: 6/6 scenarios PASSED, 47/47 HTTP requests PASSED, but only 44/45 documented operations were counted as covered (97.7%). Evidence artifact `2fc92e8e-3bc2-41fb-a4e4-ebdeb3ccf8a3`.
+- Uncovered operation as reported: POST `/api/v1/flow-instances/{instanceId}/actions/{actionCode}`.
+- Inspected `FlowController.java`, `openapi.json`, `openapi/onboarding-public-v1.json` and `openapi-onboarding.json`. The first three use `{actionCode}`; the last incorrectly used `{action}` for the same operation.
+- Fixed old contract in `openapi-onboarding.json` to use `{actionCode}`, commit `17c2af954664d95e087ac5e30cd11076ffa8bfc5` in this audit branch. No application implementation change.
+- A request to run Backend Autopilot HTTP E2E on this fixing commit was blocked by the execution tool; **no post-fix E2E result exists**. Rerun is mandatory before marking coverage PROVEN.
+- Important coverage qualification: many protected routes were exercised only with expected HTTP 401 responses. Even a 45/45 operation-coverage verdict would not by itself demonstrate authenticated business-path functional parity with Kotlin or complete seven-period Check-in scenarios.

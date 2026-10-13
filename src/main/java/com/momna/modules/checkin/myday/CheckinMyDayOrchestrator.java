@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CheckinMyDayOrchestrator {
-    public static final String VERSION = "checkin-myday-orchestration.v1";
+    public static final String VERSION = "checkin-myday-orchestration.v2";
     private static final int SCALE = 6;
     private static final BigDecimal MORNING_TWO_PHASE = new BigDecimal("0.700000");
     private static final BigDecimal EVENING_TWO_PHASE = new BigDecimal("0.300000");
@@ -45,11 +45,14 @@ public class CheckinMyDayOrchestrator {
         var day = contexts.resolve(userId, referenceAt);
         var sourceSessions = new ArrayList<CheckinSessionEntity>();
 
-        for (var phase : CheckinPhase.values()) {
-            sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
-                userId, phase, day.localDate(), day.period().name()
-            ).filter(this::isFinal).ifPresent(sourceSessions::add);
-        }
+        // My Day D is informed by the previous evening (D-1) and today's morning (D).
+        // Keep the session's own local date unchanged; only its My Day target is D.
+        sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
+            userId, CheckinPhase.MORNING, day.localDate(), day.period().name()
+        ).filter(this::isFinal).ifPresent(sourceSessions::add);
+        sessions.findByUserIdAndPhaseAndLocalDate(
+            userId, CheckinPhase.EVENING, day.localDate().minusDays(1)
+        ).filter(this::isFinal).ifPresent(sourceSessions::add);
         sourceSessions.sort(Comparator.comparing(x -> x.getPhase().ordinal()));
 
         if (sourceSessions.stream().anyMatch(CheckinSessionEntity::isSafetyBlocking)) {

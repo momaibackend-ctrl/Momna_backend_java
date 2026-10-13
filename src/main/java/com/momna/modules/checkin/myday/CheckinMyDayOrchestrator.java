@@ -9,6 +9,7 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -51,7 +52,7 @@ public class CheckinMyDayOrchestrator {
             userId, CheckinPhase.MORNING, day.localDate(), day.period().name()
         ).filter(this::isFinal).ifPresent(sourceSessions::add);
         sessions.findByUserIdAndPhaseAndLocalDate(
-            userId, CheckinPhase.EVENING, day.localDate().minusDays(1)
+            userId, CheckinPhase.EVENING, sourceDateFor(CheckinPhase.EVENING, day.localDate())
         ).filter(this::isFinal).ifPresent(sourceSessions::add);
         sourceSessions.sort(Comparator.comparing(x -> x.getPhase().ordinal()));
 
@@ -212,6 +213,10 @@ public class CheckinMyDayOrchestrator {
             List.copyOf(evidence),
             Set.copyOf(consumed)
         );
+    }
+
+    static LocalDate sourceDateFor(CheckinPhase phase, LocalDate targetDate) {
+        return phase == CheckinPhase.EVENING ? targetDate.minusDays(1) : targetDate;
     }
 
     private boolean isFinal(CheckinSessionEntity session) {

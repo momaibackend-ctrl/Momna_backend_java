@@ -15,6 +15,7 @@ public final class MedicalSafetyCatalog {
 
     private final Map<String, Route> routes;
     private final Map<String, Fact> facts;
+    private final JsonNode localizedContent;
 
     public MedicalSafetyCatalog(ObjectMapper mapper) {
         try (var stream = MedicalSafetyCatalog.class.getResourceAsStream(RESOURCE)) {
@@ -56,6 +57,15 @@ public final class MedicalSafetyCatalog {
             }
             this.routes = Collections.unmodifiableMap(routeMap);
             this.facts = Collections.unmodifiableMap(factMap);
+            try (var content = MedicalSafetyCatalog.class.getResourceAsStream(
+                "/safety/medical-safety-content-v2.2.json")) {
+                if (content == null) throw new IllegalStateException("Safety screen content missing");
+                this.localizedContent = mapper.readTree(content);
+                if (this.localizedContent.path("screens").size() != 22
+                    || this.localizedContent.path("combinations").size() != 6) {
+                    throw new IllegalStateException("Incomplete Safety localized content");
+                }
+            }
         } catch (IOException failure) {
             throw new IllegalStateException("Unable to load safety catalog", failure);
         }
@@ -67,6 +77,7 @@ public final class MedicalSafetyCatalog {
         return List.copyOf(result);
     }
 
+    public JsonNode localizedContent() { return localizedContent.deepCopy(); }
     public Collection<Route> routes() { return routes.values(); }
     public Collection<Fact> facts() { return facts.values(); }
     public Route route(String routeId) {

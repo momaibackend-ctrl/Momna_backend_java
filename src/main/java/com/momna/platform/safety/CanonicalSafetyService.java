@@ -149,6 +149,14 @@ public class CanonicalSafetyService {
                 conditionUndefined = true;
             }
         }
+        // Calendar-derived YES is a genuine signal, never silently treated as NO.
+        // In particular, medication or hysterectomy context must never remove MB1.
+        if ("YES".equals(known.get("D_POSTMENOPAUSAL_BLEED"))) prompt = true;
+        if ("YES".equals(known.get("D_BLEED_GT7"))) prompt = true;
+        if ("YES".equals(known.get("D_INTERMENSTRUAL"))) {
+            prompt = true;
+            conditionUndefined = true; // recurrence threshold remains unapproved
+        }
         if (route.routeId().equals("R12") && "YES".equals(known.get("F_PRESYNCOPE"))) urgent = true;
         if (route.routeId().equals("R17") && "YES".equals(known.get("F_BP_MEASURED"))
             && !known.containsKey("BP_READING")) {

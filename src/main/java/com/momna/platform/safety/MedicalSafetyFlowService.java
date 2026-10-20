@@ -19,15 +19,18 @@ public class MedicalSafetyFlowService {
     private final CanonicalSafetyService safety;
     private final MedicalSafetyRouteStateRepository states;
     private final MedicalSafetyWb1ResponseRepository wellbeing;
+    private final MedicalSafetyFactRevisionRepository revisions;
     private final Clock clock = Clock.systemUTC();
 
     public MedicalSafetyFlowService(MedicalSafetyCatalog catalog,
         CanonicalSafetyService safety, MedicalSafetyRouteStateRepository states,
-        MedicalSafetyWb1ResponseRepository wellbeing) {
+        MedicalSafetyWb1ResponseRepository wellbeing,
+        MedicalSafetyFactRevisionRepository revisions) {
         this.catalog = catalog;
         this.safety = safety;
         this.states = states;
         this.wellbeing = wellbeing;
+        this.revisions = revisions;
     }
 
     @Transactional
@@ -137,6 +140,32 @@ public class MedicalSafetyFlowService {
         var after = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
             sharedFacts(userId, sessionId, routeId), false);
         record.update(after, clock.instant(), route.cooldownHours());
+        states.saveAndFlush(record);
+        return steps(userId, sessionId);
+    }
+
+    /** User explicitly revisits a previously answered fact; old response stays in the audit log. */
+    @Transactional
+    public List<CanonicalSafetyService.MedicalStep> revise(String userId, String sessionId,
+        String routeId, String factCode, String correctedAnswer) {
+        if (factCode == null || correctedAnswer == null
+            || !Set.of("YES","NO","UNSURE","ABSENT").contains(correctedAnswer)) {
+            throw new IllegalArgumentException("Invalid safety correction");
+        }
+        catalog.fact(factCode);
+        var record = owned(userId, sessionId, routeId);
+        var old = record.getFactAnswers().get(factCode);
+        if (old == null) throw new IllegalArgumentException("Fact has not been answered yet");
+        if (old.equals(correctedAnswer)) return steps(userId, sessionId);
+        var now = clock.instant();
+        revisions.save(new MedicalSafetyFactRevisionEntity(userId, routeId, sessionId,
+            factCode, old, correctedAnswer, now));
+        record.reopenForCorrection(now);
+        record.answer(factCode, correctedAnswer, now);
+        var route = catalog.route(routeId);
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            sharedFacts(userId, sessionId, routeId), false);
+        record.update(next, now, route.cooldownHours());
         states.saveAndFlush(record);
         return steps(userId, sessionId);
     }

@@ -183,6 +183,49 @@ public class MedicalSafetyFlowService {
         return steps(userId, sessionId);
     }
 
+    /**
+     * Explicit calendar entry signals. Incomplete history is NOT interpreted as NO.
+     * Requires a real saved diary event to be passed by the calendar consumer.
+     */
+    @Transactional
+    public CanonicalSafetyService.MedicalStep calendarSignal(String userId, String period,
+        String signal) {
+        String routeId;
+        String factCode;
+        if ("BLEEDING_RECORDED".equals(signal) && "MENOPAUSE".equals(period)) {
+            routeId = "R23";
+            factCode = "D_POSTMENOPAUSAL_BLEED";
+        } else if ("POSTCOITAL_BLEED".equals(signal) && Set.of(
+            "MENARCHE", "CYCLE", "PLANNING", "PERIMENOPAUSE").contains(period)) {
+            routeId = switch (period) {
+                case "MENARCHE" -> "R3";
+                case "CYCLE" -> "R4";
+                case "PLANNING" -> "R28";
+                case "PERIMENOPAUSE" -> "R20";
+                default -> throw new IllegalArgumentException("Unsupported calendar period");
+            };
+            factCode = "F_BLEED_POSTCOITAL";
+        } else if ("PREGNANCY_VAGINAL_BLEED".equals(signal) && "PREGNANCY".equals(period)) {
+            routeId = "R9";
+            factCode = "F_PREG_VAGINAL_BLEED";
+        } else {
+            throw new IllegalArgumentException("Calendar signal is not applicable");
+        }
+        var route = catalog.route(routeId);
+        var now = clock.instant();
+        var record = states.findByUserIdAndRouteId(userId, routeId)
+            .orElseGet(() -> new MedicalSafetyRouteStateEntity(userId, routeId, now));
+        record.begin(null, "CALENDAR:" + signal, now);
+        record.answer(factCode, "YES", now);
+        // Calendar signal is an explicit fact, not permission to infer NO for
+        // all unanswered screening questions: do not ask daily safety questions.
+        var result = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            Map.of(), true, period);
+        record.update(result, now, route.cooldownHours());
+        states.saveAndFlush(record);
+        return result;
+    }
+
     /** Eligibility is intentionally gated on the product-defined postpartum date window. */
     @Transactional(readOnly = true)
     public Wb1Status wellbeingStatus(String userId, String period) {

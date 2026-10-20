@@ -37,6 +37,29 @@ public class MedicalSafetyController {
         return flows.answerEmergency(actor(auth).userId(), routeId, request.factCode(), request.answer());
     }
 
+    @GetMapping("/wb1")
+    public MedicalSafetyFlowService.Wb1Status wellbeingStatus(Authentication auth) {
+        var userId = actor(auth).userId();
+        var period = contexts.resolve(userId, java.time.Instant.now()).period().name();
+        return flows.wellbeingStatus(userId, period);
+    }
+
+    @PostMapping("/wb1")
+    public CanonicalSafetyService.MedicalStep wellbeing(Authentication auth,
+        @Valid @RequestBody WellbeingAnswer request) {
+        var userId = actor(auth).userId();
+        var period = contexts.resolve(userId, java.time.Instant.now()).period().name();
+        return flows.answerWellbeing(userId, period, request.answer());
+    }
+
+    @PostMapping("/wb1/answers")
+    public CanonicalSafetyService.MedicalStep wellbeingFact(Authentication auth,
+        @Valid @RequestBody Answer request) {
+        return flows.answerWellbeingFact(actor(auth).userId(), request.factCode(), request.answer());
+    }
+
+    public record WellbeingAnswer(@NotBlank String answer) {}
+
     @GetMapping("/catalog")
     public CatalogView catalog(Authentication auth) {
         actor(auth);

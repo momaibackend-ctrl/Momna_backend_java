@@ -100,6 +100,16 @@ public class CheckinController {
             sessionId, routeId, request.factCode(), request.answer());
     }
 
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/checklist")
+    public SessionView answerSafetyChecklist(Authentication authentication,
+        @PathVariable String sessionId, @PathVariable String routeId,
+        @Valid @RequestBody SafetyChecklistRequest request) {
+        return checkin.answerSafetyChecklist(actor(authentication).userId(),
+            sessionId, routeId, request.mode(), request.selectedFactCodes());
+    }
+
+    public record SafetyChecklistRequest(@NotBlank String mode, List<String> selectedFactCodes) {}
+
     @PostMapping("/sessions/{sessionId}/safety/{routeId}/blood-pressure")
     public SessionView safetyBloodPressure(Authentication authentication,
         @PathVariable String sessionId, @PathVariable String routeId,

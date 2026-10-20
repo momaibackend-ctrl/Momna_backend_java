@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class LiquibaseMigrationInventoryTest {
     @Test
-    void allThirtyCanonicalMigrationsArePresent()
+    void allThirtyOneCanonicalMigrationsArePresent()
         throws Exception {
         var dir = Path.of(
             "src/main/resources/db/liquibase/sql"
@@ -22,8 +22,8 @@ class LiquibaseMigrationInventoryTest {
                 .map(path -> path.getFileName().toString())
                 .collect(Collectors.toSet());
 
-            assertEquals(30, names.size());
-            for (int version = 1; version <= 30; version++) {
+            assertEquals(31, names.size());
+            for (int version = 1; version <= 31; version++) {
                 var prefix = "V" + version + "__";
                 var count = names.stream()
                     .filter(name -> name.startsWith(prefix))

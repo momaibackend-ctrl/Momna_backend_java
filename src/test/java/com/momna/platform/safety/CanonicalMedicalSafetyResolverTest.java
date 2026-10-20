@@ -107,4 +107,33 @@ class CanonicalMedicalSafetyResolverTest {
         assertEquals("CONTACT_MATERNITY", result.actionCode());
     }
 
+    @Test
+    void calendarConfirmedPostmenopausalBleedingMustShowMb1() {
+        var result = resolver.evaluateMedical(catalog.route("R23"), catalog,
+            Map.of("D_POSTMENOPAUSAL_BLEED", "YES"), Map.of(), true, "MENOPAUSE");
+        assertEquals("COMPLETE", result.state());
+        assertEquals("PROMPT", result.disposition());
+        assertEquals("MB1", result.screenCode());
+    }
+
+    @Test
+    void calendarPostcoitalBleedingAndPregnancyBleedingUseDistinctScreens() {
+        var postcoital = resolver.evaluateMedical(catalog.route("R4"), catalog,
+            Map.of("F_BLEED_POSTCOITAL","YES"), Map.of(), true, "CYCLE");
+        assertEquals("P", postcoital.screenCode());
+        var pregnant = resolver.evaluateMedical(catalog.route("R9"), catalog,
+            Map.of("F_PREG_VAGINAL_BLEED","YES"), Map.of(), true, "PREGNANCY");
+        assertEquals("URGENT", pregnant.disposition());
+        assertEquals("OB1", pregnant.screenCode());
+    }
+
+    @Test
+    void combinedAirwayWarningOverridesGenericEmergencyScreen() {
+        var result = resolver.evaluateMedical(catalog.route("R25"), catalog,
+            Map.of("F_BREATHING_SEVERE","YES","F_LIP_FACE_SWELLING","YES"),
+            Map.of(), true, "CYCLE");
+        assertEquals("EMERGENCY", result.disposition());
+        assertEquals("AG1", result.screenCode());
+    }
+
 }

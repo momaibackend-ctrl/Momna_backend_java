@@ -81,4 +81,21 @@ class MedicalSafetyRouteStateTest {
         assertThrows(IllegalArgumentException.class,
             () -> record.recordBloodPressure(120, null, false, T0));
     }
+    @Test
+    void explicitCorrectionReopensWarningAndResetsPreviousCooldown() {
+        var record = new MedicalSafetyRouteStateEntity("user", "R10", T0);
+        record.begin("day-1", "P19", T0);
+        record.answer("F_FLUID_LEAK", "YES", T0);
+        record.update(complete("URGENT", "OB1"), T0, 72);
+        assertEquals("COMPLETE", record.getState());
+        record.reopenForCorrection(T0.plusSeconds(1));
+        assertEquals("QUESTION", record.getState());
+        assertNull(record.getCompletedAt());
+        assertNull(record.getCooldownUntil());
+        record.answer("F_FLUID_LEAK", "NO", T0.plusSeconds(2));
+        assertEquals("NO", record.getFactAnswers().get("F_FLUID_LEAK"));
+        record.update(complete("NOT_REPORTED", "H1"), T0.plusSeconds(2), 72);
+        assertEquals(T0.plusSeconds(2), record.getCompletedAt());
+    }
+
 }

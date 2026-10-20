@@ -12,10 +12,6 @@
           "ru": "Ответьте только о том, что вы действительно замечаете.",
           "enUs": "Answer based on what you actually notice."
         },
-        "question": {
-          "ru": "{fact.ru}",
-          "enUs": "{fact.en}"
-        },
         "answers": {
           "ru": "Да · Нет · Не уверена",
           "enUs": "Yes · No · Not sure"

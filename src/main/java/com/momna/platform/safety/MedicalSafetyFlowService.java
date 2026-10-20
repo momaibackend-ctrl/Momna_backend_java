@@ -174,6 +174,54 @@ public class MedicalSafetyFlowService {
         return steps(userId, sessionId);
     }
 
+    /**
+     * QM is one user interaction, not five individual prompts.
+     * Explicit selection => YES for selected and NO for visible unselected facts.
+     * NONE/UNSURE/SKIP set all remaining visible facts consistently.
+     */
+    @Transactional
+    public List<CanonicalSafetyService.MedicalStep> answerChecklist(
+        String userId, String sessionId, String routeId, String mode,
+        List<String> selectedFactCodes
+    ) {
+        if (mode == null || !Set.of("SELECTED","NONE","UNSURE","SKIP").contains(mode)) {
+            throw new IllegalArgumentException("Unknown checklist answer");
+        }
+        var selected = selectedFactCodes == null ? List.<String>of() : selectedFactCodes;
+        if (selected.size() != new HashSet<>(selected).size()) {
+            throw new IllegalArgumentException("Repeated checklist item");
+        }
+        var route = catalog.route(routeId);
+        var record = owned(userId, sessionId, routeId);
+        var current = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            sharedFacts(userId, sessionId, routeId), false);
+        if (!"QUESTION".equals(record.getState()) || !"QM".equals(current.screenCode())
+            || !"ANSWER_CHECKLIST".equals(current.actionCode())) {
+            throw new IllegalArgumentException("Checklist not currently requested");
+        }
+        var available = current.questionFactCodes();
+        if (!available.containsAll(selected)
+            || ("SELECTED".equals(mode) && selected.isEmpty())
+            || (!"SELECTED".equals(mode) && !selected.isEmpty())) {
+            throw new IllegalArgumentException("Invalid checklist selection");
+        }
+        var now = clock.instant();
+        for (var factCode : available) {
+            var value = switch (mode) {
+                case "NONE" -> "NO";
+                case "UNSURE" -> "UNSURE";
+                case "SKIP" -> "ABSENT";
+                default -> selected.contains(factCode) ? "YES" : "NO";
+            };
+            record.answer(factCode, value, now);
+        }
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            sharedFacts(userId, sessionId, routeId), false);
+        record.update(next, now, route.cooldownHours());
+        states.saveAndFlush(record);
+        return steps(userId, sessionId);
+    }
+
     @Transactional
     public List<CanonicalSafetyService.MedicalStep> recordBloodPressure(
         String userId, String sessionId, String routeId,

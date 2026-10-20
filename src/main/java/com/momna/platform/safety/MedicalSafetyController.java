@@ -86,7 +86,7 @@ public class MedicalSafetyController {
         // User-facing DTO strips implementation notes and selects stage-specific text.
         return new CatalogView(MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
             "CLINICAL_RELEASE_NOT_APPROVED", catalog.publicRoutes(), catalog.publicFacts(period),
-            catalog.questionGroups(), catalog.localizedContent());
+            catalog.questionGroups(), catalog.publicScreens(period));
     }
 
     private AuthenticatedActor actor(Authentication auth) {

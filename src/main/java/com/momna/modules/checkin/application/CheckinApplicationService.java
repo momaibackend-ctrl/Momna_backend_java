@@ -224,6 +224,16 @@ public class CheckinApplicationService {
     }
 
     @Transactional
+    public SessionView recordSafetyBloodPressure(String userId, String sessionId,
+        String routeId, Integer systolic, Integer diastolic, boolean unknown) {
+        var current = owned(userId, sessionId);
+        current.applyMedicalSafety(medicalSafety.recordBloodPressure(userId, sessionId,
+            routeId, systolic, diastolic, unknown), clock.instant());
+        current = sessions.saveAndFlush(current);
+        return view(current, clock.instant());
+    }
+
+    @Transactional
     public SessionView skipSafety(String userId, String sessionId, String routeId) {
         var current = owned(userId, sessionId);
         current.applyMedicalSafety(medicalSafety.skip(userId, sessionId, routeId), clock.instant());

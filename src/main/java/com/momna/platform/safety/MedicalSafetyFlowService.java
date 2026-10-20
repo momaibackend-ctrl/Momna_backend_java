@@ -72,6 +72,10 @@ public class MedicalSafetyFlowService {
         if (score.safetyThresholdReferenceReached()) {
             score.contributions().stream()
                 .filter(contribution -> contribution.safetyContribution().signum() > 0)
+                // PP2=2 is uncertainty, never an R18 trigger even through the
+                // cumulative-score fallback. R18 may still enter via PP18=2.
+                .filter(contribution -> !"PP2".equals(contribution.itemCode())
+                    || Integer.valueOf(1).equals(answers.get("PP2")))
                 .sorted(Comparator
                     .comparing(CheckinScoringResult.Contribution::safetyContribution)
                     .reversed())

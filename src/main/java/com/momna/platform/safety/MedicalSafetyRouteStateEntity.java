@@ -45,6 +45,10 @@ public class MedicalSafetyRouteStateEntity {
     private String actionCode;
     @Column(name = "bypass_reason")
     private String bypassReason;
+    @Column(name = "condition_status")
+    private String conditionStatus;
+    @Column(name = "rule_version", nullable = false)
+    private String ruleVersion = MedicalSafetyCatalog.RULE_VERSION;
     @Column(name = "catalog_version", nullable = false)
     private String catalogVersion = MedicalSafetyCatalog.VERSION;
     @Version
@@ -70,6 +74,8 @@ public class MedicalSafetyRouteStateEntity {
     public String getDisposition() { return disposition; }
     public String getScreenCode() { return screenCode; }
     public String getActionCode() { return actionCode; }
+    public String getConditionStatus() { return conditionStatus; }
+    public String getRuleVersion() { return ruleVersion; }
     public long getRevision() { return revision; }
     public Map<String, String> getFactAnswers() { return Map.copyOf(factAnswers); }
     public boolean getResetObserved() { return resetObserved; }
@@ -103,6 +109,7 @@ public class MedicalSafetyRouteStateEntity {
         this.disposition = null;
         this.screenCode = null;
         this.actionCode = null;
+        this.conditionStatus = null;
         this.updatedAt = at;
     }
 
@@ -136,6 +143,8 @@ public class MedicalSafetyRouteStateEntity {
         this.disposition = result.disposition();
         this.screenCode = result.screenCode();
         this.actionCode = result.actionCode();
+        this.conditionStatus = result.conditionStatus();
+        this.ruleVersion = result.ruleVersion();
         this.updatedAt = now;
         if ("COMPLETE".equals(result.state())) {
             if (completedAt == null) completedAt = now;

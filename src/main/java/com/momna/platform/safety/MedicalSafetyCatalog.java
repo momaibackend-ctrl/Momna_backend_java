@@ -79,6 +79,13 @@ public final class MedicalSafetyCatalog {
         if (value == null) throw new IllegalArgumentException("Unknown safety fact");
         return value;
     }
+    public List<Route> forItem(String period, String itemCode) {
+        if (itemCode == null) return List.of();
+        return routes.values().stream()
+            .filter(route -> route.period().equals(period) && route.itemCodes().contains(itemCode))
+            .toList();
+    }
+
     public List<Route> applicable(String period, String itemCode, Integer state) {
         if (itemCode == null || state == null) return List.of();
         // PP2=1 means "emotionally hard"; PP2=2 means "not sure yet".

@@ -46,6 +46,16 @@ public class MedicalSafetyController {
 
     public record BloodPressureInput(Integer systolic, Integer diastolic, Boolean unknown) {}
 
+    @PostMapping("/calendar/signals")
+    public CanonicalSafetyService.MedicalStep calendarSignal(Authentication auth,
+        @Valid @RequestBody CalendarSignal request) {
+        var userId = actor(auth).userId();
+        var period = contexts.resolve(userId, java.time.Instant.now()).period().name();
+        return flows.calendarSignal(userId, period, request.signal());
+    }
+
+    public record CalendarSignal(@NotBlank String signal) {}
+
     @GetMapping("/wb1")
     public MedicalSafetyFlowService.Wb1Status wellbeingStatus(Authentication auth) {
         var userId = actor(auth).userId();

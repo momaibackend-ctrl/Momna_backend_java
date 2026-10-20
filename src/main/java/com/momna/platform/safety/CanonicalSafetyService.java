@@ -195,6 +195,18 @@ public class CanonicalSafetyService {
                 // escalation or a dangerous combination (L3/D8).
                 if (urgent && !needsFurtherUrgentCheck(route, code, catalog, known)) continue;
                 if (prompt && route.routeId().equals("R18")) break;
+                if (catalog.systemicChecklistRoutes().contains(route.routeId())
+                    && catalog.systemicChecklistFacts().contains(code)) {
+                    var pending = catalog.pendingSystemicFacts(route, known);
+                    if (!pending.isEmpty()) {
+                        return new MedicalStep(route.routeId(), route.routeCode(),
+                            MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
+                            "QUESTION", urgent ? "URGENT" : "PENDING", "QM",
+                            "ANSWER_CHECKLIST", "QM_SYSTEMIC",
+                            conditionUndefined ? "CONDITION_UNDEFINED" : "CLINICAL_RELEASE_PENDING",
+                            pending);
+                    }
+                }
                 return step(route, "QUESTION", urgent ? "URGENT" : prompt ? "PROMPT" : "PENDING",
                     "Q", "ANSWER_FACT", code,
                     conditionUndefined ? "CONDITION_UNDEFINED" : "CLINICAL_RELEASE_PENDING");
@@ -251,6 +263,17 @@ public class CanonicalSafetyService {
 
     public record MedicalStep(String routeId, String routeCode, String catalogVersion,
         String ruleVersion, String state, String disposition, String screenCode,
-        String actionCode, String nextFactCode, String conditionStatus) {}
+        String actionCode, String nextFactCode, String conditionStatus,
+        java.util.List<String> questionFactCodes) {
+        public MedicalStep(String routeId, String routeCode, String catalogVersion,
+            String ruleVersion, String state, String disposition, String screenCode,
+            String actionCode, String nextFactCode, String conditionStatus) {
+            this(routeId, routeCode, catalogVersion, ruleVersion, state, disposition,
+                screenCode, actionCode, nextFactCode, conditionStatus, java.util.List.of());
+        }
+        public MedicalStep {
+            questionFactCodes = java.util.List.copyOf(questionFactCodes);
+        }
+    }
 
 }

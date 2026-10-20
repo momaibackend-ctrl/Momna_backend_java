@@ -49,6 +49,12 @@ public class CheckinApplicationService {
     }
 
     @Transactional(readOnly = true)
+    public WeightedCheckinDefinitionCatalog.Definition definition(String userId, CheckinPhase phase) {
+        var day = contexts.resolve(userId, clock.instant());
+        return definitions.latest(day.period(), phase);
+    }
+
+    @Transactional(readOnly = true)
     public TodayView today(String userId) {
         var now = clock.instant();
         var day = contexts.resolve(userId, now);

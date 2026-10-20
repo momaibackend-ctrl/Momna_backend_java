@@ -189,7 +189,7 @@ public class MedicalSafetyFlowService {
             record.answer(selectionCode, "YES", now);
         }
         var step = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
-            Map.of(), false);
+            Map.of(), false, period);
         record.update(step, now, 0);
         states.saveAndFlush(record);
         return step;

@@ -1,0 +1,61 @@
+package com.momna.platform.safety;
+
+import com.momna.modules.auth.application.AuthException;
+import com.momna.modules.auth.domain.AuthenticatedActor;
+import com.momna.modules.checkin.application.CheckinDayContextService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+/** Server entrypoint for ER0 on My Day, Calendar and Check-in. */
+@RestController
+@RequestMapping("/api/v1/medical-safety")
+public class MedicalSafetyController {
+    private final MedicalSafetyFlowService flows;
+    private final CheckinDayContextService contexts;
+    private final MedicalSafetyCatalog catalog;
+
+    public MedicalSafetyController(MedicalSafetyFlowService flows,
+        CheckinDayContextService contexts, MedicalSafetyCatalog catalog) {
+        this.flows = flows;
+        this.contexts = contexts;
+        this.catalog = catalog;
+    }
+
+    @PostMapping("/er0")
+    public CanonicalSafetyService.MedicalStep er0(Authentication auth,
+        @Valid @RequestBody Selection request) {
+        var userId = actor(auth).userId();
+        var period = contexts.resolve(userId, java.time.Instant.now()).period().name();
+        return flows.emergencyEntry(userId, period, request.selectionCode());
+    }
+
+    @PostMapping("/er0/{routeId}/answers")
+    public CanonicalSafetyService.MedicalStep answerEr0(Authentication auth,
+        @PathVariable String routeId, @Valid @RequestBody Answer request) {
+        return flows.answerEmergency(actor(auth).userId(), routeId, request.factCode(), request.answer());
+    }
+
+    @GetMapping("/catalog")
+    public CatalogView catalog(Authentication auth) {
+        actor(auth);
+        // Full catalog is returned for on-line rendering. This is NOT a signed
+        // offline clinical-release package (which requires independent approval).
+        return new CatalogView(MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
+            "CLINICAL_RELEASE_NOT_APPROVED", catalog.routes(), catalog.facts());
+    }
+
+    private AuthenticatedActor actor(Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof AuthenticatedActor actor)) {
+            throw new AuthException("AUTH_REQUIRED", "Authentication required");
+        }
+        return actor;
+    }
+
+    public record Selection(@NotBlank String selectionCode) {}
+    public record Answer(@NotBlank String factCode, @NotBlank String answer) {}
+    public record CatalogView(String catalogVersion, String ruleVersion, String releaseStatus,
+        java.util.Collection<MedicalSafetyCatalog.Route> routes,
+        java.util.Collection<MedicalSafetyCatalog.Fact> facts) {}
+}

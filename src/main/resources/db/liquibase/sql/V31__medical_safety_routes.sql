@@ -25,3 +25,13 @@ CREATE INDEX idx_medical_safety_cooldown
     ON momna.medical_safety_route_states(user_id, cooldown_until);
 COMMENT ON TABLE momna.medical_safety_route_states IS
     'Private, durable v2.2 medical route state. Never included in couple-shared payloads.';
+
+-- One optional postpartum wellbeing invitation; no repetition even after dismissal.
+CREATE TABLE momna.medical_safety_wb1_responses (
+    user_id TEXT PRIMARY KEY REFERENCES momna.user_profiles(user_id) ON DELETE RESTRICT,
+    answer TEXT NOT NULL CHECK (answer IN ('MOSTLY_GOOD','HARD_LATELY','PREFER_NOT_TO_SAY')),
+    catalog_version TEXT NOT NULL,
+    responded_at TIMESTAMPTZ NOT NULL
+);
+COMMENT ON TABLE momna.medical_safety_wb1_responses IS
+    'WB1 private response: one-time invitation, not depression screening. Not exposed to Couple Mode.';

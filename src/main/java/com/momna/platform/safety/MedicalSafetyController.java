@@ -37,6 +37,15 @@ public class MedicalSafetyController {
         return flows.answerEmergency(actor(auth).userId(), routeId, request.factCode(), request.answer());
     }
 
+    @PostMapping("/er0/R17/blood-pressure")
+    public CanonicalSafetyService.MedicalStep er0BloodPressure(Authentication auth,
+        @RequestBody BloodPressureInput request) {
+        return flows.emergencyBloodPressure(actor(auth).userId(), request.systolic(),
+            request.diastolic(), Boolean.TRUE.equals(request.unknown()));
+    }
+
+    public record BloodPressureInput(Integer systolic, Integer diastolic, Boolean unknown) {}
+
     @GetMapping("/wb1")
     public MedicalSafetyFlowService.Wb1Status wellbeingStatus(Authentication auth) {
         var userId = actor(auth).userId();

@@ -81,12 +81,12 @@ public class MedicalSafetyController {
 
     @GetMapping("/catalog")
     public CatalogView catalog(Authentication auth) {
-        actor(auth);
-        // Full catalog is returned for on-line rendering. This is NOT a signed
-        // offline clinical-release package (which requires independent approval).
+        var userId = actor(auth).userId();
+        var period = contexts.resolve(userId, java.time.Instant.now()).period().name();
+        // User-facing DTO strips implementation notes and selects stage-specific text.
         return new CatalogView(MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
-            "CLINICAL_RELEASE_NOT_APPROVED", catalog.routes(), catalog.facts(),
-            catalog.localizedContent());
+            "CLINICAL_RELEASE_NOT_APPROVED", catalog.publicRoutes(), catalog.publicFacts(period),
+            catalog.questionGroups(), catalog.localizedContent());
     }
 
     private AuthenticatedActor actor(Authentication auth) {
@@ -99,7 +99,8 @@ public class MedicalSafetyController {
     public record Selection(@NotBlank String selectionCode) {}
     public record Answer(@NotBlank String factCode, @NotBlank String answer) {}
     public record CatalogView(String catalogVersion, String ruleVersion, String releaseStatus,
-        java.util.Collection<MedicalSafetyCatalog.Route> routes,
-        java.util.Collection<MedicalSafetyCatalog.Fact> facts,
+        java.util.Collection<MedicalSafetyCatalog.PublicRoute> routes,
+        java.util.Collection<MedicalSafetyCatalog.PublicFact> facts,
+        java.util.Collection<MedicalSafetyCatalog.QuestionGroup> questionGroups,
         com.fasterxml.jackson.databind.JsonNode localizedContent) {}
 }

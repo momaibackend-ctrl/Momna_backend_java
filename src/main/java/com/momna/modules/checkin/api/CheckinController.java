@@ -92,6 +92,17 @@ public class CheckinController {
             sessionId, routeId, request.factCode(), request.answer());
     }
 
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/blood-pressure")
+    public SessionView safetyBloodPressure(Authentication authentication,
+        @PathVariable String sessionId, @PathVariable String routeId,
+        @RequestBody BloodPressureRequest request) {
+        return checkin.recordSafetyBloodPressure(actor(authentication).userId(),
+            sessionId, routeId, request.systolic(), request.diastolic(),
+            Boolean.TRUE.equals(request.unknown()));
+    }
+
+    public record BloodPressureRequest(Integer systolic, Integer diastolic, Boolean unknown) {}
+
     @PostMapping("/sessions/{sessionId}/safety/{routeId}/skip")
     public SessionView skipSafety(Authentication authentication,
         @PathVariable String sessionId, @PathVariable String routeId

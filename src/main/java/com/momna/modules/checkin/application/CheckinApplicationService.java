@@ -234,6 +234,16 @@ public class CheckinApplicationService {
     }
 
     @Transactional
+    public SessionView answerSafetyChecklist(String userId, String sessionId,
+        String routeId, String mode, java.util.List<String> selectedFactCodes) {
+        var current = owned(userId, sessionId);
+        current.applyMedicalSafety(medicalSafety.answerChecklist(userId, sessionId,
+            routeId, mode, selectedFactCodes), clock.instant());
+        current = sessions.saveAndFlush(current);
+        return view(current, clock.instant());
+    }
+
+    @Transactional
     public SessionView recordSafetyBloodPressure(String userId, String sessionId,
         String routeId, Integer systolic, Integer diastolic, boolean unknown) {
         var current = owned(userId, sessionId);

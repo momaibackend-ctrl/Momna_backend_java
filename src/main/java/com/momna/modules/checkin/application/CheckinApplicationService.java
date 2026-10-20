@@ -6,6 +6,7 @@ import com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.*;
 import com.momna.modules.checkin.scoring.WeightedCheckinScoringEngine;
+import com.momna.platform.safety.MedicalSafetyFlowService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -24,6 +25,7 @@ public class CheckinApplicationService {
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
     private final CheckinDayContextService contexts;
+    private final MedicalSafetyFlowService medicalSafety;
     private final Clock clock = Clock.systemUTC();
 
     public CheckinApplicationService(
@@ -33,7 +35,8 @@ public class CheckinApplicationService {
         CheckinAdjustmentSignalRepository adjustmentSignals,
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
-        CheckinDayContextService contexts
+        CheckinDayContextService contexts,
+        MedicalSafetyFlowService medicalSafety
     ) {
         this.sessions = sessions;
         this.answers = answers;
@@ -42,6 +45,7 @@ public class CheckinApplicationService {
         this.definitions = definitions;
         this.scoring = scoring;
         this.contexts = contexts;
+        this.medicalSafety = medicalSafety;
     }
 
     @Transactional(readOnly = true)
@@ -193,6 +197,7 @@ public class CheckinApplicationService {
             Map.of()
         );
         persistAdjustmentSignals(current, score, now);
+        current.applyMedicalSafety(medicalSafety.onCheckinPatch(current, changes, answerMap, score), now);
 
         try {
             current = sessions.saveAndFlush(current);
@@ -202,6 +207,22 @@ public class CheckinApplicationService {
 
         remember(userId, "patch", idempotencyKey, fingerprint, current);
         return view(current, now);
+    }
+
+    @Transactional
+    public SessionView answerSafety(String userId, String sessionId, String routeId, String factCode, String value) {
+        var current = owned(userId, sessionId);
+        current.applyMedicalSafety(medicalSafety.answer(userId, sessionId, routeId, factCode, value), clock.instant());
+        current = sessions.saveAndFlush(current);
+        return view(current, clock.instant());
+    }
+
+    @Transactional
+    public SessionView skipSafety(String userId, String sessionId, String routeId) {
+        var current = owned(userId, sessionId);
+        current.applyMedicalSafety(medicalSafety.skip(userId, sessionId, routeId), clock.instant());
+        current = sessions.saveAndFlush(current);
+        return view(current, clock.instant());
     }
 
     @Transactional
@@ -274,6 +295,7 @@ public class CheckinApplicationService {
             allowed.add("OPEN_MY_DAY");
         } else if (session.isSafetyBlocking()) {
             allowed.add("ANSWER_SAFETY");
+            allowed.add("EDIT_ANSWERS");
         } else if (now.isBefore(session.getWindowClosesAt())) {
             allowed.add("EDIT_ANSWERS");
             allowed.add("SUBMIT");
@@ -306,7 +328,8 @@ public class CheckinApplicationService {
                 session.getWindowOpensAt(),
                 session.getWindowClosesAt()
             ),
-            new SafetyView(session.getSafetyState().name(), session.isSafetyBlocking()),
+            new SafetyView(session.getSafetyState().name(), session.isSafetyBlocking(),
+                medicalSafety.steps(session.getUserId(), session.getSessionId())),
             session.getFinalizedAt(),
             session.getFinalizationReason() == null ? null : session.getFinalizationReason().name(),
             session.getConsumedAt(),

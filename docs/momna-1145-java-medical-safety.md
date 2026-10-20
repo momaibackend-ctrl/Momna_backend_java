@@ -13,6 +13,11 @@ Do not deploy clinical recommendations while `CLINICAL_RELEASE_NOT_APPROVED` gat
 - `CanonicalSafetyService.evaluateMedical` is reused by the Check-in orchestration and emergency/calendar/WB1 adapters; medical decisions must not be inferred by the frontend.
 - Durable route state and answer amendments are private user-owned data. Never export `F_HARM_THOUGHTS`, WB1, PM1/PM2 or any R18 data to Couple Mode.
 - `V31` adds safety state, optional WB1 one-time response, and explicit correction audit.
+- **R12 safety correction:** `F_PAD_SOAK_1H=YES` **OR** `F_PRESYNCOPE=YES` independently returns `EMERGENCY/E` after birth, even without their combination. The unapproved postpartum timing window is **not** used to downgrade an observed severe symptom; `conditionStatus=CONDITION_UNDEFINED` is logged.
+- **BP1 safety correction:** the structured v2.2 provisional thresholds are `SBP >= 160 OR DBP >= 110 -> EMERGENCY/E`; `SBP >= 140 OR DBP >= 90 -> URGENT/U`. `BP_READING` is parsed and evaluated within the canonical safety engine, with a special `COMBO_PE_BP` marker when a severe reading is accompanied by headache, vision change or upper abdominal pain. A previous higher-priority sign is never downgraded. `UNKNOWN` is not treated as normal. These are ACOG-aligned provisional conditions, not the clinical release approval.
+- **QM_SYSTEMIC:** R9 and R16 return `screenCode=QM`, `actionCode=ANSWER_CHECKLIST`, `nextFactCode=QM_SYSTEMIC`, and `questionFactCodes` with only unanswered facts. A single server action saves all visible facts as YES/NO/UNSURE/ABSENT; a 5-fact group is **one** screen.
+- **Safe public catalog:** `/catalog` returns public-only facts, routes, screen fields and named question groups. R27/R28 names are clean, derived facts return human fallback text rather than the derivation rule, postpartum and other-stage harm language are resolved separately. Raw `rule`, `crossChecks`, editorial notes and bilingual mixed-stage variants never belong in public payloads.
+- **Rules are structural:** `policies` in `medical-safety-catalog-v2.2.json` stores conditional facts, postpartum emergency overrides, BP bands, postpartum infection combinations, and QM membership. Changing descriptive `Fact.rule` prose no longer changes triage behavior.
 
 ## Authenticated API additions
 
@@ -23,6 +28,7 @@ Do not deploy clinical recommendations while `CLINICAL_RELEASE_NOT_APPROVED` gat
 | GET | `/definitions/{phase}` | Current period definition, items and RU/US-EN states |
 | PATCH | `/sessions/{sessionId}` | Existing endpoint; patch now starts qualifying safety routes |
 | GET | `/sessions/{sessionId}` | Existing endpoint; `safety.routes[]` now contains server result |
+| POST | `/sessions/{sessionId}/safety/{routeId}/checklist` | `{"mode":"SELECTED","selectedFactCodes":["F_FEVER_38"]}` or `mode=NONE/UNSURE/SKIP` (one call for QM) |
 | POST | `/sessions/{sessionId}/safety/{routeId}/answers` | `{"factCode":"F_FLUID_LEAK","answer":"NO"}` |
 | POST | `/sessions/{sessionId}/safety/{routeId}/revise` | Explicit correction of existing answer, audited |
 | POST | `/sessions/{sessionId}/safety/{routeId}/skip` | Close remaining questions as ABSENT |
@@ -56,11 +62,12 @@ The caller must supply an authenticated user; no unauthenticated call or unverif
   "screenCode": "Q",
   "actionCode": "ANSWER_FACT",
   "nextFactCode": "F_FLUID_LEAK",
-  "conditionStatus": "CLINICAL_RELEASE_PENDING"
+  "conditionStatus": "CLINICAL_RELEASE_PENDING",
+  "questionFactCodes": []
 }
 ```
 
-When `state=COMPLETE`, use `screenCode` and `actionCode`; do not invent a second frontend triage decision. For `nextFactCode` use catalog text and allowed YES/NO/UNSURE/ABSENT values. For BP1 use the separate measured-pressure endpoint; the clinician's numeric thresholds remain UNAPPROVED.
+When `state=COMPLETE`, use `screenCode` and `actionCode`; do not invent a second frontend triage decision. For `nextFactCode` use catalog text and allowed YES/NO/UNSURE/ABSENT values. For BP1 use the separate measured-pressure endpoint. The server applies provisional ACOG-aligned thresholds while keeping clinical approval PENDING, and does not rely on free-text rules.
 
 ## Tests and release gates
 
@@ -72,7 +79,7 @@ Automated Java unit coverage validates 14 current definitions, legacy v3 retenti
 - No integration from actual persisted Calendar diary events, full derived `D_*` completeness/UNKNOWN, or corrections/recomputation. The explicit calendar entry adapter exists.
 - No signed offline catalog, verified country phone directory, provisional reconciliation and no-downgrade guarantee.
 - No approved WB1 28-day date window or scheduling rules; do not display automatically from `stageAndCooldownEligible` until `displayWindowStatus` is approved.
-- No clinically approved BP1 thresholds, postpartum heavy-bleeding timing, gestational-movement start week, conditional warning gates, safe PM2 intent escalation, cross-combination releases or route cooldown review. The app must not claim clinical approval.
+- BP1 now evaluates provisional 160/110 and 140/90 thresholds, and R12 fails safe to EMERGENCY during an unapproved bleeding window. Both thresholds and timing, gestational-movement start week, conditional warning gates, safe PM2 intent escalation, cross-combination releases and route cooldown still require clinical approval. The app must not claim clinical approval.
 - Full original `F_MOVEMENTS_ESTABLISHED` 14-day NO cache, precise L3 stopping on every possible answer, 121-code v2.0 trace-audit, user-level retry concurrency, accessibility and end-to-end privacy tests need separate verification.
 - Check-in `safety.routes[]` is an additive API change; KMP frontend consumers must be tested for compatibility.
 

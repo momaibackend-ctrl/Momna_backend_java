@@ -174,6 +174,26 @@ public class CheckinSessionEntity {
     public Instant getConsumedAt() { return consumedAt; }
     public String getConsumedByRef() { return consumedByRef; }
 
+    public void applyMedicalSafety(
+        java.util.List<com.momna.platform.safety.CanonicalSafetyService.MedicalStep> steps,
+        Instant at
+    ) {
+        this.safetyBlocking = steps.stream().anyMatch(x -> x.state().equals("QUESTION"));
+        this.safetyState = safetyBlocking ? CheckinSafetyState.CLARIFICATION_REQUIRED
+            : steps.isEmpty() ? CheckinSafetyState.CLEAR : CheckinSafetyState.RESOLVED;
+        var top = steps.isEmpty() ? null : steps.getFirst();
+        this.safetyDecisionVersion = top == null ? null : top.ruleVersion();
+        this.safetyRouteCode = top == null ? null : top.routeCode();
+        this.safetySeverity = top == null ? null : top.disposition();
+        this.safetyAllowedActions = safetyBlocking ? java.util.List.of("ANSWER_SAFETY")
+            : java.util.List.of();
+        this.safetyClarification = top == null ? null : java.util.Map.of(
+            "catalogVersion", top.catalogVersion(), "routeIds",
+            steps.stream().map(x -> x.routeId()).toList()
+        );
+        this.updatedAt = at;
+    }
+
     public void updateCompletion(int answered, Instant at) {
         this.completionRatio = applicableItemCodes.isEmpty()
             ? BigDecimal.ZERO

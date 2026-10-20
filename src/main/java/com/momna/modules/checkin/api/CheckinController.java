@@ -83,6 +83,31 @@ public class CheckinController {
         );
     }
 
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/answers")
+    public SessionView answerSafety(Authentication authentication,
+        @PathVariable String sessionId, @PathVariable String routeId,
+        @Valid @RequestBody SafetyAnswerRequest request
+    ) {
+        return checkin.answerSafety(actor(authentication).userId(),
+            sessionId, routeId, request.factCode(), request.answer());
+    }
+
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/skip")
+    public SessionView skipSafety(Authentication authentication,
+        @PathVariable String sessionId, @PathVariable String routeId
+    ) {
+        return checkin.skipSafety(actor(authentication).userId(), sessionId, routeId);
+    }
+
+    @GetMapping("/definitions/{phase}")
+    public com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog.Definition definition(
+        Authentication authentication, @PathVariable String phase
+    ) {
+        return checkin.definition(actor(authentication).userId(), phase(phase));
+    }
+
+    public record SafetyAnswerRequest(@NotBlank String factCode, @NotBlank String answer) {}
+
     private AuthenticatedActor actor(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedActor actor)) {
             throw new AuthException("AUTH_REQUIRED", "Authentication required");

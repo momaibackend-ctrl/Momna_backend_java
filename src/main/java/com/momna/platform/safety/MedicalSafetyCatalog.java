@@ -16,6 +16,7 @@ public final class MedicalSafetyCatalog {
     private final Map<String, Route> routes;
     private final Map<String, Fact> facts;
     private final JsonNode localizedContent;
+    private final JsonNode publicScreenContent;
     private final Set<String> conditionalFacts;
     private final Set<String> hemorrhageFacts;
     private final String hemorrhageRoute;
@@ -102,6 +103,14 @@ public final class MedicalSafetyCatalog {
                     throw new IllegalStateException("Incomplete Safety localized content");
                 }
             }
+            try (var content = MedicalSafetyCatalog.class.getResourceAsStream(
+                "/safety/medical-safety-public-screens-v2.2.json")) {
+                if (content == null) throw new IllegalStateException("Public Safety screens missing");
+                this.publicScreenContent = mapper.readTree(content);
+                if (publicScreenContent.path("screens").size() != 22) {
+                    throw new IllegalStateException("Incomplete safe public Safety screens");
+                }
+            }
         } catch (IOException failure) {
             throw new IllegalStateException("Unable to load safety catalog", failure);
         }
@@ -141,6 +150,18 @@ public final class MedicalSafetyCatalog {
         if (systolic >= severeSystolic || diastolic >= severeDiastolic) return PressureBand.SEVERE;
         if (systolic >= elevatedSystolic || diastolic >= elevatedDiastolic) return PressureBand.ELEVATED;
         return PressureBand.BELOW_THRESHOLD;
+    }
+    public JsonNode publicScreens(String period) {
+        var content = publicScreenContent.deepCopy();
+        for (var screen : content.path("screens")) {
+            if (!"PM2".equals(screen.path("code").asText())) continue;
+            var fields = (com.fasterxml.jackson.databind.node.ObjectNode)screen.path("fields");
+            if ("POSTPARTUM".equals(period)) {
+                fields.set("body", fields.path("postpartumBody"));
+            }
+            fields.remove("postpartumBody");
+        }
+        return content;
     }
     public JsonNode localizedContent() { return localizedContent.deepCopy(); }
     public Collection<Route> routes() { return routes.values(); }

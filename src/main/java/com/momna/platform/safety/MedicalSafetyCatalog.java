@@ -73,7 +73,11 @@ public final class MedicalSafetyCatalog {
                 var fact = new Fact(
                     entry.path("factCode").asText(), entry.path("ru").asText(),
                     entry.path("enUs").asText(), entry.path("role").asText(),
-                    entry.path("rule").asText()
+                    entry.path("rule").asText(),
+                    entry.path("postpartumRu").asText(null),
+                    entry.path("postpartumEnUs").asText(null),
+                    entry.path("origin").asText("DIRECT"),
+                    entry.path("questionEligible").asBoolean(true)
                 );
                 if (factMap.putIfAbsent(fact.code(), fact) != null) {
                     throw new IllegalStateException("Duplicate fact " + fact.code());
@@ -141,6 +145,36 @@ public final class MedicalSafetyCatalog {
     public JsonNode localizedContent() { return localizedContent.deepCopy(); }
     public Collection<Route> routes() { return routes.values(); }
     public Collection<Fact> facts() { return facts.values(); }
+    /** API-only projection: never serialize technical rule text to end users. */
+    public List<PublicFact> publicFacts(String period) {
+        return facts.values().stream().map(f -> new PublicFact(
+            f.code(),
+            "POSTPARTUM".equals(period) && f.postpartumRu() != null ? f.postpartumRu() : f.ru(),
+            "POSTPARTUM".equals(period) && f.postpartumEnUs() != null
+                ? f.postpartumEnUs() : f.enUs(),
+            f.role(), f.origin(), f.questionEligible()
+        )).toList();
+    }
+
+    public List<PublicRoute> publicRoutes() {
+        return routes.values().stream().map(r -> new PublicRoute(
+            r.routeId(), r.routeCode(), r.period(), r.itemCodes(),
+            r.questions(), r.cooldownHours()
+        )).toList();
+    }
+
+    public List<QuestionGroup> questionGroups() {
+        return List.of(new QuestionGroup("QM_SYSTEMIC",
+            List.of("F_FEVER_38", "F_HEART_RACING", "F_SEVERE_VOMITING",
+                "F_PRESYNCOPE", "F_EXTREME_WEAKNESS"),
+            List.of("R9", "R16")));
+    }
+    public record PublicFact(String factCode, String ru, String enUs,
+        String role, String origin, boolean questionEligible) {}
+    public record PublicRoute(String routeId, String routeCode, String period,
+        List<String> itemCodes, List<String> questions, int cooldownHours) {}
+    public record QuestionGroup(String groupCode, List<String> factCodes,
+        List<String> routeIds) {}
     public Route route(String routeId) {
         var value = routes.get(routeId);
         if (value == null) throw new IllegalArgumentException("Unknown safety route");
@@ -171,5 +205,6 @@ public final class MedicalSafetyCatalog {
     public record Route(String routeId, String routeCode, String period,
                         List<String> itemCodes, List<String> questions,
                         int cooldownHours, String crossChecks) {}
-    public record Fact(String code, String ru, String enUs, String role, String rule) {}
+    public record Fact(String code, String ru, String enUs, String role, String rule,
+        String postpartumRu, String postpartumEnUs, String origin, boolean questionEligible) {}
 }

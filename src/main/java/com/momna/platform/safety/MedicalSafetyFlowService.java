@@ -157,6 +157,72 @@ public class MedicalSafetyFlowService {
         return steps(userId, sessionId);
     }
 
+    private static final Set<String> ER0_GLOBAL = Set.of(
+        "F_BREATHING_SEVERE", "F_CHEST_PAIN", "F_FAINTED", "F_SEIZURE",
+        "F_NEURO_DEFICIT", "F_THUNDERCLAP_HEADACHE", "F_HEART_RACING",
+        "F_PAD_SOAK_1H", "F_HARM_THOUGHTS", "ALLERGY_SWELLING"
+    );
+    private static final Set<String> ER0_PREGNANCY = Set.of(
+        "F_PREG_VAGINAL_BLEED", "F_FLUID_LEAK", "F_REDUCED_MOVEMENTS"
+    );
+    private static final Set<String> ER0_POSTPARTUM = Set.of(
+        "F_BLEED_SUDDEN_INCREASE", "F_ONE_LIMB", "POSTPARTUM_PREECLAMPSIA"
+    );
+
+    /** Global one-tap ER0 event. Unlike ordinary daily check-in, never cooled down. */
+    @Transactional
+    public CanonicalSafetyService.MedicalStep emergencyEntry(String userId, String period,
+        String selectionCode) {
+        if (selectionCode == null || (!ER0_GLOBAL.contains(selectionCode)
+            && !(period.equals("PREGNANCY") && ER0_PREGNANCY.contains(selectionCode))
+            && !(period.equals("POSTPARTUM") && ER0_POSTPARTUM.contains(selectionCode)))) {
+            throw new IllegalArgumentException("ER0 selection not available in this period");
+        }
+        var routeId = "ALLERGY_SWELLING".equals(selectionCode) ? "R25"
+            : "POSTPARTUM_PREECLAMPSIA".equals(selectionCode) ? "R17" : "R26";
+        var route = catalog.route(routeId);
+        var now = clock.instant();
+        var record = states.findByUserIdAndRouteId(userId, routeId)
+            .orElseGet(() -> new MedicalSafetyRouteStateEntity(userId, routeId, now));
+        record.begin(null, "ER0:" + selectionCode, now);
+        if (selectionCode.startsWith("F_")) {
+            record.answer(selectionCode, "YES", now);
+        }
+        var step = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            Map.of(), false);
+        record.update(step, now, 0);
+        states.saveAndFlush(record);
+        return step;
+    }
+
+    @Transactional
+    public CanonicalSafetyService.MedicalStep answerEmergency(String userId,
+        String routeId, String factCode, String value) {
+        if (!routeId.equals("R25") && !routeId.equals("R17")) {
+            throw new IllegalArgumentException("This ER0 route has no follow-up questions");
+        }
+        if (!Set.of("YES", "NO", "UNSURE", "ABSENT").contains(value)) {
+            throw new IllegalArgumentException("Invalid safety answer");
+        }
+        var route = catalog.route(routeId);
+        var record = states.findByUserIdAndRouteId(userId, routeId)
+            .orElseThrow(() -> new IllegalArgumentException("ER0 route not found"));
+        if (record.getSessionId() != null || !record.getSourceItem().startsWith("ER0:")) {
+            throw new IllegalArgumentException("ER0 route is not active");
+        }
+        var before = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            Map.of(), false);
+        if (!"QUESTION".equals(before.state()) || !factCode.equals(before.nextFactCode())) {
+            throw new IllegalArgumentException("Safety fact is not the current question");
+        }
+        record.answer(factCode, value, clock.instant());
+        var after = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            Map.of(), false);
+        record.update(after, clock.instant(), 0);
+        states.saveAndFlush(record);
+        return after;
+    }
+
     private MedicalSafetyRouteStateEntity owned(String userId, String sessionId, String routeId) {
         var record = states.findByUserIdAndRouteId(userId, routeId)
             .orElseThrow(() -> new IllegalArgumentException("Safety route not found"));

@@ -118,16 +118,31 @@ public class CanonicalSafetyService {
         var comboShock = (comboPain && presyncope)
             || (presyncope && hasYes(known, "F_PAD_SOAK_1H", "F_BLEED_SUDDEN_INCREASE"));
         if (comboShock) emergency = true;
+        // Conservative D3 fallback: an unapproved post-birth time window
+        // cannot demote either of these individually dangerous R12 symptoms.
+        var postpartumHemorrhage = route.routeId().equals(catalog.postpartumBleedingRoute())
+            && catalog.postpartumBleedingEmergencyFacts().stream()
+                .anyMatch(code -> "YES".equals(known.get(code)));
+        if (postpartumHemorrhage) emergency = true;
+        var pressure = catalog.classifyPressure(route.routeId(), known.get("BP_READING"));
+        var severePressure = pressure == MedicalSafetyCatalog.PressureBand.SEVERE;
+        var elevatedPressure = pressure == MedicalSafetyCatalog.PressureBand.ELEVATED;
+        var comboPressure = severePressure && catalog.bpCombinationFacts().stream()
+            .anyMatch(code -> "YES".equals(known.get(code)));
+        if (severePressure) emergency = true;
         if (emergency) {
             return step(route, "COMPLETE", "EMERGENCY", comboAirway ? "AG1" : "E",
-                "CALL_EMERGENCY", null, "CLINICAL_RELEASE_PENDING");
+                "CALL_EMERGENCY", null,
+                postpartumHemorrhage || severePressure
+                    ? comboPressure ? "CONDITION_UNDEFINED:COMBO_PE_BP"
+                        : "CONDITION_UNDEFINED" : "CLINICAL_RELEASE_PENDING");
         }
         if ("YES".equals(known.get("F_HARM_THOUGHTS"))) {
             return step(route, "COMPLETE", "SAFETY_ASSESSMENT", "PM2", "ACKNOWLEDGE",
                 null, "PM2_CLINICAL_PROTOCOL_PENDING");
         }
 
-        var urgent = comboPain;
+        var urgent = comboPain || elevatedPressure;
         var prompt = false;
         var routine = false;
         var unsure = false;
@@ -145,7 +160,7 @@ public class CanonicalSafetyService {
                 case "ROUTINE" -> routine = true;
                 default -> {}
             }
-            if (fact.rule().contains("D3") || fact.rule().contains("клиницист")) {
+            if (catalog.conditionUndefinedFacts().contains(factCode)) {
                 conditionUndefined = true;
             }
         }
@@ -157,7 +172,14 @@ public class CanonicalSafetyService {
             prompt = true;
             conditionUndefined = true; // recurrence threshold remains unapproved
         }
-        if (route.routeId().equals("R12") && "YES".equals(known.get("F_PRESYNCOPE"))) urgent = true;
+        if (elevatedPressure) conditionUndefined = true;
+        if (catalog.postpartumInfectionRoutes().contains(route.routeId())
+            && "YES".equals(known.get("F_FEVER_38"))
+            && catalog.postpartumInfectionCompanions().stream()
+                .anyMatch(code -> "YES".equals(known.get(code)))) {
+            urgent = true;
+            conditionUndefined = true;
+        }
         if (route.routeId().equals("R17") && "YES".equals(known.get("F_BP_MEASURED"))
             && !known.containsKey("BP_READING")) {
             return step(route, "QUESTION", urgent ? "URGENT" : "PENDING", "BP1",

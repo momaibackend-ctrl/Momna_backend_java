@@ -75,14 +75,15 @@ public class MedicalSafetyRouteStateEntity {
     public boolean getResetObserved() { return resetObserved; }
 
     public void observeRecovery(String itemCode, Instant now) {
-        if (Objects.equals(sourceItem, itemCode) && "COMPLETE".equals(state)) {
+        if (Objects.equals(sourceItem, itemCode) && !factAnswers.containsValue("YES")) {
             resetObserved = true;
             updatedAt = now;
         }
     }
 
-    public boolean mayStart(String itemCode, Instant now) {
-        if ("QUESTION".equals(state) && sessionId != null) return false;
+    public boolean mayStart(String itemCode, String currentSessionId, Instant now) {
+        if ("QUESTION".equals(state) && Objects.equals(sessionId, currentSessionId)) return false;
+        if ("QUESTION".equals(state)) return true;
         if (completedAt == null) return true;
         if (factAnswers.containsValue("YES")) return false; // preserve active warning
         return cooldownUntil == null || !now.isBefore(cooldownUntil)

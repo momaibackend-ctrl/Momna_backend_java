@@ -16,6 +16,16 @@ public final class MedicalSafetyCatalog {
     private final Map<String, Route> routes;
     private final Map<String, Fact> facts;
     private final JsonNode localizedContent;
+    private final Set<String> conditionalFacts;
+    private final Set<String> hemorrhageFacts;
+    private final String hemorrhageRoute;
+    private final Set<String> infectionRoutes;
+    private final Set<String> infectionCompanions;
+    private final Set<String> bpRoutes;
+    private final Set<String> bpCombinationSigns;
+    private final int severeSystolic, severeDiastolic, elevatedSystolic, elevatedDiastolic;
+    private final Set<String> systemicRoutes, systemicFacts;
+    public enum PressureBand { UNKNOWN, BELOW_THRESHOLD, ELEVATED, SEVERE }
 
     public MedicalSafetyCatalog(ObjectMapper mapper) {
         try (var stream = MedicalSafetyCatalog.class.getResourceAsStream(RESOURCE)) {
@@ -24,6 +34,28 @@ public final class MedicalSafetyCatalog {
             if (!VERSION.equals(root.path("catalogVersion").asText())) {
                 throw new IllegalStateException("Unexpected safety catalog version");
             }
+            var rules = root.path("policies");
+            if (rules.path("schemaVersion").asInt() != 1
+                || !rules.path("bloodPressure").path("provisional").asBoolean()) {
+                throw new IllegalStateException("Missing structured provisional safety policies");
+            }
+            this.conditionalFacts = Set.copyOf(strings(rules.path("conditionUndefinedFacts")));
+            this.hemorrhageFacts = Set.copyOf(strings(rules.path("postpartumBleeding").path("emergencyIfYes")));
+            this.hemorrhageRoute = rules.path("postpartumBleeding").path("routeId").asText();
+            this.infectionRoutes = Set.copyOf(strings(rules.path("postpartumInfection").path("routeIds")));
+            this.infectionCompanions = Set.copyOf(strings(rules.path("postpartumInfection").path("otherFacts")));
+            var bp = rules.path("bloodPressure");
+            this.bpRoutes = Set.copyOf(strings(bp.path("routeIds")));
+            this.bpCombinationSigns = Set.copyOf(strings(bp.path("comboSigns")));
+            this.severeSystolic = bp.path("severeSystolic").asInt();
+            this.severeDiastolic = bp.path("severeDiastolic").asInt();
+            this.elevatedSystolic = bp.path("elevatedSystolic").asInt();
+            this.elevatedDiastolic = bp.path("elevatedDiastolic").asInt();
+            var qm = rules.path("checklist");
+            this.systemicRoutes = Set.copyOf(strings(qm.path("routeIds")));
+            this.systemicFacts = Set.copyOf(strings(qm.path("factCodes")));
+            if (elevatedSystolic >= severeSystolic || elevatedDiastolic >= severeDiastolic
+                || systemicFacts.size() != 5) throw new IllegalStateException("Invalid structured safety policy");
             var routeMap = new LinkedHashMap<String, Route>();
             for (JsonNode entry : root.path("routes")) {
                 var route = new Route(
@@ -77,6 +109,35 @@ public final class MedicalSafetyCatalog {
         return List.copyOf(result);
     }
 
+    public Set<String> conditionUndefinedFacts() { return conditionalFacts; }
+    public Set<String> postpartumBleedingEmergencyFacts() { return hemorrhageFacts; }
+    public String postpartumBleedingRoute() { return hemorrhageRoute; }
+    public Set<String> postpartumInfectionRoutes() { return infectionRoutes; }
+    public Set<String> postpartumInfectionCompanions() { return infectionCompanions; }
+    public Set<String> bpCombinationFacts() { return bpCombinationSigns; }
+    public Set<String> systemicChecklistRoutes() { return systemicRoutes; }
+    public Set<String> systemicChecklistFacts() { return systemicFacts; }
+    public java.util.List<String> pendingSystemicFacts(Route route, java.util.Map<String, String> known) {
+        return route.questions().stream().filter(systemicFacts::contains)
+            .filter(code -> !known.containsKey(code)).toList();
+    }
+    /** Only the versioned BP1 rule applies, and only for relevant routes. */
+    public PressureBand classifyPressure(String routeId, String reading) {
+        if (!bpRoutes.contains(routeId) || reading == null || reading.equals("UNKNOWN")) {
+            return PressureBand.UNKNOWN;
+        }
+        if (!reading.matches("[0-9]{2,3}/[0-9]{2,3}")) {
+            throw new IllegalArgumentException("Invalid saved blood-pressure reading");
+        }
+        var numbers = reading.split("/");
+        int systolic = Integer.parseInt(numbers[0]), diastolic = Integer.parseInt(numbers[1]);
+        if (systolic <= 0 || diastolic <= 0 || systolic > 500 || diastolic > 500) {
+            throw new IllegalArgumentException("Invalid saved blood-pressure values");
+        }
+        if (systolic >= severeSystolic || diastolic >= severeDiastolic) return PressureBand.SEVERE;
+        if (systolic >= elevatedSystolic || diastolic >= elevatedDiastolic) return PressureBand.ELEVATED;
+        return PressureBand.BELOW_THRESHOLD;
+    }
     public JsonNode localizedContent() { return localizedContent.deepCopy(); }
     public Collection<Route> routes() { return routes.values(); }
     public Collection<Fact> facts() { return facts.values(); }

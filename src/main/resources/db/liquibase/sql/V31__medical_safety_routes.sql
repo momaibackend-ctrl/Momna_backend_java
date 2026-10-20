@@ -15,6 +15,8 @@ CREATE TABLE momna.medical_safety_route_states (
     screen_code TEXT,
     action_code TEXT,
     bypass_reason TEXT,
+    condition_status TEXT,
+    rule_version TEXT NOT NULL,
     catalog_version TEXT NOT NULL,
     revision BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT uq_medical_safety_user_route UNIQUE (user_id, route_id)

@@ -87,7 +87,7 @@ public class CanonicalSafetyService {
             }
         }
         if (route.routeId().equals("R14")
-            && java.util.Set.of("NO", "UNSURE").contains(known.get("F_FEVER_38"))) {
+            && ("NO".equals(known.get("F_FEVER_38")) || "UNSURE".equals(known.get("F_FEVER_38")))) {
             questions.add("F_CHILLS");
         }
 
@@ -99,7 +99,7 @@ public class CanonicalSafetyService {
             || ("YES".equals(known.get("F_BREATHING_SEVERE"))
                 && "YES".equals(known.get("F_LIP_FACE_SWELLING")));
         var pregnancyPossible = route.period().equals("PLANNING")
-            || java.util.Set.of("YES", "UNSURE").contains(known.get("F_PREGNANCY_POSSIBLE"));
+            || ("YES".equals(known.get("F_PREGNANCY_POSSIBLE")) || "UNSURE".equals(known.get("F_PREGNANCY_POSSIBLE")));
         var comboPain = "YES".equals(known.get("F_SEVERE_ABDO_PELVIC_PAIN"))
             && pregnancyPossible;
         var presyncope = hasYes(known, "F_PRESYNCOPE", "F_FAINTED");

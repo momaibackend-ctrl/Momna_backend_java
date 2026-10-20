@@ -44,6 +44,13 @@ public class MedicalSafetyFlowService {
                     states.findByUserIdAndRouteId(userId, route.routeId())
                         .ifPresent(state -> {
                             state.observeRecovery(change.itemCode(), now);
+                            if ("QUESTION".equals(state.getState())
+                                && Objects.equals(state.getSourceItem(), change.itemCode())
+                                && !state.getFactAnswers().containsValue("YES")) {
+                                var done = safety.evaluateMedical(route, catalog,
+                                    state.getFactAnswers(), Map.of(), true);
+                                state.update(done, now, route.cooldownHours());
+                            }
                             states.save(state);
                         });
                 }
@@ -76,7 +83,7 @@ public class MedicalSafetyFlowService {
                     .map(CheckinScoringResult.Contribution::itemCode).findFirst().orElse("SCORE"));
             var record = states.findByUserIdAndRouteId(userId, route.routeId())
                 .orElseGet(() -> new MedicalSafetyRouteStateEntity(userId, route.routeId(), now));
-            if (!record.mayStart(source, now)) continue;
+            if (!record.mayStart(source, session.getSessionId(), now)) continue;
             record.begin(session.getSessionId(), source, now);
             var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
                 sharedFacts(userId, session.getSessionId(), route.routeId()), false);
@@ -88,7 +95,11 @@ public class MedicalSafetyFlowService {
 
     @Transactional(readOnly = true)
     public List<CanonicalSafetyService.MedicalStep> steps(String userId, String sessionId) {
-        var records = states.findByUserIdAndSessionId(userId, sessionId);
+        var records = states.findByUserId(userId).stream()
+            .filter(record -> sessionId.equals(record.getSessionId())
+                || ("COMPLETE".equals(record.getState())
+                    && record.getFactAnswers().containsValue("YES")))
+            .toList();
         var result = new ArrayList<CanonicalSafetyService.MedicalStep>();
         for (var record : records) {
             var route = catalog.route(record.getRouteId());

@@ -72,6 +72,18 @@ public class CanonicalSafetyService {
         java.util.Map<String, String> alreadyKnown,
         boolean skipRemaining
     ) {
+        return evaluateMedical(route, catalog, recorded, alreadyKnown,
+            skipRemaining, route.period());
+    }
+
+    public MedicalStep evaluateMedical(
+        MedicalSafetyCatalog.Route route,
+        MedicalSafetyCatalog catalog,
+        java.util.Map<String, String> recorded,
+        java.util.Map<String, String> alreadyKnown,
+        boolean skipRemaining,
+        String lifecyclePeriod
+    ) {
         var known = new LinkedHashMap<String, String>(alreadyKnown);
         known.putAll(recorded);
         var questions = new ArrayList<String>(route.questions());
@@ -98,7 +110,7 @@ public class CanonicalSafetyService {
         var comboAirway = "YES".equals(known.get("F_AIRWAY_SWELLING"))
             || ("YES".equals(known.get("F_BREATHING_SEVERE"))
                 && "YES".equals(known.get("F_LIP_FACE_SWELLING")));
-        var pregnancyPossible = route.period().equals("PLANNING")
+        var pregnancyPossible = lifecyclePeriod.equals("PLANNING")
             || ("YES".equals(known.get("F_PREGNANCY_POSSIBLE")) || "UNSURE".equals(known.get("F_PREGNANCY_POSSIBLE")));
         var comboPain = "YES".equals(known.get("F_SEVERE_ABDO_PELVIC_PAIN"))
             && pregnancyPossible;
@@ -162,7 +174,7 @@ public class CanonicalSafetyService {
         if (comboPain) return step(route, "COMPLETE", "URGENT", "EP1", "ACKNOWLEDGE",
             null, "COMBO_CLINICAL_APPROVAL_PENDING");
         if (urgent) {
-            String screen = route.period().equals("PREGNANCY")
+            String screen = lifecyclePeriod.equals("PREGNANCY")
                 && !"YES".equals(known.get("F_LIP_FACE_SWELLING")) ? "OB1" : "U";
             return step(route, "COMPLETE", "URGENT", screen,
                 screen.equals("OB1") ? "CONTACT_MATERNITY" : "ACKNOWLEDGE", null,

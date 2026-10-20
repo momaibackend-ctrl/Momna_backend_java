@@ -46,4 +46,39 @@ class MedicalSafetyCatalogTest {
         assertEquals(336, catalog.route("R18").cooldownHours());
         assertEquals(0, catalog.route("R25").cooldownHours());
     }
+    @Test
+    void endUserCatalogNeverContainsDraftAnnotationsOrBothHarmQuestions() throws Exception {
+        var mapper = new ObjectMapper();
+        var postpartum = mapper.writeValueAsString(catalog.publicFacts("POSTPARTUM"));
+        var adult = mapper.writeValueAsString(catalog.publicFacts("CYCLE"));
+        var routes = mapper.writeValueAsString(catalog.publicRoutes());
+        var screens = mapper.writeValueAsString(catalog.publicScreens("POSTPARTUM"));
+        assertTrue(postpartum.contains("Были мысли причинить вред себе или ребёнку?"));
+        assertFalse(postpartum.contains("Другие периоды:"));
+        assertFalse(postpartum.contains("Other stages:"));
+        assertFalse(postpartum.contains("§5.7"));
+        assertFalse(postpartum.contains("rule"));
+        assertTrue(adult.contains("Были мысли причинить вред себе или другому человеку?"));
+        assertFalse(adult.contains("Postpartum:"));
+        assertFalse(routes.contains("новый"));
+        assertTrue(routes.contains("PREGNANCY_NAUSEA"));
+        assertFalse(routes.contains("crossChecks"));
+        assertTrue(screens.contains("Как вы чувствуете себя эмоционально"));
+        assertFalse(screens.contains("localizedSource"));
+        assertFalse(screens.contains("postpartumBody"));
+        assertFalse(screens.contains("Календарь (§5.7)"));
+        assertEquals(22, catalog.publicScreens("POSTPARTUM").path("screens").size());
+        assertEquals(1, catalog.questionGroups().size());
+    }
+
+    @Test
+    void safetyTriageIsDrivenByVersionedStructuredPolicy() {
+        assertTrue(catalog.conditionUndefinedFacts().contains("F_HEART_RACING"));
+        assertTrue(catalog.postpartumBleedingEmergencyFacts().contains("F_PAD_SOAK_1H"));
+        assertTrue(catalog.postpartumBleedingEmergencyFacts().contains("F_PRESYNCOPE"));
+        assertEquals("R12", catalog.postpartumBleedingRoute());
+        assertTrue(catalog.postpartumInfectionRoutes().contains("R15"));
+        assertEquals(5, catalog.systemicChecklistFacts().size());
+    }
+
 }

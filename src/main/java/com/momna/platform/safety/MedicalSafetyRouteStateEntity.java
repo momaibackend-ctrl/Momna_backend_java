@@ -106,6 +106,13 @@ public class MedicalSafetyRouteStateEntity {
         this.updatedAt = at;
     }
 
+    public void reopenForCorrection(Instant at) {
+        this.state = "QUESTION";
+        this.completedAt = null;
+        this.cooldownUntil = null;
+        this.updatedAt = at;
+    }
+
     public void answer(String factCode, String value, Instant now) {
         if (!Set.of("YES", "NO", "UNSURE", "ABSENT").contains(value)) {
             throw new IllegalArgumentException("Invalid safety answer");

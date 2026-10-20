@@ -210,6 +210,13 @@ public class MedicalSafetyFlowService {
         if (existing != null) {
             if (!existing.getAnswer().equals(answer))
                 throw new IllegalStateException("WB1 was already answered and cannot be repeated");
+            if ("HARD_LATELY".equals(answer)) {
+                var saved = states.findByUserIdAndRouteId(userId, "R18").orElse(null);
+                if (saved != null && "WB1".equals(saved.getSourceItem())) {
+                    return safety.evaluateMedical(catalog.route("R18"), catalog,
+                        saved.getFactAnswers(), Map.of(), saved.getState().equals("COMPLETE"));
+                }
+            }
             return new CanonicalSafetyService.MedicalStep(
                 "R18", "POSTPARTUM_MENTAL_HEALTH",
                 MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
@@ -308,6 +315,27 @@ public class MedicalSafetyFlowService {
         record.update(step, now, 0);
         states.saveAndFlush(record);
         return step;
+    }
+
+    @Transactional
+    public CanonicalSafetyService.MedicalStep emergencyBloodPressure(String userId,
+        Integer systolic, Integer diastolic, boolean unknown) {
+        var record = states.findByUserIdAndRouteId(userId, "R17")
+            .orElseThrow(() -> new IllegalArgumentException("ER0 R17 route not active"));
+        if (record.getSessionId() != null || record.getSourceItem() == null
+            || !record.getSourceItem().startsWith("ER0:")) {
+            throw new IllegalArgumentException("Not an ER0 blood-pressure route");
+        }
+        var route = catalog.route("R17");
+        var before = safety.evaluateMedical(route, catalog, record.getFactAnswers(), Map.of(), false);
+        if (!"BP_READING".equals(before.nextFactCode())) {
+            throw new IllegalArgumentException("Blood pressure is not currently requested");
+        }
+        record.recordBloodPressure(systolic, diastolic, unknown, clock.instant());
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(), Map.of(), false);
+        record.update(next, clock.instant(), 0);
+        states.saveAndFlush(record);
+        return next;
     }
 
     @Transactional

@@ -75,4 +75,54 @@ class MedicalSafetyFlowServiceTest {
         verify(repo).saveAndFlush(captor.capture());
         assertEquals("R18", captor.getValue().getRouteId());
     }
+    @Test
+    void qmSelectedWritesAllFiveFactsInOneAtomicStep() {
+        var at = java.time.Instant.parse("2026-10-20T09:00:00Z");
+        var record = new MedicalSafetyRouteStateEntity("person-1", "R16", at);
+        record.begin("session-1", "PP14", at);
+        for (var code : new String[] {"F_BREATHING_SEVERE", "F_CHEST_PAIN",
+            "F_FAINTED", "F_SEIZURE", "F_HARM_THOUGHTS"}) {
+            record.answer(code, "NO", at);
+        }
+        when(repo.findByUserIdAndRouteId("person-1", "R16"))
+            .thenReturn(Optional.of(record));
+        when(repo.findByUserId("person-1")).thenReturn(List.of(record));
+        var out = service.answerChecklist("person-1", "session-1",
+            "R16", "SELECTED", List.of("F_HEART_RACING"));
+        assertEquals(5, catalog.systemicChecklistFacts().size());
+        assertEquals("YES", record.getFactAnswers().get("F_HEART_RACING"));
+        for (var code : catalog.systemicChecklistFacts()) {
+            if (!code.equals("F_HEART_RACING"))
+                assertEquals("NO", record.getFactAnswers().get(code), code);
+        }
+        assertEquals("COMPLETE", record.getState());
+        assertEquals("URGENT", out.getFirst().disposition());
+        verify(repo).saveAndFlush(record);
+    }
+
+    @Test
+    void qmNoneUnsureAndSkipAreExplicitAndRejectInapplicableSelections() {
+        for (var mode : new String[] {"NONE", "UNSURE", "SKIP"}) {
+            reset(repo);
+            var at = java.time.Instant.parse("2026-10-20T09:00:00Z");
+            var record = new MedicalSafetyRouteStateEntity("person-1", "R16", at);
+            record.begin("session-1", "PP14", at);
+            for (var code : new String[] {"F_BREATHING_SEVERE", "F_CHEST_PAIN",
+                "F_FAINTED", "F_SEIZURE", "F_HARM_THOUGHTS"}) {
+                record.answer(code, "NO", at);
+            }
+            when(repo.findByUserIdAndRouteId("person-1", "R16"))
+                .thenReturn(Optional.of(record));
+            when(repo.findByUserId("person-1")).thenReturn(List.of(record));
+            assertThrows(IllegalArgumentException.class,
+                () -> service.answerChecklist("person-1","session-1", "R16",
+                    mode, List.of("F_CHEST_PAIN")));
+            service.answerChecklist("person-1", "session-1", "R16", mode, List.of());
+            var expected = mode.equals("NONE") ? "NO"
+                : mode.equals("UNSURE") ? "UNSURE" : "ABSENT";
+            for (var code : catalog.systemicChecklistFacts())
+                assertEquals(expected, record.getFactAnswers().get(code));
+        }
+    }
+
 }

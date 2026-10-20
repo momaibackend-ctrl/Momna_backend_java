@@ -189,6 +189,9 @@ public class CanonicalSafetyService {
         if (!skipRemaining) {
             for (var code : questions) {
                 if (known.containsKey(code)) continue;
+                // A recorded BP1 measurement already satisfies the measurement gate.
+                // Never ask whether it was measured after storing its actual values.
+                if (code.equals("F_BP_MEASURED") && known.containsKey("BP_READING")) continue;
                 if (code.equals("F_REDUCED_MOVEMENTS")
                     && !"YES".equals(known.get("F_MOVEMENTS_ESTABLISHED"))) continue;
                 // If a user has reported an urgent sign, continue only for possible

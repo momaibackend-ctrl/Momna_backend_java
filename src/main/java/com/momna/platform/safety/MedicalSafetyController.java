@@ -43,7 +43,8 @@ public class MedicalSafetyController {
         // Full catalog is returned for on-line rendering. This is NOT a signed
         // offline clinical-release package (which requires independent approval).
         return new CatalogView(MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
-            "CLINICAL_RELEASE_NOT_APPROVED", catalog.routes(), catalog.facts());
+            "CLINICAL_RELEASE_NOT_APPROVED", catalog.routes(), catalog.facts(),
+            catalog.localizedContent());
     }
 
     private AuthenticatedActor actor(Authentication auth) {
@@ -57,5 +58,6 @@ public class MedicalSafetyController {
     public record Answer(@NotBlank String factCode, @NotBlank String answer) {}
     public record CatalogView(String catalogVersion, String ruleVersion, String releaseStatus,
         java.util.Collection<MedicalSafetyCatalog.Route> routes,
-        java.util.Collection<MedicalSafetyCatalog.Fact> facts) {}
+        java.util.Collection<MedicalSafetyCatalog.Fact> facts,
+        com.fasterxml.jackson.databind.JsonNode localizedContent) {}
 }

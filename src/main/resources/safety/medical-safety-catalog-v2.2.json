@@ -876,5 +876,79 @@
     "COMBO_PP_INFECTION",
     "COMBO_AIRWAY",
     "COMBO_PE_BP"
-  ]
+  ],
+  "policies": {
+    "schemaVersion": 1,
+    "clinicalReleaseStatus": "PENDING",
+    "conditionUndefinedFacts": [
+      "F_LIP_FACE_SWELLING",
+      "F_RAPID_WORSENING",
+      "F_FEVER_38",
+      "F_SUDDEN_SEVERE_PAIN",
+      "F_HEART_RACING",
+      "F_SEVERE_VOMITING",
+      "F_EXTREME_WEAKNESS",
+      "F_FOUL_DISCHARGE",
+      "F_BLEED_HEAVIER_THAN_USUAL",
+      "F_PELVIC_PRESSURE_PRETERM",
+      "F_PAD_SOAK_1H",
+      "D_INTERMENSTRUAL"
+    ],
+    "postpartumBleeding": {
+      "routeId": "R12",
+      "emergencyIfYes": [
+        "F_FAINTED",
+        "F_BLEED_SUDDEN_INCREASE",
+        "F_PAD_SOAK_1H",
+        "F_PRESYNCOPE"
+      ],
+      "windowApproval": "PENDING",
+      "unapprovedWindowFallback": "EMERGENCY"
+    },
+    "bloodPressure": {
+      "routeIds": [
+        "R17"
+      ],
+      "factCode": "BP_READING",
+      "severeSystolic": 160,
+      "severeDiastolic": 110,
+      "elevatedSystolic": 140,
+      "elevatedDiastolic": 90,
+      "provisional": true,
+      "clinicalReleaseApproved": false,
+      "comboSigns": [
+        "F_SEVERE_HEADACHE",
+        "F_VISION_CHANGE",
+        "F_UPPER_ABDO_PAIN"
+      ]
+    },
+    "postpartumInfection": {
+      "routeIds": [
+        "R13",
+        "R15"
+      ],
+      "feverFact": "F_FEVER_38",
+      "otherFacts": [
+        "F_FOUL_DISCHARGE",
+        "F_WOUND_PROBLEM",
+        "F_RAPID_WORSENING"
+      ],
+      "severity": "URGENT",
+      "clinicalApproval": "PENDING"
+    },
+    "checklist": {
+      "id": "QM_SYSTEMIC",
+      "routeIds": [
+        "R9",
+        "R16"
+      ],
+      "factCodes": [
+        "F_FEVER_38",
+        "F_HEART_RACING",
+        "F_SEVERE_VOMITING",
+        "F_PRESYNCOPE",
+        "F_EXTREME_WEAKNESS"
+      ]
+    }
+  }
 }

@@ -76,4 +76,35 @@ class CanonicalMedicalSafetyResolverTest {
         assertEquals("N", result.screenCode());
         assertEquals("UNKNOWN", result.disposition());
     }
+    @Test
+    void everyRouteProducesARealFinalServerDecisionForAllNoAnswers() {
+        int completed = 0;
+        for (var route : catalog.routes()) {
+            var answers = new LinkedHashMap<String, String>();
+            CanonicalSafetyService.MedicalStep result = null;
+            for (int stepNumber = 0; stepNumber < 40; stepNumber++) {
+                result = resolver.evaluateMedical(route, catalog, answers, Map.of(), false);
+                if ("COMPLETE".equals(result.state())) break;
+                var next = result.nextFactCode();
+                assertNotNull(next, "Missing next fact for " + route.routeId());
+                assertFalse(answers.containsKey(next), "Repeated question " + next);
+                answers.put(next, "NO");
+            }
+            assertNotNull(result);
+            assertEquals("COMPLETE", result.state(), route.routeId());
+            assertEquals("NOT_REPORTED", result.disposition(), route.routeId());
+            assertEquals("H1", result.screenCode(), route.routeId());
+            completed++;
+        }
+        assertEquals(28, completed);
+    }
+
+    @Test
+    void globalEr0UrgencyUsesTheActualLifecyclePeriod() {
+        var result = resolver.evaluateMedical(catalog.route("R26"), catalog,
+            Map.of("F_PREG_VAGINAL_BLEED", "YES"), Map.of(), false, "PREGNANCY");
+        assertEquals("OB1", result.screenCode());
+        assertEquals("CONTACT_MATERNITY", result.actionCode());
+    }
+
 }

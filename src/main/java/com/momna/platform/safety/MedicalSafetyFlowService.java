@@ -18,13 +18,16 @@ public class MedicalSafetyFlowService {
     private final MedicalSafetyCatalog catalog;
     private final CanonicalSafetyService safety;
     private final MedicalSafetyRouteStateRepository states;
+    private final MedicalSafetyWb1ResponseRepository wellbeing;
     private final Clock clock = Clock.systemUTC();
 
     public MedicalSafetyFlowService(MedicalSafetyCatalog catalog,
-        CanonicalSafetyService safety, MedicalSafetyRouteStateRepository states) {
+        CanonicalSafetyService safety, MedicalSafetyRouteStateRepository states,
+        MedicalSafetyWb1ResponseRepository wellbeing) {
         this.catalog = catalog;
         this.safety = safety;
         this.states = states;
+        this.wellbeing = wellbeing;
     }
 
     @Transactional
@@ -179,6 +182,68 @@ public class MedicalSafetyFlowService {
         }
         return steps(userId, sessionId);
     }
+
+    /** Eligibility is intentionally gated on the product-defined postpartum date window. */
+    @Transactional(readOnly = true)
+    public Wb1Status wellbeingStatus(String userId, String period) {
+        var recorded = wellbeing.findById(userId).orElse(null);
+        var previousMentalHealth = states.findByUserIdAndRouteId(userId, "R18").orElse(null);
+        boolean recentRoute = previousMentalHealth != null && previousMentalHealth.getCompletedAt() != null
+            && clock.instant().isBefore(previousMentalHealth.getCompletedAt().plusSeconds(14 * 86400L));
+        return new Wb1Status("medical-safety-v2.2", recorded != null,
+            recorded != null ? recorded.getAnswer() : null,
+            period.equals("POSTPARTUM") && recorded == null && !recentRoute,
+            "PRODUCT_WINDOW_NOT_CONFIGURED");
+    }
+
+    @Transactional
+    public CanonicalSafetyService.MedicalStep answerWellbeing(String userId,
+        String period, String answer) {
+        if (!"POSTPARTUM".equals(period)) {
+            throw new IllegalArgumentException("WB1 is only applicable after childbirth");
+        }
+        if (answer == null || !Set.of("MOSTLY_GOOD", "HARD_LATELY",
+            "PREFER_NOT_TO_SAY").contains(answer)) {
+            throw new IllegalArgumentException("Invalid wellbeing card answer");
+        }
+        var existing = wellbeing.findById(userId).orElse(null);
+        if (existing != null) {
+            if (!existing.getAnswer().equals(answer))
+                throw new IllegalStateException("WB1 was already answered and cannot be repeated");
+            return new CanonicalSafetyService.MedicalStep(
+                "R18", "POSTPARTUM_MENTAL_HEALTH",
+                MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
+                "COMPLETE", "NOT_REPORTED", "H1", "OPEN_ER0", null,
+                "WB1_ALREADY_ANSWERED");
+        }
+        var now = clock.instant();
+        wellbeing.saveAndFlush(new MedicalSafetyWb1ResponseEntity(userId, answer, now));
+        if (!"HARD_LATELY".equals(answer)) {
+            return new CanonicalSafetyService.MedicalStep(
+                "R18", "POSTPARTUM_MENTAL_HEALTH",
+                MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
+                "COMPLETE", "NOT_REPORTED", "H1", "OPEN_ER0", null,
+                "WB1_ONE_TIME_CLOSED");
+        }
+        var route = catalog.route("R18");
+        var record = states.findByUserIdAndRouteId(userId, route.routeId())
+            .orElseGet(() -> new MedicalSafetyRouteStateEntity(userId, route.routeId(), now));
+        if (record.getCompletedAt() != null && now.isBefore(
+            record.getCompletedAt().plusSeconds(route.cooldownHours() * 3600L))) {
+            return new CanonicalSafetyService.MedicalStep(
+                route.routeId(), route.routeCode(), MedicalSafetyCatalog.VERSION,
+                MedicalSafetyCatalog.RULE_VERSION, "COMPLETE", "NOT_REPORTED", "H1",
+                "OPEN_ER0", null, "WB1_R18_COOLDOWN_ACTIVE");
+        }
+        record.begin(null, "WB1", now);
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(), Map.of(), false);
+        record.update(next, now, route.cooldownHours());
+        states.saveAndFlush(record);
+        return next;
+    }
+
+    public record Wb1Status(String catalogVersion, boolean alreadyAnswered, String answer,
+        boolean stageAndCooldownEligible, String displayWindowStatus) {}
 
     private static final Set<String> ER0_GLOBAL = Set.of(
         "F_BREATHING_SEVERE", "F_CHEST_PAIN", "F_FAINTED", "F_SEIZURE",

@@ -114,6 +114,15 @@ public class MedicalSafetyRouteStateEntity {
         updatedAt = now;
     }
 
+    public void recordBloodPressure(Integer systolic, Integer diastolic, boolean unknown, Instant at) {
+        if (!unknown && (systolic == null || diastolic == null || systolic <= 0
+            || diastolic <= 0 || systolic > 500 || diastolic > 500)) {
+            throw new IllegalArgumentException("Both positive measured pressure values are required");
+        }
+        factAnswers.put("BP_READING", unknown ? "UNKNOWN" : systolic + "/" + diastolic);
+        this.updatedAt = at;
+    }
+
     public void update(com.momna.platform.safety.CanonicalSafetyService.MedicalStep result,
         Instant now, int cooldownHours) {
         this.state = result.state();

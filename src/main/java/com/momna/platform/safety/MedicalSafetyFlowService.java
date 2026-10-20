@@ -242,6 +242,33 @@ public class MedicalSafetyFlowService {
         return next;
     }
 
+    @Transactional
+    public CanonicalSafetyService.MedicalStep answerWellbeingFact(String userId, String factCode,
+        String answer) {
+        if (factCode == null || answer == null || !Set.of("YES", "NO", "UNSURE", "ABSENT").contains(answer)) {
+            throw new IllegalArgumentException("Invalid WB1 safety answer");
+        }
+        var route = catalog.route("R18");
+        var record = states.findByUserIdAndRouteId(userId, "R18")
+            .orElseThrow(() -> new IllegalArgumentException("WB1 route not started"));
+        if (record.getSessionId() != null || !"WB1".equals(record.getSourceItem())) {
+            throw new IllegalArgumentException("WB1 is not current safety route");
+        }
+        var previous = safety.evaluateMedical(route, catalog, record.getFactAnswers(), Map.of(), false);
+        if (record.getState().equals("COMPLETE")) {
+            if (answer.equals(record.getFactAnswers().get(factCode))) return previous;
+            throw new IllegalStateException("WB1 route already completed");
+        }
+        if (!"QUESTION".equals(previous.state()) || !factCode.equals(previous.nextFactCode())) {
+            throw new IllegalArgumentException("Not the current WB1 safety question");
+        }
+        record.answer(factCode, answer, clock.instant());
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(), Map.of(), false);
+        record.update(next, clock.instant(), route.cooldownHours());
+        states.saveAndFlush(record);
+        return next;
+    }
+
     public record Wb1Status(String catalogVersion, boolean alreadyAnswered, String answer,
         boolean stageAndCooldownEligible, String displayWindowStatus) {}
 

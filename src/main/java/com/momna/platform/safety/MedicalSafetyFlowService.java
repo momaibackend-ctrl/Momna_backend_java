@@ -139,6 +139,29 @@ public class MedicalSafetyFlowService {
     }
 
     @Transactional
+    public List<CanonicalSafetyService.MedicalStep> recordBloodPressure(
+        String userId, String sessionId, String routeId,
+        Integer systolic, Integer diastolic, boolean unknown
+    ) {
+        if (!"R17".equals(routeId)) throw new IllegalArgumentException("BP1 is only available on R17");
+        var route = catalog.route(routeId);
+        var record = owned(userId, sessionId, routeId);
+        var before = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            sharedFacts(userId, sessionId, routeId), false);
+        if (!"BP_READING".equals(before.nextFactCode())) {
+            throw new IllegalArgumentException("Blood pressure is not the current safety input");
+        }
+        record.recordBloodPressure(systolic, diastolic, unknown, clock.instant());
+        var next = safety.evaluateMedical(route, catalog, record.getFactAnswers(),
+            sharedFacts(userId, sessionId, routeId), false);
+        // Thresholds from the addendum are NOT clinically approved.
+        // They are not used to reclassify recorded pressure measurements.
+        record.update(next, clock.instant(), route.cooldownHours());
+        states.saveAndFlush(record);
+        return steps(userId, sessionId);
+    }
+
+    @Transactional
     public List<CanonicalSafetyService.MedicalStep> skip(String userId, String sessionId,
         String routeId) {
         var record = owned(userId, sessionId, routeId);

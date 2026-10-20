@@ -1,0 +1,880 @@
+{
+  "catalogVersion": "medical-safety-v2.2",
+  "ruleVersion": "medical-safety-rules-v2.2",
+  "releaseStatus": "CLINICAL_RELEASE_NOT_APPROVED",
+  "facts": [
+    {
+      "factCode": "F_BREATHING_SEVERE",
+      "ru": "Вам сейчас очень трудно дышать?",
+      "enUs": "Are you having severe trouble breathing right now?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_CHEST_PAIN",
+      "ru": "Есть боль в груди?",
+      "enUs": "Do you have chest pain?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_FAINTED",
+      "ru": "Вы теряли сознание?",
+      "enUs": "Have you fainted?",
+      "rule": "EMERGENCY; относится к текущему эпизоду",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_SEIZURE",
+      "ru": "Был приступ судорог?",
+      "enUs": "Have you had a seizure?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_NEURO_DEFICIT",
+      "ru": "Появились внезапная слабость руки, ноги или одной стороны лица, или спутанность сознания?",
+      "enUs": "Do you have sudden new weakness in an arm, leg, or one side of your face, or sudden confusion?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_THUNDERCLAP_HEADACHE",
+      "ru": "Головная боль началась внезапно и сразу стала очень сильной?",
+      "enUs": "Did your headache start suddenly and become extremely severe right away?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_AIRWAY_SWELLING",
+      "ru": "Появились внезапный отёк языка или горла, трудности с дыханием или глотанием?",
+      "enUs": "Do you have sudden tongue or throat swelling, or trouble breathing or swallowing?",
+      "rule": "EMERGENCY → AG1",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_LIP_FACE_SWELLING",
+      "ru": "Появился внезапный отёк губ или лица?",
+      "enUs": "Do you have sudden swelling of your lips or face?",
+      "rule": "URGENT → U (также при беременности, D10) · D3",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_HARM_THOUGHTS",
+      "ru": "Послеродовой период: Были мысли причинить вред себе или ребёнку? · Другие периоды: Были мысли причинить вред себе или другому человеку?",
+      "enUs": "Postpartum: Have you had thoughts of harming yourself or your baby? · Other stages: Have you had thoughts of harming yourself or someone else?",
+      "rule": "SAFETY_ASSESSMENT → PM2",
+      "role": "SAFETY_ASSESSMENT"
+    },
+    {
+      "factCode": "F_PRESYNCOPE",
+      "ru": "Вы чувствуете, что вот-вот потеряете сознание, или не можете стоять?",
+      "enUs": "Do you feel close to fainting, or are you unable to stand?",
+      "rule": "URGENT; EMERGENCY в R12 и в сочетаниях §4",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_RAPID_WORSENING",
+      "ru": "Состояние быстро ухудшается?",
+      "enUs": "Are you getting worse quickly?",
+      "rule": "URGENT · D3",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_FEVER_38",
+      "ru": "Температура 38 °C или выше?",
+      "enUs": "Is your temperature 38°C (100.4°F) or higher?",
+      "rule": "URGENT; в беременности → OB1 (D2, D3, CDC)",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_SEVERE_ABDO_PELVIC_PAIN",
+      "ru": "Есть внезапная или очень сильная боль в животе или в области таза?",
+      "enUs": "Do you have sudden or very severe pain in your abdomen or pelvis?",
+      "rule": "URGENT; см. сочетания §4",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_SUDDEN_SEVERE_PAIN",
+      "ru": "Появилась внезапная очень сильная боль?",
+      "enUs": "Do you have sudden, very severe pain?",
+      "rule": "URGENT · D3",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_URINARY_RETENTION",
+      "ru": "Не получается помочиться, хотя есть позыв?",
+      "enUs": "Are you unable to pass urine even though you need to?",
+      "rule": "URGENT",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_HEART_RACING",
+      "ru": "Сердце внезапно бьётся очень часто или неровно?",
+      "enUs": "Is your heart suddenly racing or beating irregularly?",
+      "rule": "URGENT · D3; вместе с болью в груди, одышкой или обмороком исход EMERGENCY даёт соответствующий факт",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_SEVERE_VOMITING",
+      "ru": "Сильная рвота, и не получается удержать воду?",
+      "enUs": "Are you vomiting severely and unable to keep fluids down?",
+      "rule": "URGENT · D3",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_EXTREME_WEAKNESS",
+      "ru": "Появились необычная сильная слабость или истощение, каких раньше не было?",
+      "enUs": "Do you have unusual, severe weakness or exhaustion unlike anything before?",
+      "rule": "URGENT · D3 (риск ложных срабатываний после родов — клиническая проверка)",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_PAD_SOAK_1H",
+      "ru": "Прокладка или тампон полностью пропитывается за час или быстрее?",
+      "enUs": "Are you soaking through a pad or tampon in an hour or less?",
+      "rule": "URGENT; в послеродовом периоде EMERGENCY в окне после родов, утверждённом клиницистом (вне окна URGENT); см. COMBO_BLEED_SHOCK",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_BLEED_SUDDEN_INCREASE",
+      "ru": "Кровотечение внезапно стало намного сильнее?",
+      "enUs": "Has your bleeding suddenly become much heavier?",
+      "rule": "EMERGENCY",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_LARGE_CLOTS",
+      "ru": "Выделяются крупные сгустки крови?",
+      "enUs": "Are you passing large blood clots?",
+      "rule": "URGENT",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_BLEED_HEAVIER_THAN_USUAL",
+      "ru": "Кровотечение гораздо обильнее обычного?",
+      "enUs": "Is the bleeding much heavier than usual?",
+      "rule": "URGENT · D3",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_BLEED_POSTCOITAL",
+      "ru": "Отметка в записи кровотечения в календаре (самостоятельный вход). Вопрос задаётся только при D_INTERMENSTRUAL = YES и отсутствии отметки: «Замечали ли вы кровянистые выделения после полового контакта?»",
+      "enUs": "Calendar bleeding-log tag (standalone entry). Fallback: Have you noticed bleeding after sex?",
+      "rule": "PROMPT",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_PREGNANCY_POSSIBLE",
+      "ru": "Беременность сейчас возможна?",
+      "enUs": "Could you be pregnant now?",
+      "rule": "CONTEXT. Задаётся только после YES на сильную боль. В PLANNING не задаётся, считается YES",
+      "role": "CONTEXT"
+    },
+    {
+      "factCode": "D_BLEED_GT7",
+      "ru": "Календарь (§5.7). Заменитель: Кровотечение продолжается дольше 7 дней?",
+      "enUs": "Calendar. Fallback: Has the bleeding lasted more than 7 days?",
+      "rule": "PROMPT",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "D_INTERMENSTRUAL",
+      "ru": "Календарь (§5.7). Заменитель: Бывают ли у вас кровянистые выделения между месячными?",
+      "enUs": "Calendar. Fallback: Do you have bleeding or spotting between periods?",
+      "rule": "PROMPT при повторяемости (порог — клиницист)",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "D_12M_NO_PERIOD",
+      "ru": "Календарь (§5.7). Заменитель: Перед этим было не менее 12 месяцев без естественной менструации?",
+      "enUs": "Calendar. Fallback: Had you gone at least 12 months without a natural period?",
+      "rule": "CONTEXT. При гормональной контрацепции или неполной истории — UNKNOWN, а не NO",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "D_POSTMENOPAUSAL_BLEED",
+      "ru": "YES, если записано любое кровотечение или мажущие выделения и (период MENOPAUSE или D_12M_NO_PERIOD = YES). Гормональная терапия, гистерэктомия и любые другие факторы не отменяют предупреждение; они только выбирают вариант текста MB1 (§9.3). Если беременность возможна, дополнительно применяется маршрут кровотечения. Заменитель: После менопаузы были любые кровянистые выделения?",
+      "enUs": "Derived (same rule). Fallback: Have you had any bleeding or spotting after menopause?",
+      "rule": "PROMPT → MB1",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "F_SEVERE_HEADACHE",
+      "ru": "Есть сильная или не проходящая головная боль?",
+      "enUs": "Do you have a severe or persistent headache?",
+      "rule": "URGENT; в беременности → OB1",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_VISION_CHANGE",
+      "ru": "Появилось новое нарушение зрения — вспышки, пятна или затуманивание?",
+      "enUs": "Do you have a new change in vision, such as flashes, spots, or blurring?",
+      "rule": "URGENT; в беременности → OB1",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_UPPER_ABDO_PAIN",
+      "ru": "Есть сильная или не проходящая боль вверху живота или под рёбрами, особенно справа?",
+      "enUs": "Do you have severe or persistent pain in your upper abdomen or under your ribs, especially on the right?",
+      "rule": "URGENT; в беременности → OB1",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_SUDDEN_SWELLING",
+      "ru": "Лицо или кисти рук внезапно заметно отекли?",
+      "enUs": "Have your face or hands suddenly become noticeably swollen?",
+      "rule": "URGENT → OB1",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_BREATHLESS_SUDDEN_OR_REST",
+      "ru": "Одышка появилась внезапно или вам трудно дышать даже в покое?",
+      "enUs": "Did your shortness of breath start suddenly, or are you short of breath even at rest?",
+      "rule": "EMERGENCY (объединены по L8: оба EMERGENCY в беременности)",
+      "role": "EMERGENCY"
+    },
+    {
+      "factCode": "F_PREG_VAGINAL_BLEED",
+      "ru": "Есть кровотечение из влагалища?",
+      "enUs": "Are you having vaginal bleeding?",
+      "rule": "URGENT → OB1",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_FLUID_LEAK",
+      "ru": "Было внезапное излитие или постоянное подтекание жидкости из влагалища?",
+      "enUs": "Have you had a gush or a continuous trickle of fluid from the vagina?",
+      "rule": "URGENT → OB1, на любом сроке",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_MOVEMENTS_ESTABLISHED",
+      "ru": "Вы уже регулярно ощущаете шевеления ребёнка?",
+      "enUs": "Have you already been feeling your baby move regularly?",
+      "rule": "CONTEXT. Задаётся с недели, утверждённой клиницистом. YES хранится до конца беременности; NO истекает через 14 дней и задаётся снова при следующем входе",
+      "role": "CONTEXT"
+    },
+    {
+      "factCode": "F_REDUCED_MOVEMENTS",
+      "ru": "Шевелений стало заметно меньше, чем обычно для вашего ребёнка?",
+      "enUs": "Has your baby been moving noticeably less than usual?",
+      "rule": "URGENT → OB1; только если F_MOVEMENTS_ESTABLISHED = YES",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_CONTRACTIONS_PRETERM",
+      "ru": "Появились регулярные схватки или ритмичное напряжение живота?",
+      "enUs": "Are you having regular contractions or rhythmic tightening?",
+      "rule": "URGENT → OB1. Только при D_GESTATIONAL_WEEK < 37; если срок неизвестен — задаётся и считается < 37",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_PELVIC_PRESSURE_PRETERM",
+      "ru": "Появились давление внизу таза или новая постоянная тупая боль в пояснице?",
+      "enUs": "Do you have new pelvic pressure or a constant dull low backache?",
+      "rule": "URGENT → OB1 · D3; то же условие по сроку",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "D_GESTATIONAL_WEEK",
+      "ru": "Профиль беременности",
+      "enUs": "Pregnancy profile",
+      "rule": "DERIVED",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "F_ONE_LIMB",
+      "ru": "Одна рука или нога заметно отекла, болит, покраснела или болезненна при касании?",
+      "enUs": "Is one arm or leg noticeably swollen, painful, red or tender?",
+      "rule": "URGENT",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_WOUND_PROBLEM",
+      "ru": "Из шва или раны выделяется гной, шов разошёлся или боль в ране быстро усиливается?",
+      "enUs": "Is there pus from your wound or incision, has it opened, or is the wound pain getting worse quickly?",
+      "rule": "URGENT",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_FOUL_DISCHARGE",
+      "ru": "Появились выделения из влагалища с неприятным запахом?",
+      "enUs": "Do you have vaginal discharge with an unpleasant smell?",
+      "rule": "URGENT · D3; см. COMBO_PP_INFECTION",
+      "role": "URGENT"
+    },
+    {
+      "factCode": "F_BREAST_RED_AREA",
+      "ru": "Есть ограниченный болезненный красный участок на груди?",
+      "enUs": "Is there a localized painful red area on your breast?",
+      "rule": "PROMPT",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_CHILLS",
+      "ru": "Есть озноб?",
+      "enUs": "Do you have chills?",
+      "rule": "PROMPT; только если F_FEVER_38 = NO / UNSURE",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_BP_MEASURED",
+      "ru": "Вы измеряли артериальное давление сегодня?",
+      "enUs": "Have you measured your blood pressure today?",
+      "rule": "INPUT_GATE → BP1",
+      "role": "INPUT_GATE"
+    },
+    {
+      "factCode": "F_LOW_MOOD_2W",
+      "ru": "В последние две недели вы часто чувствовали подавленность или сильную тревогу?",
+      "enUs": "During the past two weeks, have you often felt low or very anxious?",
+      "rule": "PROMPT → PM1",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_ANHEDONIA_2W",
+      "ru": "За последние две недели вы часто теряли интерес к тому, что обычно приносило радость?",
+      "enUs": "During the past two weeks, have you often lost interest in things you usually enjoy?",
+      "rule": "PROMPT → PM1",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_BONDING_WORRY",
+      "ru": "Вам трудно почувствовать связь с ребёнком, и это вас беспокоит?",
+      "enUs": "Are you having difficulty feeling connected to your baby, and does this worry you?",
+      "rule": "PROMPT → PM1",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "D_TIME_SINCE_BIRTH",
+      "ru": "Дата родов из профиля. Если её нет, один раз запросить дату (поле даты, не вопрос безопасности)",
+      "enUs": "Birth date from profile",
+      "rule": "DERIVED",
+      "role": "DERIVED"
+    },
+    {
+      "factCode": "F_DIZZINESS_PERSISTENT",
+      "ru": "Головокружение сохраняется или повторяется?",
+      "enUs": "Is your dizziness continuing or coming back?",
+      "rule": "PROMPT",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_PERIOD_PAIN_LIMITING",
+      "ru": "Из-за боли вы пропускаете школу или не можете заниматься обычными делами, или она не проходит после привычных способов облегчения?",
+      "enUs": "Does the pain make you miss school or stop your usual activities, or does it not improve with your usual relief measures?",
+      "rule": "PROMPT → MP1",
+      "role": "PROMPT"
+    },
+    {
+      "factCode": "F_GSM_SYMPTOMS",
+      "ru": "Беспокоят ли сухость, раздражение или боль во влагалище, в том числе при близости?",
+      "enUs": "Are you bothered by vaginal dryness, irritation or pain, including during sex?",
+      "rule": "ROUTINE → GS1",
+      "role": "ROUTINE"
+    }
+  ],
+  "routes": [
+    {
+      "routeId": "R1",
+      "routeCode": "MENARCHE_HEADACHE",
+      "period": "MENARCHE",
+      "itemCodes": [
+        "M3"
+      ],
+      "entry": "M3 = 2",
+      "questions": [
+        "F_THUNDERCLAP_HEADACHE",
+        "F_NEURO_DEFICIT",
+        "F_VISION_CHANGE"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R2",
+      "routeCode": "MENARCHE_DIZZINESS",
+      "period": "MENARCHE",
+      "itemCodes": [
+        "M4"
+      ],
+      "entry": "M4 = 2",
+      "questions": [
+        "F_FAINTED",
+        "F_BREATHING_SEVERE",
+        "F_PRESYNCOPE",
+        "F_DIZZINESS_PERSISTENT"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R3",
+      "routeCode": "MENARCHE_BLEEDING",
+      "period": "MENARCHE",
+      "itemCodes": [
+        "M5"
+      ],
+      "entry": "M5 = 2",
+      "questions": [
+        "F_FAINTED",
+        "F_BREATHING_SEVERE",
+        "F_PAD_SOAK_1H",
+        "F_PRESYNCOPE"
+      ],
+      "crossChecks": "D_BLEED_GT7; COMBO_BLEED_SHOCK",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R4",
+      "routeCode": "CYCLE_BLEEDING",
+      "period": "CYCLE",
+      "itemCodes": [
+        "C4"
+      ],
+      "entry": "C4 = 2 (ADULT)",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_FAINTED",
+        "F_PAD_SOAK_1H",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_PRESYNCOPE"
+      ],
+      "crossChecks": "После YES на боль: F_PREGNANCY_POSSIBLE. D_BLEED_GT7, D_INTERMENSTRUAL, F_BLEED_POSTCOITAL. COMBO_PREG_PAIN, COMBO_PREG_PAIN_SHOCK, COMBO_BLEED_SHOCK",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R5",
+      "routeCode": "PREGNANCY_SWELLING",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P6"
+      ],
+      "entry": "P6 = 2",
+      "questions": [
+        "F_SUDDEN_SWELLING",
+        "F_SEVERE_HEADACHE",
+        "F_VISION_CHANGE",
+        "F_UPPER_ABDO_PAIN"
+      ],
+      "crossChecks": "Остановка на первом YES",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R6",
+      "routeCode": "PREGNANCY_BREATHLESSNESS",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P7"
+      ],
+      "entry": "P7 = 2",
+      "questions": [
+        "F_BREATHING_SEVERE",
+        "F_CHEST_PAIN",
+        "F_FAINTED",
+        "F_BREATHLESS_SUDDEN_OR_REST",
+        "F_HEART_RACING"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R7",
+      "routeCode": "PREGNANCY_HEADACHE",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P8"
+      ],
+      "entry": "P8 = 2",
+      "questions": [
+        "F_THUNDERCLAP_HEADACHE",
+        "F_NEURO_DEFICIT",
+        "F_SEVERE_HEADACHE",
+        "F_VISION_CHANGE",
+        "F_UPPER_ABDO_PAIN"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R8",
+      "routeCode": "PREGNANCY_EPIGASTRIC",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P9"
+      ],
+      "entry": "P9 = 2",
+      "questions": [
+        "F_UPPER_ABDO_PAIN",
+        "F_SEVERE_HEADACHE",
+        "F_VISION_CHANGE"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R9",
+      "routeCode": "PREGNANCY_GENERAL_DISCOMFORT",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P16"
+      ],
+      "entry": "P16 = 2",
+      "questions": [
+        "F_FAINTED",
+        "F_PREG_VAGINAL_BLEED",
+        "F_FLUID_LEAK",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_REDUCED_MOVEMENTS",
+        "F_FEVER_38",
+        "F_HEART_RACING",
+        "F_SEVERE_VOMITING",
+        "F_PRESYNCOPE",
+        "F_EXTREME_WEAKNESS"
+      ],
+      "crossChecks": "F_MOVEMENTS_ESTABLISHED (§5.3)",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R10",
+      "routeCode": "PREGNANCY_PRETERM_LABOR",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P5",
+        "P19"
+      ],
+      "entry": "P5 = 2; P19 = 2; ER0",
+      "questions": [
+        "F_FLUID_LEAK",
+        "F_CONTRACTIONS_PRETERM",
+        "F_PELVIC_PRESSURE_PRETERM"
+      ],
+      "crossChecks": "D_GESTATIONAL_WEEK; при ≥ 37 нед. — только F_FLUID_LEAK",
+      "cooldownHours": 72
+    },
+    {
+      "routeId": "R11",
+      "routeCode": "POSTPARTUM_PAIN",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP4"
+      ],
+      "entry": "PP4 = 2",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_ONE_LIMB"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R12",
+      "routeCode": "POSTPARTUM_BLEEDING",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP5"
+      ],
+      "entry": "PP5 = 2",
+      "questions": [
+        "F_FAINTED",
+        "F_BLEED_SUDDEN_INCREASE",
+        "F_PAD_SOAK_1H",
+        "F_PRESYNCOPE",
+        "F_LARGE_CLOTS"
+      ],
+      "crossChecks": "D_TIME_SINCE_BIRTH",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R13",
+      "routeCode": "POSTPARTUM_WOUND",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP6"
+      ],
+      "entry": "PP6 = 2",
+      "questions": [
+        "F_FEVER_38",
+        "F_WOUND_PROBLEM",
+        "F_FOUL_DISCHARGE",
+        "F_RAPID_WORSENING"
+      ],
+      "crossChecks": "COMBO_PP_INFECTION",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R14",
+      "routeCode": "POSTPARTUM_BREAST_DISCOMFORT",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP7"
+      ],
+      "entry": "PP7 = 2",
+      "questions": [
+        "F_RAPID_WORSENING",
+        "F_FEVER_38",
+        "F_BREAST_RED_AREA"
+      ],
+      "crossChecks": "F_CHILLS при температуре NO / UNSURE",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R15",
+      "routeCode": "POSTPARTUM_PELVIC_DISCOMFORT",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP8"
+      ],
+      "entry": "PP8 = 2",
+      "questions": [
+        "F_URINARY_RETENTION",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_FEVER_38",
+        "F_FOUL_DISCHARGE",
+        "F_RAPID_WORSENING"
+      ],
+      "crossChecks": "COMBO_PP_INFECTION",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R16",
+      "routeCode": "POSTPARTUM_GENERAL_DISCOMFORT",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP14"
+      ],
+      "entry": "PP14 = 2",
+      "questions": [
+        "F_BREATHING_SEVERE",
+        "F_CHEST_PAIN",
+        "F_FAINTED",
+        "F_SEIZURE",
+        "F_HARM_THOUGHTS",
+        "F_FEVER_38",
+        "F_HEART_RACING",
+        "F_SEVERE_VOMITING",
+        "F_PRESYNCOPE",
+        "F_EXTREME_WEAKNESS"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R17",
+      "routeCode": "POSTPARTUM_PREECLAMPSIA",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP19"
+      ],
+      "entry": "PP19 = 2; ER0",
+      "questions": [
+        "F_BREATHING_SEVERE",
+        "F_THUNDERCLAP_HEADACHE",
+        "F_NEURO_DEFICIT",
+        "F_SEVERE_HEADACHE",
+        "F_VISION_CHANGE",
+        "F_UPPER_ABDO_PAIN",
+        "F_BP_MEASURED"
+      ],
+      "crossChecks": "COMBO_PE_BP; BP1 задаётся и после URGENT",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R18",
+      "routeCode": "POSTPARTUM_MENTAL_HEALTH",
+      "period": "POSTPARTUM",
+      "itemCodes": [
+        "PP2",
+        "PP18"
+      ],
+      "entry": "PP2 = «тяжело эмоционально»; PP18 = 2; WB1 = «тяжело»",
+      "questions": [
+        "F_HARM_THOUGHTS",
+        "F_LOW_MOOD_2W",
+        "F_ANHEDONIA_2W",
+        "F_BONDING_WORRY"
+      ],
+      "crossChecks": "После первого P остальные P не задаются",
+      "cooldownHours": 336
+    },
+    {
+      "routeId": "R19",
+      "routeCode": "PERIMENOPAUSE_HOT_FLASHES",
+      "period": "PERIMENOPAUSE",
+      "itemCodes": [
+        "PM2",
+        "PM9"
+      ],
+      "entry": "PM2 = 2 или PM9 = 2",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_FAINTED"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 168
+    },
+    {
+      "routeId": "R20",
+      "routeCode": "PERIMENOPAUSE_UNUSUAL_CHANGE",
+      "period": "PERIMENOPAUSE",
+      "itemCodes": [
+        "PM3"
+      ],
+      "entry": "PM3 = 2",
+      "questions": [
+        "F_PAD_SOAK_1H",
+        "F_BLEED_HEAVIER_THAN_USUAL",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_PRESYNCOPE"
+      ],
+      "crossChecks": "После YES на боль: F_PREGNANCY_POSSIBLE. D_12M_NO_PERIOD, D_POSTMENOPAUSAL_BLEED → MB1, D_BLEED_GT7, D_INTERMENSTRUAL, F_BLEED_POSTCOITAL. Сочетания как в R4",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R21",
+      "routeCode": "PERIMENOPAUSE_GENERAL_DISCOMFORT",
+      "period": "PERIMENOPAUSE",
+      "itemCodes": [
+        "PM12"
+      ],
+      "entry": "PM12 = 2",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_FAINTED",
+        "F_SUDDEN_SEVERE_PAIN"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 24
+    },
+    {
+      "routeId": "R22",
+      "routeCode": "MENOPAUSE_HOT_FLASHES",
+      "period": "MENOPAUSE",
+      "itemCodes": [
+        "MN3",
+        "MN13"
+      ],
+      "entry": "MN3 = 2 или MN13 = 2",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_FAINTED"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 168
+    },
+    {
+      "routeId": "R23",
+      "routeCode": "MENOPAUSE_UROGENITAL",
+      "period": "MENOPAUSE",
+      "itemCodes": [
+        "MN8"
+      ],
+      "entry": "MN8 = 2",
+      "questions": [
+        "F_URINARY_RETENTION",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_FEVER_38",
+        "F_RAPID_WORSENING"
+      ],
+      "crossChecks": "D_POSTMENOPAUSAL_BLEED → MB1; F_GSM_SYMPTOMS (R) — только если ничего не найдено",
+      "cooldownHours": 168
+    },
+    {
+      "routeId": "R24",
+      "routeCode": "MENARCHE_SEVERE_PELVIC_PAIN",
+      "period": "MENARCHE",
+      "itemCodes": [
+        "M2"
+      ],
+      "entry": "M2 = 2",
+      "questions": [
+        "F_PERIOD_PAIN_LIMITING"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 168
+    },
+    {
+      "routeId": "R25",
+      "routeCode": "GLOBAL_ALLERGIC_EMERGENCY",
+      "period": "GLOBAL",
+      "itemCodes": [],
+      "entry": "ER0: «Отёк лица, губ, языка или горла»",
+      "questions": [
+        "F_AIRWAY_SWELLING",
+        "F_LIP_FACE_SWELLING"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 0
+    },
+    {
+      "routeId": "R26",
+      "routeCode": "GLOBAL_EMERGENCY_QUICK_CHECK",
+      "period": "GLOBAL",
+      "itemCodes": [],
+      "entry": "ER0 (§8)",
+      "questions": [],
+      "crossChecks": "—",
+      "cooldownHours": 0
+    },
+    {
+      "routeId": "R27",
+      "routeCode": "PREGNANCY_NAUSEA (новый, CDC)",
+      "period": "PREGNANCY",
+      "itemCodes": [
+        "P3"
+      ],
+      "entry": "P3 = 2",
+      "questions": [
+        "F_FAINTED",
+        "F_SEVERE_VOMITING"
+      ],
+      "crossChecks": "—",
+      "cooldownHours": 72
+    },
+    {
+      "routeId": "R28",
+      "routeCode": "PLANNING_BODY_CHANGE (новый)",
+      "period": "PLANNING",
+      "itemCodes": [
+        "T5"
+      ],
+      "entry": "T5 = 2",
+      "questions": [
+        "F_CHEST_PAIN",
+        "F_BREATHING_SEVERE",
+        "F_FAINTED",
+        "F_PAD_SOAK_1H",
+        "F_SEVERE_ABDO_PELVIC_PAIN",
+        "F_PRESYNCOPE"
+      ],
+      "crossChecks": "Беременность считается возможной (D1); COMBO_PREG_PAIN, COMBO_PREG_PAIN_SHOCK, COMBO_BLEED_SHOCK",
+      "cooldownHours": 24
+    }
+  ],
+  "allowedAnswers": [
+    "YES",
+    "NO",
+    "UNSURE",
+    "ABSENT"
+  ],
+  "derivedAnswers": [
+    "YES",
+    "NO",
+    "UNKNOWN"
+  ],
+  "combinationCodes": [
+    "COMBO_PREG_PAIN",
+    "COMBO_PREG_PAIN_SHOCK",
+    "COMBO_BLEED_SHOCK",
+    "COMBO_PP_INFECTION",
+    "COMBO_AIRWAY",
+    "COMBO_PE_BP"
+  ]
+}

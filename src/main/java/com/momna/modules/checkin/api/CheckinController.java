@@ -92,6 +92,14 @@ public class CheckinController {
             sessionId, routeId, request.factCode(), request.answer());
     }
 
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/revise")
+    public SessionView reviseSafety(Authentication authentication,
+        @PathVariable String sessionId, @PathVariable String routeId,
+        @Valid @RequestBody SafetyAnswerRequest request) {
+        return checkin.reviseSafety(actor(authentication).userId(),
+            sessionId, routeId, request.factCode(), request.answer());
+    }
+
     @PostMapping("/sessions/{sessionId}/safety/{routeId}/blood-pressure")
     public SessionView safetyBloodPressure(Authentication authentication,
         @PathVariable String sessionId, @PathVariable String routeId,

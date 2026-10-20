@@ -98,4 +98,18 @@ class MedicalSafetyRouteStateTest {
         assertEquals(T0.plusSeconds(2), record.getCompletedAt());
     }
 
+    @Test
+    void recordsClinicalPendingConditionAndActualRuleVersionForAudit() {
+        var record = new MedicalSafetyRouteStateEntity("person", "R12", T0);
+        record.begin("s", "PP5", T0);
+        record.answer("F_PAD_SOAK_1H", "YES", T0);
+        record.update(new CanonicalSafetyService.MedicalStep(
+            "R12", "POSTPARTUM_BLEEDING", MedicalSafetyCatalog.VERSION,
+            MedicalSafetyCatalog.RULE_VERSION, "COMPLETE", "EMERGENCY", "E",
+            "CALL_EMERGENCY", null, "CONDITION_UNDEFINED"
+        ), T0, 24);
+        assertEquals("CONDITION_UNDEFINED", record.getConditionStatus());
+        assertEquals(MedicalSafetyCatalog.RULE_VERSION, record.getRuleVersion());
+    }
+
 }

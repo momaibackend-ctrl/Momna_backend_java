@@ -224,6 +224,16 @@ public class CheckinApplicationService {
     }
 
     @Transactional
+    public SessionView reviseSafety(String userId, String sessionId, String routeId,
+        String factCode, String answer) {
+        var current = owned(userId, sessionId);
+        current.applyMedicalSafety(medicalSafety.revise(userId, sessionId,
+            routeId, factCode, answer), clock.instant());
+        current = sessions.saveAndFlush(current);
+        return view(current, clock.instant());
+    }
+
+    @Transactional
     public SessionView recordSafetyBloodPressure(String userId, String sessionId,
         String routeId, Integer systolic, Integer diastolic, boolean unknown) {
         var current = owned(userId, sessionId);

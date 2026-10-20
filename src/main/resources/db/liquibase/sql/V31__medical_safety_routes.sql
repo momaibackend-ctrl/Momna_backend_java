@@ -35,3 +35,18 @@ CREATE TABLE momna.medical_safety_wb1_responses (
 );
 COMMENT ON TABLE momna.medical_safety_wb1_responses IS
     'WB1 private response: one-time invitation, not depression screening. Not exposed to Couple Mode.';
+
+CREATE TABLE momna.medical_safety_fact_revisions (
+    revision_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES momna.user_profiles(user_id) ON DELETE RESTRICT,
+    route_id TEXT NOT NULL,
+    session_id TEXT REFERENCES momna.checkin_sessions(session_id) ON DELETE SET NULL,
+    fact_code TEXT NOT NULL,
+    previous_answer TEXT NOT NULL CHECK (previous_answer IN ('YES','NO','UNSURE','ABSENT')),
+    new_answer TEXT NOT NULL CHECK (new_answer IN ('YES','NO','UNSURE','ABSENT')),
+    revised_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX idx_medical_fact_revision_user_route
+    ON momna.medical_safety_fact_revisions(user_id, route_id, revised_at DESC);
+COMMENT ON TABLE momna.medical_safety_fact_revisions IS
+    'Sensitive Safety change history. Access is restricted to user-owned medical context.';

@@ -162,3 +162,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-checkin-hash-column-types-v32
+      author: momna-pr29-e2e
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V32__checkin_hash_column_types.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

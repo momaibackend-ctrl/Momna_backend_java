@@ -9,6 +9,18 @@
     {
       "key": "baseUrl",
       "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "instanceId",
+      "value": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "key": "action",
+      "value": "SKIP"
+    },
+    {
+      "key": "actionCode",
+      "value": "SKIP"
     }
   ],
   "item": [
@@ -211,7 +223,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-0000-0000-000000000001/actions/SKIP",
+            "url": "{{baseUrl}}/api/v1/flow-instances/{{instanceId}}/actions/{{action}}",
             "body": {
               "mode": "raw",
               "raw": "{\"fieldId\":\"display_name\"}",
@@ -1007,7 +1019,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/flow-instances/00000000-0000-0000-0000-000000000001/actions/SKIP",
+            "url": "{{baseUrl}}/api/v1/flow-instances/{{instanceId}}/actions/{{actionCode}}",
             "body": {
               "mode": "raw",
               "raw": "{}",

@@ -51,7 +51,7 @@ databaseChangeLog:
         - sqlFile:
             path: db/liquibase/sql/V10__context_platform.sql
             relativeToChangelogFile: false
-            splitStatements: true
+            splitStatements: false
             stripComments: false
         - sqlFile:
             path: db/liquibase/sql/V11__content_platform.sql
@@ -136,7 +136,7 @@ databaseChangeLog:
         - sqlFile:
             path: db/liquibase/sql/V27__extensible_canonical_context_registry.sql
             relativeToChangelogFile: false
-            splitStatements: true
+            splitStatements: false
             stripComments: false
         - sqlFile:
             path: db/liquibase/sql/V28__auth_session_security.sql
@@ -152,4 +152,40 @@ databaseChangeLog:
             path: db/liquibase/sql/V30__checkin_persistence.sql
             relativeToChangelogFile: false
             splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: momna-medical-safety-v31
+      author: momna-1145
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V31__medical_safety_routes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: momna-checkin-hash-column-types-v32
+      author: momna-pr29-e2e
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V32__checkin_hash_column_types.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: momna-checkin-integer-column-types-v33
+      author: momna-pr29-e2e
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V33__checkin_integer_column_types.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: momna-billing-schema-alignment-v34
+      author: momna-pr29-e2e
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V34__billing_tables_schema_alignment.sql
+            relativeToChangelogFile: false
+            splitStatements: false
             stripComments: false

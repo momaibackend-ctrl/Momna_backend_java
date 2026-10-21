@@ -1,6 +1,7 @@
 package com.momna.modules.checkin.application;
 
 import java.time.Instant;
+import com.momna.platform.safety.CanonicalSafetyService.MedicalStep;
 import java.util.List;
 import java.util.Set;
 
@@ -66,5 +67,5 @@ public final class CheckinViews {
 
     public record AnswerView(String itemCode, int value) {}
     public record WindowView(String state, Instant opensAt, Instant closesAt) {}
-    public record SafetyView(String state, boolean blocking) {}
+    public record SafetyView(String state, boolean blocking, List<MedicalStep> routes) {}
 }

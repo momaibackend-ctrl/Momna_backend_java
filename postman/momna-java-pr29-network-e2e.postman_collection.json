@@ -1534,7 +1534,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpSystolicToken}"
+                "value": "Bearer {{bpSystolicToken}}"
               },
               {
                 "key": "Content-Type",
@@ -1575,7 +1575,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpDiastolicToken}"
+                "value": "Bearer {{bpDiastolicToken}}"
               },
               {
                 "key": "Content-Type",
@@ -1616,7 +1616,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpComboToken}"
+                "value": "Bearer {{bpComboToken}}"
               },
               {
                 "key": "Content-Type",
@@ -1657,7 +1657,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpUrgentToken}"
+                "value": "Bearer {{bpUrgentToken}}"
               },
               {
                 "key": "Content-Type",
@@ -1697,7 +1697,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpHeadacheToken}"
+                "value": "Bearer {{bpHeadacheToken}}"
               },
               {
                 "key": "Content-Type",
@@ -1737,7 +1737,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{bpUnknownToken}"
+                "value": "Bearer {{bpUnknownToken}}"
               },
               {
                 "key": "Content-Type",

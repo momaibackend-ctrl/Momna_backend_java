@@ -1,0 +1,17 @@
+version: 1
+image: eclipse-temurin:25-jdk
+env:
+  PORT: "8080"
+  MOMNA_ENV: e2e
+  MOMNA_ROLE: api
+  MOMNA_REDIS_ENABLED: "false"
+  MOMNA_DEFAULT_LOCALE: en-US
+  MOMNA_DEFAULT_TIMEZONE: UTC
+  DATABASE_URL: "jdbc:postgresql://{{postgres.host}}:{{postgres.port}}/{{postgres.database}}"
+  DATABASE_USER: "{{postgres.user}}"
+  DATABASE_PASSWORD: "{{postgres.password}}"
+health:
+  - /actuator/health
+  - /health/ready
+  - /health/live
+startupTimeoutSeconds: 300

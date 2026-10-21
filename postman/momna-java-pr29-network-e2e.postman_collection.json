@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b2f0f5a8-cc39-4a44-9db1-202610210001",
     "name": "Momna Java PR29 Network HTTP E2E",
-    "description": "Network-level checks against the real Java Spring Boot process in a disposable PostgreSQL environment. The contract-surface group probes every operation in the repository OpenAPI inventory; protected routes deliberately assert unauthenticated denial because this isolated environment has no configured email delivery or external identity provider. Safety business rules are covered by Java tests, not claimed as exercised by these unauthenticated requests.",
+    "description": "Network-level checks against the real Java Spring Boot process in a disposable PostgreSQL environment. The contract-surface group probes every operation in the repository OpenAPI inventory; protected routes deliberately assert unauthenticated denial because this isolated environment has no configured email delivery or external identity provider. Safety business rules are covered by Java tests, not claimed as exercised by these unauthenticated requests. Includes six authenticated R17 pressure-rule scenarios using short-lived seeded accounts in the disposable E2E database. No test credential is accepted by production or added as an application endpoint.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -21,6 +21,30 @@
     {
       "key": "actionCode",
       "value": "SKIP"
+    },
+    {
+      "key": "bpSystolicToken",
+      "value": "momna-e2e-token-systolic-160"
+    },
+    {
+      "key": "bpDiastolicToken",
+      "value": "momna-e2e-token-diastolic-110"
+    },
+    {
+      "key": "bpComboToken",
+      "value": "momna-e2e-token-combo-170-115"
+    },
+    {
+      "key": "bpUrgentToken",
+      "value": "momna-e2e-token-urgent-140-90"
+    },
+    {
+      "key": "bpHeadacheToken",
+      "value": "momna-e2e-token-normal-headache"
+    },
+    {
+      "key": "bpUnknownToken",
+      "value": "momna-e2e-token-unknown-pressure"
     }
   ],
   "item": [
@@ -1493,6 +1517,255 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authenticated blood pressure rules over network HTTP",
+      "item": [
+        {
+          "name": "Authenticated BP: severe systolic 160/85",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpSystolicToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":160,\"diastolic\":85,\"unknown\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('EMERGENCY'); });",
+                  "pm.test('actionCode', function () { pm.expect(pm.response.json().actionCode).to.eql('CALL_EMERGENCY'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CONDITION_UNDEFINED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated BP: severe diastolic 120/110",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpDiastolicToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":120,\"diastolic\":110,\"unknown\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('EMERGENCY'); });",
+                  "pm.test('actionCode', function () { pm.expect(pm.response.json().actionCode).to.eql('CALL_EMERGENCY'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CONDITION_UNDEFINED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated BP: COMBO_PE_BP 170/115 with headache",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpComboToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":170,\"diastolic\":115,\"unknown\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('EMERGENCY'); });",
+                  "pm.test('actionCode', function () { pm.expect(pm.response.json().actionCode).to.eql('CALL_EMERGENCY'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CONDITION_UNDEFINED:COMBO_PE_BP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated BP: elevated 140/90",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpUrgentToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":140,\"diastolic\":90,\"unknown\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('URGENT'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CONDITION_UNDEFINED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated BP: below threshold does not downgrade headache",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpHeadacheToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":120,\"diastolic\":80,\"unknown\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('URGENT'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CLINICAL_RELEASE_PENDING'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated BP: explicit UNKNOWN is not normal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bpUnknownToken}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"systolic\":null,\"diastolic\":null,\"unknown\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0/R17/blood-pressure"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('state', function () { pm.expect(pm.response.json().state).to.eql('COMPLETE'); });",
+                  "pm.test('disposition', function () { pm.expect(pm.response.json().disposition).to.eql('NOT_REPORTED'); });",
+                  "pm.test('actionCode', function () { pm.expect(pm.response.json().actionCode).to.eql('OPEN_ER0'); });",
+                  "pm.test('conditionStatus', function () { pm.expect(pm.response.json().conditionStatus).to.eql('CLINICAL_RELEASE_PENDING'); });"
                 ]
               }
             }

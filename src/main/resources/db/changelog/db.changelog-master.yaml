@@ -180,3 +180,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-billing-schema-alignment-v34
+      author: momna-pr29-e2e
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V34__billing_tables_schema_alignment.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

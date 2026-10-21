@@ -10,6 +10,8 @@ env:
   DATABASE_URL: "jdbc:postgresql://{{postgres.host}}:{{postgres.port}}/{{postgres.database}}"
   DATABASE_USER: "{{postgres.user}}"
   DATABASE_PASSWORD: "{{postgres.password}}"
+prepare:
+  - ["./gradlew", "--no-daemon", "seedE2eDatabase"]
 health:
   - /actuator/health
   - /health/ready

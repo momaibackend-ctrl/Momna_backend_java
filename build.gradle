@@ -7,6 +7,25 @@ group = 'com.momna'
 version = '0.1.0-migration'
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 repositories { mavenCentral() }
+
+sourceSets {
+    e2e {
+        java.srcDir 'src/e2e/java'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    e2eImplementation.extendsFrom implementation
+    e2eRuntimeOnly.extendsFrom runtimeOnly
+}
+tasks.register('seedE2eDatabase', JavaExec) {
+    group = 'verification'
+    description = 'Applies Liquibase migrations and seeds disposable network-E2E fixtures.'
+    dependsOn tasks.named('e2eClasses')
+    classpath = sourceSets.e2e.runtimeClasspath
+    mainClass = 'com.momna.e2e.SeedE2eDatabase'
+}
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'

@@ -51,7 +51,7 @@ databaseChangeLog:
         - sqlFile:
             path: db/liquibase/sql/V10__context_platform.sql
             relativeToChangelogFile: false
-            splitStatements: true
+            splitStatements: false
             stripComments: false
         - sqlFile:
             path: db/liquibase/sql/V11__content_platform.sql
@@ -136,7 +136,7 @@ databaseChangeLog:
         - sqlFile:
             path: db/liquibase/sql/V27__extensible_canonical_context_registry.sql
             relativeToChangelogFile: false
-            splitStatements: true
+            splitStatements: false
             stripComments: false
         - sqlFile:
             path: db/liquibase/sql/V28__auth_session_security.sql

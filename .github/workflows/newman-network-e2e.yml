@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/newman-network-e2e-r12-20261022
+  pull_request:
+    branches:
+      - feature/momna-1145-safety-v22
   workflow_dispatch:
 
 permissions:
@@ -124,7 +127,7 @@ jobs:
             if (typeof value === 'string') {
               let result = value;
               for (const fixture of fixtures) result = result.split(fixture).join('[REDACTED]');
-              return result.replace(/Bearer\\s+[^\\s"\\\\]+/g, 'Bearer [REDACTED]');
+              return result.replace(/Bearer\s+[^\s"\\]+/g, 'Bearer [REDACTED]');
             }
             return value;
           }

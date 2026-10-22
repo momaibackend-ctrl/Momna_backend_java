@@ -1,0 +1,171 @@
+name: Java HTTP E2E (Newman)
+
+on:
+  push:
+    branches:
+      - fix/liquibase-e2e-history-20261022
+  pull_request:
+    branches:
+      - feature/momna-1145-safety-v22
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  newman-network-e2e:
+    name: Java 25 + PostgreSQL 16 + Newman HTTP suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: momna_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: e2e_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d momna_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
+      JDBC_DATABASE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: e2e_only_password
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: e2e_only_password
+      MOMNA_ENV: e2e
+      MOMNA_ROLE: api
+      MOMNA_REDIS_ENABLED: "false"
+      MOMNA_DEFAULT_LOCALE: en-US
+      MOMNA_DEFAULT_TIMEZONE: UTC
+      PORT: "8080"
+      SERVER_PORT: "8080"
+    steps:
+      - name: Checkout exact commit under test
+        uses: actions/checkout@v4
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Newman
+        run: npm install --global newman@6.2.1
+      - name: Start Spring Boot and wait for health (Liquibase owns migrations)
+        run: |
+          nohup ./gradlew --no-daemon bootRun > "$RUNNER_TEMP/momna-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/momna-server.pid"
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8080/actuator/health > "$RUNNER_TEMP/health.json"; then
+              cat "$RUNNER_TEMP/health.json"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Spring Boot did not become healthy within 180 seconds."
+          tail -n 200 "$RUNNER_TEMP/momna-server.log"
+          exit 1
+      - name: Verify DATABASECHANGELOG and seed isolated E2E accounts
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon seedE2eDatabase 2>&1 | tee "$RUNNER_TEMP/seed.log"
+      - name: Run the committed Postman collection with native Newman over network HTTP
+        id: newman
+        continue-on-error: true
+        run: |
+          set +e
+          newman run postman/momna-java-pr29-network-e2e.postman_collection.json \
+            --reporters cli,json \
+            --reporter-json-export newman-report-raw.json
+          result=$?
+          echo "exit_code=$result" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Validate all HTTP requests and assertions; redact fixture tokens
+        env:
+          NEWMAN_EXIT_CODE: ${{ steps.newman.outputs.exit_code }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const raw = JSON.parse(fs.readFileSync('newman-report-raw.json', 'utf8'));
+          const fixtures = [
+            'momna-e2e-token-systolic-160',
+            'momna-e2e-token-diastolic-110',
+            'momna-e2e-token-combo-170-115',
+            'momna-e2e-token-urgent-140-90',
+            'momna-e2e-token-normal-headache',
+            'momna-e2e-token-unknown-pressure'
+          ];
+          function redact(value) {
+            if (Array.isArray(value)) return value.map(item => redact(item));
+            if (value && typeof value === 'object') {
+              const result = {};
+              for (const [childKey, childValue] of Object.entries(value)) {
+                result[childKey] = childKey.toLowerCase() === 'authorization'
+                  ? '[REDACTED]'
+                  : redact(childValue);
+              }
+              return result;
+            }
+            if (typeof value === 'string') {
+              let result = value;
+              for (const fixture of fixtures) result = result.split(fixture).join('[REDACTED]');
+              return result.replace(/Bearer\s+[^\s"\\]+/g, 'Bearer [REDACTED]');
+            }
+            return value;
+          }
+          const safe = redact(raw);
+          fs.writeFileSync('newman-report.json', JSON.stringify(safe, null, 2));
+          const run = raw.run || {};
+          const stats = run.stats || {};
+          const requests = stats.requests || {};
+          const assertions = stats.assertions || {};
+          const executions = run.executions || [];
+          const safety = executions.filter(item => /^Authenticated BP:/.test(item.item?.name || ''));
+          const errors = [];
+          if (Number(process.env.NEWMAN_EXIT_CODE) !== 0) errors.push('Newman exited non-zero');
+          if (requests.total !== 60) errors.push(`Expected 60 requests, got ${requests.total}`);
+          if (requests.failed !== 0) errors.push(`Expected 0 failed requests, got ${requests.failed}`);
+          if (assertions.failed !== 0) errors.push(`Expected 0 failed assertions, got ${assertions.failed}`);
+          if (assertions.total < 70) errors.push(`Expected at least 70 executed assertions (including response-body rules), got ${assertions.total}`);
+          if (safety.length !== 6) errors.push(`Expected all 6 authenticated blood-pressure scenarios, got ${safety.length}`);
+          if (safety.some(item => (item.assertions || []).some(assertion => assertion.error))) errors.push('At least one authenticated blood-pressure assertion failed');
+          console.log(JSON.stringify({
+            requestTotal: requests.total,
+            requestFailed: requests.failed,
+            assertionTotal: assertions.total,
+            assertionFailed: assertions.failed,
+            authenticatedBloodPressureScenarios: safety.length,
+            result: errors.length ? 'FAIL' : 'PASS',
+            errors
+          }, null, 2));
+          if (errors.length) process.exit(1);
+          NODE
+      - name: Upload redacted Newman and startup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-newman-network-e2e-r12
+          path: |
+            newman-report.json
+            ${{ runner.temp }}/momna-server.log
+            ${{ runner.temp }}/seed.log
+          if-no-files-found: warn
+          retention-days: 1

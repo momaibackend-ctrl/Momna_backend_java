@@ -5,16 +5,13 @@ import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.time.Instant;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import liquibase.Contexts;
-import liquibase.LabelExpression;
-import liquibase.Liquibase;
-import liquibase.database.Database;
-import liquibase.database.DatabaseFactory;
-import liquibase.database.jvm.JdbcConnection;
-import liquibase.resource.ClassLoaderResourceAccessor;
+import java.util.Set;
 
 /**
  * Seeds disposable-only users and active ER0 R17 states for live HTTP tests.
@@ -23,6 +20,13 @@ import liquibase.resource.ClassLoaderResourceAccessor;
 public final class SeedE2eDatabase {
     private static final String RULE_VERSION = "medical-safety-rules-v2.2";
     private static final String CATALOG_VERSION = "medical-safety-v2.2";
+    private static final Set<String> REQUIRED_CHANGESETS = Set.of(
+        "momna-legacy-schema-v1-v30|migration",
+        "momna-medical-safety-v31|momna-1145",
+        "momna-checkin-hash-column-types-v32|momna-pr29-e2e",
+        "momna-checkin-integer-column-types-v33|momna-pr29-e2e",
+        "momna-billing-schema-alignment-v34|momna-pr29-e2e"
+    );
 
     private SeedE2eDatabase() {}
 
@@ -31,8 +35,8 @@ public final class SeedE2eDatabase {
         String username = required("DATABASE_USER");
         String password = required("DATABASE_PASSWORD");
 
-        applyMigrations(url, username, password);
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
+            verifyLiquibaseHistory(connection);
             connection.setAutoCommit(false);
             try {
                 for (var fixture : List.of(
@@ -54,16 +58,54 @@ public final class SeedE2eDatabase {
         System.out.println("Seeded 6 isolated authenticated R17 HTTP fixtures.");
     }
 
-    private static void applyMigrations(String url, String username, String password) throws Exception {
-        try (Connection connection = DriverManager.getConnection(url, username, password)) {
-            Database database = DatabaseFactory.getInstance()
-                .findCorrectDatabaseImplementation(new JdbcConnection(connection));
-            Liquibase liquibase = new Liquibase(
-                "db/changelog/db.changelog-master.yaml",
-                new ClassLoaderResourceAccessor(),
-                database
+    /**
+     * Spring Boot owns schema migration at application startup. The fixture seeder
+     * must never call Liquibase.update() independently: it verifies the service
+     * tables so existing changesets are not replayed by a second migration runner.
+     */
+    private static void verifyLiquibaseHistory(Connection connection) throws SQLException {
+        Set<String> applied = new HashSet<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("SELECT id, author FROM databasechangelog")) {
+            while (result.next()) {
+                applied.add(result.getString("id") + "|" + result.getString("author"));
+            }
+        } catch (SQLException failure) {
+            throw new IllegalStateException(
+                "Liquibase DATABASECHANGELOG is missing or inaccessible. Start Spring Boot first " +
+                "and let its Liquibase startup finish before seeding E2E fixtures.",
+                failure
             );
-            liquibase.update(new Contexts(), new LabelExpression());
+        }
+
+        Set<String> missing = new HashSet<>(REQUIRED_CHANGESETS);
+        missing.removeAll(applied);
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(
+                "Required Liquibase changesets are not recorded in DATABASECHANGELOG: " +
+                String.join(", ", missing) +
+                ". E2E fixture seeding will not run migrations; fix application startup first."
+            );
+        }
+
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(
+                 "SELECT locked FROM databasechangeloglock WHERE id = 1")) {
+            if (!result.next()) {
+                throw new IllegalStateException(
+                    "Liquibase DATABASECHANGELOGLOCK has no row for id=1."
+                );
+            }
+            if (result.getBoolean("locked")) {
+                throw new IllegalStateException(
+                    "Liquibase DATABASECHANGELOGLOCK is still locked; refusing to seed fixtures."
+                );
+            }
+        } catch (SQLException failure) {
+            throw new IllegalStateException(
+                "Liquibase DATABASECHANGELOGLOCK is missing or inaccessible.",
+                failure
+            );
         }
     }
 

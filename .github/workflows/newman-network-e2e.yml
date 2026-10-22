@@ -22,12 +22,12 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_DB: momna_e2e
-          POSTGRES_USER: momna
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: e2e_only_password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U momna -d momna_e2e"
+          --health-cmd "pg_isready -U postgres -d momna_e2e"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -44,9 +44,9 @@ jobs:
       DATABASE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
       JDBC_DATABASE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
       SPRING_DATASOURCE_URL: "jdbc:postgresql://localhost:5432/momna_e2e"
-      DATABASE_USER: momna
+      DATABASE_USER: postgres
       DATABASE_PASSWORD: e2e_only_password
-      SPRING_DATASOURCE_USERNAME: momna
+      SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: e2e_only_password
       MOMNA_ENV: e2e
       MOMNA_ROLE: api

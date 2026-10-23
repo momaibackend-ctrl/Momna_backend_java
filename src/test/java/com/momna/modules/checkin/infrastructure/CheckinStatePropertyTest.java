@@ -4,7 +4,6 @@ import com.momna.modules.checkin.domain.*;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.math.BigDecimal;
-import java.util.List;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.constraints.IntRange;
 import net.jqwik.api.Property;
@@ -30,11 +29,10 @@ class CheckinStatePropertyTest {
         assertEquals(count==0 ? CheckinSessionStatus.DRAFT : CheckinSessionStatus.PARTIAL,s.getStatus());
         assertEquals(0, BigDecimal.valueOf((double)count/total).compareTo(s.getCompletionRatio()));
         assertNull(s.getFinalizedAt());
+        assertNull(s.getFinalizationReason());
     }
     @Property(tries=250, seed="20261011")
-    void removingAllAnswersReturnsToDraft(
-        @ForAll @IntRange(min=1,max=30) int count
-    ) {
+    void removingAllAnswersReturnsToDraft(@ForAll @IntRange(min=1,max=30) int count) {
         var s=fresh(count);
         s.updateCompletion(count,AT.plusSeconds(1));
         s.updateCompletion(0,AT.plusSeconds(2));
@@ -42,10 +40,7 @@ class CheckinStatePropertyTest {
         assertEquals(0,s.getCompletionRatio().signum());
     }
     @Property(tries=250, seed="20261012")
-    void finalizationReasonsNeverCollapse(
-        @ForAll boolean automatic,
-        @ForAll @IntRange(min=1,max=5000) int elapsed
-    ) {
+    void finalizationReasonsNeverCollapse(@ForAll boolean automatic, @ForAll @IntRange(min=1,max=5000) int elapsed) {
         var s=fresh(2);
         var when=AT.plusSeconds(elapsed);
         if (automatic) {
@@ -60,9 +55,7 @@ class CheckinStatePropertyTest {
         assertEquals(when,s.getFinalizedAt());
     }
     @Property(tries=250, seed="20261013")
-    void consumptionIsIdempotentForSameMyDayAndRejectsOther(
-        @ForAll @IntRange(min=1,max=100000) int myDay
-    ) {
+    void consumptionIsIdempotentForSameMyDayAndRejectsOther(@ForAll @IntRange(min=1,max=100000) int myDay) {
         var s=fresh(2);
         String id="day-"+myDay;
         s.finalizeByUser(AT.plusSeconds(1));
@@ -70,8 +63,7 @@ class CheckinStatePropertyTest {
         s.markConsumed(id,AT.plusSeconds(3));
         assertEquals(id,s.getConsumedByRef());
         assertEquals(CheckinSessionStatus.SUBMITTED,s.getStatus());
-        assertThrows(IllegalStateException.class,
-            () -> s.markConsumed(id+"-other",AT.plusSeconds(4)));
+        assertThrows(IllegalStateException.class, () -> s.markConsumed(id+"-other",AT.plusSeconds(4)));
     }
     @Test void initialSessionIsDraft() {
         var s=fresh(2);

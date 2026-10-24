@@ -6,6 +6,12 @@ import com.momna.modules.checkin.application.CheckinException;
 import com.momna.modules.flow.application.FlowException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.lang.reflect.RecordComponent;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,9 +20,29 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Set<String> MISSING_VALUE_CONSTRAINTS = Set.of("NotBlank", "NotNull", "NotEmpty");
+
+    // Reported the way the working Kotlin API does: the first invalid field in the request's declared
+    // field order (bean validation itself reports violations in no stable order), named in fieldErrors.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> validation(MethodArgumentNotValidException ex) {
-        return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request validation failed"));
+        var errors = ex.getBindingResult().getFieldErrors();
+        var target = ex.getBindingResult().getTarget();
+        List<String> declared = target != null && target.getClass().isRecord()
+            ? Arrays.stream(target.getClass().getRecordComponents()).map(RecordComponent::getName).toList()
+            : List.of();
+        var first = declared.stream()
+            .flatMap(name -> errors.stream().filter(error -> error.getField().equals(name)).findFirst().stream())
+            .findFirst()
+            .or(() -> errors.stream().findFirst());
+        if (first.isEmpty()) return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request validation failed"));
+        FieldError error = first.get();
+        boolean missing = error.getCode() != null && MISSING_VALUE_CONSTRAINTS.contains(error.getCode());
+        return ResponseEntity.badRequest().body(ApiError.of(
+            "VALIDATION_ERROR",
+            missing ? "Missing required field" : "Invalid field value",
+            Map.of(error.getField(), missing ? "required" : "invalid")
+        ));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -114,10 +140,10 @@ public class GlobalExceptionHandler {
             .body(ApiError.of("STATE_CONFLICT", "State changed; refresh and retry"));
     }
 
+    // An unknown route is not an API operation: 404 with no body, as the working Kotlin API answers.
     @ExceptionHandler(NoResourceFoundException.class)
-    ResponseEntity<ApiError> notFound(NoResourceFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(ApiError.of("NOT_FOUND", "Resource not found"));
+    ResponseEntity<Void> notFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
     @ExceptionHandler(Exception.class)

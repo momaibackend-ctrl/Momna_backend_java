@@ -6,6 +6,10 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CheckinSessionRepository extends JpaRepository<CheckinSessionEntity, String> {
+    Optional<CheckinSessionEntity> findByUserIdAndPhaseAndLocalDate(
+        String userId, CheckinPhase phase, LocalDate localDate
+    );
+
     Optional<CheckinSessionEntity> findBySessionIdAndUserId(String sessionId, String userId);
 
     Optional<CheckinSessionEntity> findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(

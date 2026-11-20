@@ -6,7 +6,7 @@ import com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.*;
 import com.momna.modules.checkin.scoring.WeightedCheckinScoringEngine;
-import com.momna.modules.checkin.safety.MenarcheSafetyDecisionService;
+import com.momna.modules.checkin.safety.CheckinSafetyEvaluator;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -24,7 +24,7 @@ public class CheckinApplicationService {
     private final CheckinAdjustmentSignalRepository adjustmentSignals;
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
-    private final MenarcheSafetyDecisionService safety = new MenarcheSafetyDecisionService();
+    private final CheckinSafetyEvaluator safety;
     private final CheckinDayContextService contexts;
     private final Clock clock = Clock.systemUTC();
 
@@ -35,8 +35,10 @@ public class CheckinApplicationService {
         CheckinAdjustmentSignalRepository adjustmentSignals,
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
-        CheckinDayContextService contexts
+        CheckinDayContextService contexts,
+        CheckinSafetyEvaluator safety
     ) {
+        this.safety = safety;
         this.sessions = sessions;
         this.answers = answers;
         this.idempotency = idempotency;
@@ -171,10 +173,8 @@ public class CheckinApplicationService {
         if (current.getRevision() != expectedRevision) {
             throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
         }
-        if (current.isSafetyBlocking()) {
-            throw new CheckinException("SAFETY_CLARIFICATION_REQUIRED",
-                "Answer the active safety clarification before changing check-in answers");
-        }
+        // Answers stay editable while a safety clarification is open; the evaluator keeps the
+        // lock, so only the clarification answer can resolve it.
 
         var applicable = new HashSet<>(current.getApplicableItemCodes());
         for (var change : changes) {
@@ -336,9 +336,12 @@ public class CheckinApplicationService {
         if (session.getConsumedAt() != null || !isMutable(session)) {
             allowed.add("OPEN_MY_DAY");
         } else if (session.isSafetyBlocking()) {
-            // A critical emergency decision cannot be downgraded by another answer.
-            // Emergency contact guidance remains in safety.allowedActions.
-            if (!"CRITICAL".equals(session.getSafetySeverity())) {
+            if (now.isBefore(session.getWindowOpensAt())) {
+                // Nothing is actionable before the window opens.
+            } else if (now.isBefore(session.getWindowClosesAt())) {
+                allowed.add("EDIT_ANSWERS");
+                allowed.add("ANSWER_SAFETY");
+            } else {
                 allowed.add("ANSWER_SAFETY");
             }
         } else if (now.isBefore(session.getWindowClosesAt())) {
@@ -380,7 +383,7 @@ public class CheckinApplicationService {
                 session.getSafetySeverity(),
                 session.isSafetyBlocking(),
                 session.getSafetyClarification(),
-                session.getSafetyAllowedActions()
+                session.getSafetyAllowedActions().stream().sorted().toList()
             ),
             session.getFinalizedAt(),
             session.getFinalizationReason() == null ? null : session.getFinalizationReason().name(),

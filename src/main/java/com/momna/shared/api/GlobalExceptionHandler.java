@@ -21,6 +21,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final Set<String> MISSING_VALUE_CONSTRAINTS = Set.of("NotBlank", "NotNull", "NotEmpty");
+    // An error about a credential never names it: the security collection requires that a rejected
+    // authentication request reveal nothing about credentials, not even a field name.
+    private static final java.util.regex.Pattern CREDENTIAL_FIELD =
+        java.util.regex.Pattern.compile("(?i).*(credential|password|secret|token).*");
 
     // Reported the way the working Kotlin API does: the first invalid field in the request's declared
     // field order (bean validation itself reports violations in no stable order), named in fieldErrors.
@@ -38,11 +42,9 @@ public class GlobalExceptionHandler {
         if (first.isEmpty()) return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request validation failed"));
         FieldError error = first.get();
         boolean missing = error.getCode() != null && MISSING_VALUE_CONSTRAINTS.contains(error.getCode());
-        return ResponseEntity.badRequest().body(ApiError.of(
-            "VALIDATION_ERROR",
-            missing ? "Missing required field" : "Invalid field value",
-            Map.of(error.getField(), missing ? "required" : "invalid")
-        ));
+        var message = missing ? "Missing required field" : "Invalid field value";
+        if (CREDENTIAL_FIELD.matcher(error.getField()).matches()) return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", message));
+        return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", message, Map.of(error.getField(), missing ? "required" : "invalid")));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

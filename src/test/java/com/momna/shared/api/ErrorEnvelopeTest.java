@@ -60,8 +60,23 @@ class ErrorEnvelopeTest {
         assertThat(json.has("timestamp")).isFalse();
     }
 
+    record Refresh(@NotBlank String refreshCredential) {}
+
+    @Test
+    void aCredentialFieldIsNeverNamed() throws Exception {
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        var result = new BeanPropertyBindingResult(new Refresh(null), "request");
+        result.addError(new FieldError("request", "refreshCredential", null, false, new String[] {"NotBlank"}, null, "must not be blank"));
+        var parameter = new MethodParameter(ErrorEnvelopeTest.class.getDeclaredMethod("refreshShape", Refresh.class), 0);
+        var body = mapper.writeValueAsString(new GlobalExceptionHandler().validation(new MethodArgumentNotValidException(parameter, result)).getBody());
+        assertThat(body).contains("Missing required field").doesNotContain("refreshCredential").doesNotContain("fieldErrors");
+    }
+
     @SuppressWarnings("unused")
     private void handlerShape(CompleteEmail request) {}
+
+    @SuppressWarnings("unused")
+    private void refreshShape(Refresh request) {}
 
     private static Set<String> iterable(java.util.Iterator<String> names) {
         var values = new java.util.HashSet<String>();

@@ -47,13 +47,7 @@ public class WeightedCheckinDefinitionCatalog {
 
     private Map<Key, Definition> load(ObjectMapper mapper) {
         try {
-            var stream = WeightedCheckinDefinitionCatalog.class.getResourceAsStream(RESOURCE);
-            if (stream == null) throw new IllegalStateException("Check-in source bundle missing");
-
-            var encoded = new String(stream.readAllBytes(), StandardCharsets.UTF_8)
-                .replaceAll("\\s+", "");
-            var zip = Base64.getDecoder().decode(encoded);
-            var jsonBytes = extractJson(zip);
+            var jsonBytes = canonicalSourceJson();
             var sha = hex(MessageDigest.getInstance("SHA-256").digest(jsonBytes));
             var root = mapper.readTree(jsonBytes);
 
@@ -145,7 +139,17 @@ public class WeightedCheckinDefinitionCatalog {
         out.put(new Key(period, phase), definition);
     }
 
-    private byte[] extractJson(byte[] archive) throws IOException {
+    /** The canonical weighted model v3 JSON, shared with the safety route catalog. */
+    static byte[] canonicalSourceJson() throws IOException {
+        try (var stream = WeightedCheckinDefinitionCatalog.class.getResourceAsStream(RESOURCE)) {
+            if (stream == null) throw new IllegalStateException("Check-in source bundle missing");
+            var encoded = new String(stream.readAllBytes(), StandardCharsets.UTF_8)
+                .replaceAll("\\s+", "");
+            return extractJson(Base64.getDecoder().decode(encoded));
+        }
+    }
+
+    private static byte[] extractJson(byte[] archive) throws IOException {
         var temporary = Files.createTempFile("momna-checkin-model-", ".zip");
         try {
             Files.write(temporary, archive);

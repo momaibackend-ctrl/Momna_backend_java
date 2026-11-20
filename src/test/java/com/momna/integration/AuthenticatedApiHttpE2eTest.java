@@ -1456,9 +1456,11 @@ class AuthenticatedApiHttpE2eTest {
     }
 
 
-    @Test
-    void menarcheSafetyBlockingRejectsAnswerMutationsAndSubmitOverHttp() throws Exception {
-        String email="mn-safety-block-"+UUID.randomUUID()+"@example.test";
+    private record MorningCheckin(String token, String root, com.fasterxml.jackson.databind.JsonNode initial) {}
+
+    /** Signs a new user in, places them in a local morning, and starts a MORNING check-in. */
+    private MorningCheckin startMorningCheckin(LifecyclePeriod period, String label) throws Exception {
+        String email=label+"-"+UUID.randomUUID()+"@example.test";
         DELIVERED_CODE.set(null);
         var challenge=post("/api/v1/auth/email/challenges",
             json.createObjectNode().put("email",email).toString(),null);
@@ -1473,304 +1475,209 @@ class AuthenticatedApiHttpE2eTest {
         String userId=authSessions.findById(credentials.path("session")
             .path("sessionId").asText()).orElseThrow().getUserId();
         var profile=new UserProfileEntity(userId,Instant.now());
-        profile.updateLocalization("en","en-US","US","UTC",Instant.now());
-        userProfiles.saveAndFlush(profile);
-        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
-            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
-            null,Instant.now().minusSeconds(86400),null,"blocked-safety-e2e",1.0,true));
-        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
-            ? "MORNING" : "EVENING";
-        var created=postWithKey("/api/v1/check-in/sessions",
-            json.createObjectNode().put("phase",phase).toString(),
-            token,"blocked-start-"+UUID.randomUUID());
-        assertEquals(201,created.statusCode(),created.body());
-        var initial=json.readTree(created.body());
-        String sessionId=initial.path("sessionId").asText();
-        jdbc.update("UPDATE momna.checkin_sessions " +
-            "SET safety_blocking = true, safety_state = 'CLARIFICATION_REQUIRED' " +
-            "WHERE session_id = ?",sessionId);
-        String root="/api/v1/check-in/sessions/"+sessionId;
-        var blocked=get(root,token);
-        assertEquals(200,blocked.statusCode(),blocked.body());
-        var snapshot=json.readTree(blocked.body());
-        assertTrue(snapshot.path("safety").path("blocking").asBoolean());
-        assertTrue(snapshot.path("allowedActions").toString().contains("ANSWER_SAFETY"));
-        assertFalse(snapshot.path("allowedActions").toString().contains("EDIT_ANSWERS"));
-        var change=json.createObjectNode()
-            .put("expectedRevision",snapshot.path("revision").asLong());
-        change.putArray("answerChanges").addObject()
-            .put("itemCode",initial.path("items").get(0).path("itemCode").asText())
-            .put("value",1);
-        var patch=patchWithKey(root,change.toString(),token,
-            "blocked-patch-"+UUID.randomUUID());
-        assertEquals(409,patch.statusCode(),patch.body());
-        var submit=postWithKey(root+"/submit",json.createObjectNode()
-            .put("expectedRevision",snapshot.path("revision").asLong()).toString(),
-            token,"blocked-submit-"+UUID.randomUUID());
-        assertEquals(409,submit.statusCode(),submit.body());
-        var invalidSafetyAnswer=postWithKey(
-            root+"/safety/clarifications/not-current/answer",
-            json.createObjectNode()
-                .put("expectedRevision",snapshot.path("revision").asLong())
-                .put("value","not_sure").toString(),
-            token,"safety-request-"+UUID.randomUUID());
-        assertEquals(409,invalidSafetyAnswer.statusCode(),invalidSafetyAnswer.body());
-        var persisted=get(root,token);
-        assertEquals(200,persisted.statusCode(),persisted.body());
-        assertEquals(snapshot.path("revision").asLong(),
-            json.readTree(persisted.body()).path("revision").asLong());
-        // A matching, server-issued clarification is evaluated by the
-        // canonical deterministic safety policy.
-        String clarificationId="safety-"+UUID.randomUUID();
-        var activeClarification=json.createObjectNode().put("id",clarificationId)
-            .put("routeCode","MENARCHE_DIZZINESS");
-        jdbc.update("UPDATE momna.checkin_sessions " +
-            "SET safety_clarification = CAST(? AS jsonb), " +
-            "safety_decision_version = ?, safety_route_code = ?, safety_severity = ?, " +
-            "safety_allowed_actions = CAST(? AS jsonb) WHERE session_id = ?",
-            activeClarification.toString(), "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
-            "MENARCHE_DIZZINESS", "HIGH", "[\"CONTACT_CLINICIAN\"]", sessionId);
-        var beforeReview=get(root,token);
-        assertEquals(200,beforeReview.statusCode(),beforeReview.body());
-        var safetyJson=json.readTree(beforeReview.body()).path("safety");
-        assertEquals("MENARCHE_DIZZINESS",safetyJson.path("routeCode").asText());
-        assertEquals("HIGH",safetyJson.path("severity").asText());
-        assertEquals(clarificationId,safetyJson.path("clarification").path("id").asText());
-        assertTrue(safetyJson.path("allowedActions").toString().contains("CONTACT_CLINICIAN"));
-        long safetyRevision=json.readTree(beforeReview.body()).path("revision").asLong();
-        var staleSafetyAnswer=postWithKey(
-            root+"/safety/clarifications/"+clarificationId+"/answer",
-            json.createObjectNode().put("expectedRevision",safetyRevision+1)
-                .put("value","not_sure").toString(),
-            token,"safety-stale-"+UUID.randomUUID());
-        assertEquals(409,staleSafetyAnswer.statusCode(),staleSafetyAnswer.body());
-        var awaitingRules=postWithKey(
-            root+"/safety/clarifications/"+clarificationId+"/answer",
-            json.createObjectNode().put("expectedRevision",safetyRevision)
-                .put("value","not_sure").toString(),
-            token,"safety-review-"+UUID.randomUUID());
-        assertEquals(200,awaitingRules.statusCode(),awaitingRules.body());
-        var resolvedJson=json.readTree(awaitingRules.body());
-        assertEquals("RESOLVED",resolvedJson.path("safety").path("state").asText());
-        assertEquals("HIGH",resolvedJson.path("safety").path("severity").asText());
-        assertFalse(resolvedJson.path("safety").path("blocking").asBoolean());
-        assertTrue(resolvedJson.path("safety").path("allowedActions").toString()
-            .contains("CONTACT_CLINICIAN"));
-        assertTrue(resolvedJson.path("revision").asLong()>safetyRevision);
-        var unchanged=get(root,token);
-        assertEquals(200,unchanged.statusCode(),unchanged.body());
-        var unchangedJson=json.readTree(unchanged.body());
-        assertFalse(unchangedJson.path("safety").path("blocking").asBoolean());
-        assertEquals(resolvedJson.path("revision").asLong(),unchangedJson.path("revision").asLong());
-    }
-
-
-    @Test
-    void menarcheHighWeightedRiskOpensClarificationThenResolvesOverHttp() throws Exception {
-        String email="mn-safety-real-"+UUID.randomUUID()+"@example.test";
-        DELIVERED_CODE.set(null);
-        var challenge=post("/api/v1/auth/email/challenges",
-            json.createObjectNode().put("email",email).toString(),null);
-        assertEquals(202,challenge.statusCode(),challenge.body());
-        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
-            .put("email",email)
-            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
-            .put("code",DELIVERED_CODE.get()).toString(),null);
-        assertEquals(200,login.statusCode(),login.body());
-        var credentials=json.readTree(login.body());
-        String bearer=credentials.path("accessCredential").asText();
-        String userId=authSessions.findById(credentials.path("session")
-            .path("sessionId").asText()).orElseThrow().getUserId();
-        var profile=new UserProfileEntity(userId,Instant.now());
-        // Select a fixed-offset timezone where local time is in the morning,
+        // A fixed-offset timezone where local time is in the morning window,
         // independently of when the CI runner executes.
         String tz=LocalTime.now(ZoneOffset.ofHours(2)).isBefore(LocalTime.NOON)
             ? "Etc/GMT-2" : "Etc/GMT+10";
         profile.updateLocalization("en","en-US","US",tz,Instant.now());
         userProfiles.saveAndFlush(profile);
         lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
-            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
-            null,Instant.now().minusSeconds(86400),null,"weighted-risk-e2e",1.0,true));
-        String phase="MORNING";
+            UUID.randomUUID().toString(),userId,period,
+            null,Instant.now().minusSeconds(86400),null,label,1.0,true));
         var created=postWithKey("/api/v1/check-in/sessions",
-            json.createObjectNode().put("phase",phase).toString(),
-            bearer,"safety-start-"+UUID.randomUUID());
+            json.createObjectNode().put("phase","MORNING").toString(),
+            token,label+"-start-"+UUID.randomUUID());
         assertEquals(201,created.statusCode(),created.body());
         var initial=json.readTree(created.body());
-        String root="/api/v1/check-in/sessions/"+initial.path("sessionId").asText();
+        return new MorningCheckin(token,
+            "/api/v1/check-in/sessions/"+initial.path("sessionId").asText(),initial);
+    }
+
+    /** Answers every item of the session with the same value. */
+    private com.fasterxml.jackson.databind.JsonNode answerAll(MorningCheckin checkin, int value)
+            throws Exception {
         var payload=json.createObjectNode().put("expectedRevision",
-            initial.path("revision").asLong());
+            checkin.initial().path("revision").asLong());
         var changes=payload.putArray("answerChanges");
-        for (var item : initial.path("items")) {
-            changes.addObject().put("itemCode",item.path("itemCode").asText())
-                .put("value",2);
+        for (var item : checkin.initial().path("items")) {
+            changes.addObject().put("itemCode",item.path("itemCode").asText()).put("value",value);
         }
-        var answered=patchWithKey(root,payload.toString(),bearer,
-            "safety-weighted-"+UUID.randomUUID());
+        var answered=patchWithKey(checkin.root(),payload.toString(),checkin.token(),
+            "answer-all-"+UUID.randomUUID());
         assertEquals(200,answered.statusCode(),answered.body());
-        var blocked=json.readTree(answered.body());
-        assertTrue(blocked.path("safety").path("blocking").asBoolean(),answered.body());
-        assertEquals("CLARIFICATION_REQUIRED",blocked.path("safety").path("state").asText());
-        var clarification=blocked.path("safety").path("clarification");
-        assertTrue(clarification.path("options").isArray());
-        assertEquals(3,clarification.path("options").size());
-        String cid=clarification.path("id").asText();
-        assertFalse(cid.isBlank());
-        String key="safety-resolve-"+UUID.randomUUID();
-        String resolution=json.createObjectNode()
-            .put("expectedRevision",blocked.path("revision").asLong())
-            .put("value","not_severe").toString();
-        var resolved=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
-            resolution,bearer,key);
+        return json.readTree(answered.body());
+    }
+
+    private HttpResponse<String> answerSafety(MorningCheckin checkin, String clarificationId,
+            long revision, String value, String key) throws Exception {
+        return postWithKey(checkin.root()+"/safety/clarifications/"+clarificationId+"/answer",
+            json.createObjectNode().put("expectedRevision",revision).put("value",value).toString(),
+            checkin.token(),key);
+    }
+
+    @Test
+    void checkinSafetyLockKeepsAnswersEditableAndBlocksSubmitOverHttp() throws Exception {
+        var checkin=startMorningCheckin(LifecyclePeriod.MENARCHE,"safety-lock");
+        var blocked=answerAll(checkin,2);
+        var safety=blocked.path("safety");
+        assertTrue(safety.path("blocking").asBoolean(),blocked.toString());
+        assertEquals("CLARIFICATION_REQUIRED",safety.path("state").asText());
+        // M4 dizziness (safety_w 7) outweighs M5 bleeding (6) and M3 headache (2).
+        assertEquals("MENARCHE_DIZZINESS",safety.path("routeCode").asText());
+        assertEquals("MEDIUM",safety.path("severity").asText());
+        assertEquals("checkin.safety.routes.v3:checkin.safety.rules.v3",
+            safety.path("decisionVersion").asText());
+        assertEquals("[\"OPEN_SAFETY_CLARIFICATION\"]",safety.path("allowedActions").toString());
+        var clarification=safety.path("clarification");
+        String cid=clarification.path("clarificationId").asText();
+        assertTrue(cid.matches("[0-9a-f]{64}"),clarification.toString());
+        assertEquals("checkin.safety.route.menarche_dizziness.v3",
+            clarification.path("presentationKey").asText());
+        assertEquals(2,clarification.path("options").size());
+        assertEquals("safe",clarification.path("options").get(0).path("value").asText());
+        assertEquals("urgent",clarification.path("options").get(1).path("value").asText());
+        var actions=blocked.path("allowedActions").toString();
+        assertTrue(actions.contains("ANSWER_SAFETY"),actions);
+        assertTrue(actions.contains("EDIT_ANSWERS"),actions);
+        assertFalse(actions.contains("SUBMIT"),actions);
+
+        // An answer change is accepted, but cannot clear the open lock.
+        var change=json.createObjectNode().put("expectedRevision",blocked.path("revision").asLong());
+        change.putArray("answerChanges").addObject().put("itemCode","M4").put("value",0);
+        var edited=patchWithKey(checkin.root(),change.toString(),checkin.token(),
+            "lock-edit-"+UUID.randomUUID());
+        assertEquals(200,edited.statusCode(),edited.body());
+        var editedJson=json.readTree(edited.body());
+        assertTrue(editedJson.path("safety").path("blocking").asBoolean());
+        assertEquals(cid,editedJson.path("safety").path("clarification").path("clarificationId").asText());
+        long revision=editedJson.path("revision").asLong();
+
+        var submit=postWithKey(checkin.root()+"/submit",json.createObjectNode()
+            .put("expectedRevision",revision).toString(),checkin.token(),"lock-submit-"+UUID.randomUUID());
+        assertEquals(409,submit.statusCode(),submit.body());
+        assertEquals("SAFETY_CLARIFICATION_REQUIRED",json.readTree(submit.body()).path("code").asText());
+
+        var notCurrent=answerSafety(checkin,"not-current",revision,"safe","lock-nc-"+UUID.randomUUID());
+        assertEquals(409,notCurrent.statusCode(),notCurrent.body());
+        assertEquals("SAFETY_CLARIFICATION_NOT_CURRENT",json.readTree(notCurrent.body()).path("code").asText());
+        var stale=answerSafety(checkin,cid,revision+1,"safe","lock-stale-"+UUID.randomUUID());
+        assertEquals(409,stale.statusCode(),stale.body());
+        assertEquals("STALE_REVISION",json.readTree(stale.body()).path("code").asText());
+        var invalid=answerSafety(checkin,cid,revision,"skip","lock-invalid-"+UUID.randomUUID());
+        assertEquals(422,invalid.statusCode(),invalid.body());
+        assertEquals("SAFETY_VALUE_INVALID",json.readTree(invalid.body()).path("code").asText());
+        assertEquals(revision,json.readTree(get(checkin.root(),checkin.token()).body()).path("revision").asLong());
+
+        var resolved=answerSafety(checkin,cid,revision,"safe","lock-safe-"+UUID.randomUUID());
+        assertEquals(200,resolved.statusCode(),resolved.body());
+        var resolvedJson=json.readTree(resolved.body());
+        var resolvedSafety=resolvedJson.path("safety");
+        assertEquals("RESOLVED",resolvedSafety.path("state").asText());
+        assertEquals("GENERAL_CONTINUE",resolvedSafety.path("routeCode").asText());
+        assertEquals("NONE",resolvedSafety.path("severity").asText());
+        assertEquals("checkin.safety.routes.v3:safety.baseline.v1",
+            resolvedSafety.path("decisionVersion").asText());
+        assertFalse(resolvedSafety.path("blocking").asBoolean());
+        assertTrue(resolvedSafety.path("clarification").isNull(),resolvedSafety.toString());
+        assertEquals("[\"CONTINUE\"]",resolvedSafety.path("allowedActions").toString());
+        assertTrue(resolvedJson.path("allowedActions").toString().contains("SUBMIT"));
+
+        var submitted=postWithKey(checkin.root()+"/submit",json.createObjectNode()
+            .put("expectedRevision",resolvedJson.path("revision").asLong()).toString(),
+            checkin.token(),"lock-submit-ok-"+UUID.randomUUID());
+        assertEquals(200,submitted.statusCode(),submitted.body());
+        assertEquals("SUBMITTED",json.readTree(submitted.body()).path("session").path("status").asText());
+    }
+
+    @Test
+    void checkinSafetyUrgentAnswerEscalatesToClinicianAndReplaysOverHttp() throws Exception {
+        var checkin=startMorningCheckin(LifecyclePeriod.MENARCHE,"safety-urgent");
+        var blocked=answerAll(checkin,2);
+        String cid=blocked.path("safety").path("clarification").path("clarificationId").asText();
+        long revision=blocked.path("revision").asLong();
+        String key="safety-urgent-"+UUID.randomUUID();
+        var resolved=answerSafety(checkin,cid,revision,"urgent",key);
         assertEquals(200,resolved.statusCode(),resolved.body());
         var finalState=json.readTree(resolved.body());
-        assertEquals("RESOLVED",finalState.path("safety").path("state").asText());
-        assertFalse(finalState.path("safety").path("blocking").asBoolean());
-        assertTrue(finalState.path("safety").path("allowedActions").toString()
-            .contains("CONTACT_CLINICIAN"));
-        var replay=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
-            resolution,bearer,key);
+        var safety=finalState.path("safety");
+        assertEquals("RESOLVED",safety.path("state").asText());
+        assertEquals("CLINICAL_ESCALATION",safety.path("routeCode").asText());
+        assertEquals("HIGH",safety.path("severity").asText());
+        assertEquals("checkin.safety.routes.v3:safety.clinical.v1",safety.path("decisionVersion").asText());
+        assertFalse(safety.path("blocking").asBoolean());
+        assertEquals("[\"CONTACT_CLINICIAN\",\"DEFER_AI\"]",safety.path("allowedActions").toString());
+        var replay=answerSafety(checkin,cid,revision,"urgent",key);
         assertEquals(200,replay.statusCode(),replay.body());
-        assertEquals(finalState.path("revision").asLong(),
-            json.readTree(replay.body()).path("revision").asLong());
-        var conflict=postWithKey(root+"/safety/clarifications/"+cid+"/answer",
-            json.createObjectNode().put("expectedRevision",blocked.path("revision").asLong())
-                .put("value","severe").toString(),bearer,key);
+        assertEquals(finalState.path("revision").asLong(),json.readTree(replay.body()).path("revision").asLong());
+        var conflict=answerSafety(checkin,cid,revision,"safe",key);
         assertEquals(409,conflict.statusCode(),conflict.body());
+        var again=answerSafety(checkin,cid,finalState.path("revision").asLong(),"safe",
+            "safety-after-"+UUID.randomUUID());
+        assertEquals(409,again.statusCode(),again.body());
+        assertEquals("SAFETY_CLARIFICATION_NOT_CURRENT",json.readTree(again.body()).path("code").asText());
     }
 
-
     @Test
-    void menarcheEmergencyClarificationIsIrreversibleOverHttp() throws Exception {
-        String email="mn-emergency-"+UUID.randomUUID()+"@example.test";
-        DELIVERED_CODE.set(null);
-        var challenge=post("/api/v1/auth/email/challenges",
-            json.createObjectNode().put("email",email).toString(),null);
-        assertEquals(202,challenge.statusCode(),challenge.body());
-        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
-            .put("email",email)
-            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
-            .put("code",DELIVERED_CODE.get()).toString(),null);
-        assertEquals(200,login.statusCode(),login.body());
-        var credentials=json.readTree(login.body());
-        String token=credentials.path("accessCredential").asText();
-        String userId=authSessions.findById(credentials.path("session")
-            .path("sessionId").asText()).orElseThrow().getUserId();
-        var now=Instant.now();
-        var profile=new UserProfileEntity(userId,now);
-        profile.updateLocalization("en","en-US","US","UTC",now);
-        userProfiles.saveAndFlush(profile);
-        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
-            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
-            null,now.minusSeconds(86400),null,"safety-emergency-e2e",1.0,true));
-        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
-            ? "MORNING" : "EVENING";
-        var created=postWithKey("/api/v1/check-in/sessions",
-            json.createObjectNode().put("phase",phase).toString(),token,
-            "emergency-start-"+UUID.randomUUID());
-        assertEquals(201,created.statusCode(),created.body());
-        var initial=json.readTree(created.body());
-        String sessionId=initial.path("sessionId").asText();
-        String root="/api/v1/check-in/sessions/"+sessionId;
-        String clarificationId="critical-"+UUID.randomUUID();
-        jdbc.update("UPDATE momna.checkin_sessions SET safety_blocking = true, " +
-            "safety_state = 'CLARIFICATION_REQUIRED', safety_severity = 'HIGH', " +
-            "safety_decision_version = ?, safety_route_code = ?, " +
-            "safety_clarification = CAST(? AS jsonb), " +
-            "safety_allowed_actions = CAST(? AS jsonb) WHERE session_id = ?",
-            "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
-            "MENARCHE_DIZZINESS",
-            json.createObjectNode().put("id",clarificationId).toString(),
-            "[\"CONTACT_CLINICIAN\"]",sessionId);
-        var active=get(root,token);
-        assertEquals(200,active.statusCode(),active.body());
-        long before=json.readTree(active.body()).path("revision").asLong();
-        var emergency=postWithKey(root+"/safety/clarifications/"+clarificationId+"/answer",
-            json.createObjectNode().put("expectedRevision",before)
-                .put("value","severe").toString(),
-            token,"emergency-answer-"+UUID.randomUUID());
-        assertEquals(200,emergency.statusCode(),emergency.body());
-        var decision=json.readTree(emergency.body());
-        assertEquals("CRITICAL",decision.path("safety").path("severity").asText());
-        assertTrue(decision.path("safety").path("blocking").asBoolean());
-        assertTrue(decision.path("safety").path("allowedActions").toString()
-            .contains("CONTACT_EMERGENCY_SERVICES"));
-        assertFalse(decision.path("allowedActions").toString().contains("ANSWER_SAFETY"));
-        assertEquals("CLARIFICATION_REQUIRED",decision.path("safety").path("state").asText());
-        var downgrade=postWithKey(root+"/safety/clarifications/"+clarificationId+"/answer",
-            json.createObjectNode().put("expectedRevision",decision.path("revision").asLong())
-                .put("value","not_severe").toString(),
-            token,"emergency-downgrade-"+UUID.randomUUID());
-        assertEquals(409,downgrade.statusCode(),downgrade.body());
-        var retained=get(root,token);
-        assertEquals("CRITICAL",json.readTree(retained.body())
-            .path("safety").path("severity").asText());
+    void everyLifecyclePeriodRoutesSafetyFromTheGovernedModelOverHttp() throws Exception {
+        // All-"bad" morning answers: safety_score = 2 * sum(safety_w) against threshold 12.
+        var expected=new java.util.LinkedHashMap<LifecyclePeriod,String>();
+        expected.put(LifecyclePeriod.MENARCHE,"MENARCHE_DIZZINESS");        // 30, M4 = 14
+        expected.put(LifecyclePeriod.CYCLE,null);                           // 6
+        expected.put(LifecyclePeriod.PLANNING,null);                        // 0
+        expected.put(LifecyclePeriod.PREGNANCY,"PREGNANCY_BREATHLESSNESS"); // 60, P7 = P8 = 16, P7 first
+        expected.put(LifecyclePeriod.POSTPARTUM,"POSTPARTUM_BLEEDING");     // 50, PP5 = 16
+        expected.put(LifecyclePeriod.PERIMENOPAUSE,"PERIMENOPAUSE_UNUSUAL_CHANGE"); // 14, PM3 = 8
+        expected.put(LifecyclePeriod.MENOPAUSE,null);                       // 10
+        for (var entry : expected.entrySet()) {
+            var period=entry.getKey();
+            var checkin=startMorningCheckin(period,"safety-"+period.name().toLowerCase());
+            var answered=answerAll(checkin,2);
+            var safety=answered.path("safety");
+            long revision=answered.path("revision").asLong();
+            if (entry.getValue()==null) {
+                assertEquals("CLEAR",safety.path("state").asText(),period+" "+safety);
+                assertFalse(safety.path("blocking").asBoolean(),period.name());
+            } else {
+                assertEquals(entry.getValue(),safety.path("routeCode").asText(),period+" "+safety);
+                assertTrue(safety.path("blocking").asBoolean(),period.name());
+                var resolved=answerSafety(checkin,
+                    safety.path("clarification").path("clarificationId").asText(),revision,"safe",
+                    "period-safe-"+UUID.randomUUID());
+                assertEquals(200,resolved.statusCode(),period+" "+resolved.body());
+                revision=json.readTree(resolved.body()).path("revision").asLong();
+            }
+            var submitted=postWithKey(checkin.root()+"/submit",json.createObjectNode()
+                .put("expectedRevision",revision).toString(),checkin.token(),
+                "period-submit-"+UUID.randomUUID());
+            assertEquals(200,submitted.statusCode(),period+" "+submitted.body());
+        }
     }
 
-
     @Test
-    void menarcheSafetyResolutionAfterWindowCloseAutoFinalizesOverHttp() throws Exception {
-        String email="mn-safety-expired-"+UUID.randomUUID()+"@example.test";
-        DELIVERED_CODE.set(null);
-        var challenge=post("/api/v1/auth/email/challenges",
-            json.createObjectNode().put("email",email).toString(),null);
-        assertEquals(202,challenge.statusCode(),challenge.body());
-        var login=post("/api/v1/auth/email/complete",json.createObjectNode()
-            .put("email",email)
-            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
-            .put("code",DELIVERED_CODE.get()).toString(),null);
-        assertEquals(200,login.statusCode(),login.body());
-        var cred=json.readTree(login.body());
-        String token=cred.path("accessCredential").asText();
-        String userId=authSessions.findById(cred.path("session")
-            .path("sessionId").asText()).orElseThrow().getUserId();
-        var now=Instant.now();
-        var profile=new UserProfileEntity(userId,now);
-        profile.updateLocalization("en","en-US","US","UTC",now);
-        userProfiles.saveAndFlush(profile);
-        lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(
-            UUID.randomUUID().toString(),userId,LifecyclePeriod.MENARCHE,
-            null,now.minusSeconds(86400),null,"safety-deadline-e2e",1.0,true));
-        String phase=LocalTime.now(ZoneOffset.UTC).isBefore(LocalTime.NOON)
-            ? "MORNING" : "EVENING";
-        var started=postWithKey("/api/v1/check-in/sessions",
-            json.createObjectNode().put("phase",phase).toString(),token,
-            "deadline-start-"+UUID.randomUUID());
-        assertEquals(201,started.statusCode(),started.body());
-        var initial=json.readTree(started.body());
-        String sid=initial.path("sessionId").asText();
-        String path="/api/v1/check-in/sessions/"+sid;
-        String cid="expired-"+UUID.randomUUID();
-        jdbc.update("UPDATE momna.checkin_sessions SET safety_blocking = true, " +
-            "safety_state = 'CLARIFICATION_REQUIRED', safety_severity = 'HIGH', " +
-            "safety_route_code = 'MENARCHE_DIZZINESS', safety_decision_version = ?, " +
-            "safety_clarification = CAST(? AS jsonb), " +
-            "safety_allowed_actions = CAST(? AS jsonb), window_closes_at = ? " +
-            "WHERE session_id = ?",
-            "safety.clinical.v1:safety.catalog.v1:MENARCHE_DIZZINESS",
-            json.createObjectNode().put("id",cid).toString(),
-            "[\"CONTACT_CLINICIAN\"]",
-            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),sid);
-        var blocked=get(path,token);
-        assertEquals(200,blocked.statusCode(),blocked.body());
-        assertEquals("DRAFT",json.readTree(blocked.body()).path("status").asText());
-        assertTrue(json.readTree(blocked.body()).path("safety").path("blocking").asBoolean());
-        var resolved=postWithKey(path+"/safety/clarifications/"+cid+"/answer",
-            json.createObjectNode()
-                .put("expectedRevision",json.readTree(blocked.body())
-                    .path("revision").asLong())
-                .put("value","not_sure").toString(),
-            token,"deadline-answer-"+UUID.randomUUID());
+    void checkinSafetyResolutionAfterWindowCloseAutoFinalizesOverHttp() throws Exception {
+        var checkin=startMorningCheckin(LifecyclePeriod.POSTPARTUM,"safety-expired");
+        var blocked=answerAll(checkin,2);
+        String cid=blocked.path("safety").path("clarification").path("clarificationId").asText();
+        jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
+            java.sql.Timestamp.from(Instant.now().minusSeconds(30)),
+            checkin.initial().path("sessionId").asText());
+        var held=get(checkin.root(),checkin.token());
+        assertEquals(200,held.statusCode(),held.body());
+        var heldJson=json.readTree(held.body());
+        assertEquals("PARTIAL",heldJson.path("status").asText());
+        assertTrue(heldJson.path("safety").path("blocking").asBoolean());
+        assertEquals("[\"ANSWER_SAFETY\"]",heldJson.path("allowedActions").toString());
+        var resolved=answerSafety(checkin,cid,heldJson.path("revision").asLong(),"urgent",
+            "deadline-answer-"+UUID.randomUUID());
         assertEquals(200,resolved.statusCode(),resolved.body());
         var data=json.readTree(resolved.body());
         assertEquals("AUTO_FINALIZED",data.path("status").asText());
         assertEquals("WINDOW_CLOSED",data.path("finalizationReason").asText());
         assertFalse(data.path("safety").path("blocking").asBoolean());
         assertEquals("HIGH",data.path("safety").path("severity").asText());
-        var again=get(path,token);
+        var again=get(checkin.root(),checkin.token());
         assertEquals(200,again.statusCode(),again.body());
-        assertEquals(data.path("revision").asLong(),json.readTree(again.body())
-            .path("revision").asLong());
+        assertEquals(data.path("revision").asLong(),json.readTree(again.body()).path("revision").asLong());
     }
 
 

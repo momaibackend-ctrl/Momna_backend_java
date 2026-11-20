@@ -44,10 +44,13 @@ public class FoundationController {
         body.put("status", report.ready() ? "READY" : "NOT_READY");
         body.put(
             "checks",
-            report.checks().stream().map(check -> Map.of(
-                "name", check.name(),
-                "status", check.status().name()
-            )).toList()
+            report.checks().stream().map(check -> {
+                var item = new LinkedHashMap<String, Object>();
+                item.put("name", check.name());
+                item.put("status", check.status().name());
+                item.put("timeoutMs", check.timeoutMs());
+                return item;
+            }).toList()
         );
         return ResponseEntity
             .status(report.ready() ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE)

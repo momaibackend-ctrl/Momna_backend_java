@@ -4,6 +4,7 @@ import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.billing.application.BillingRestoreService;
 import com.momna.modules.checkin.application.CheckinException;
 import com.momna.modules.flow.application.FlowException;
+import com.momna.modules.myday.application.MyDayException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import java.lang.reflect.RecordComponent;
@@ -63,6 +64,27 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.UNAUTHORIZED;
         };
         return ResponseEntity.status(status).body(ApiError.of(ex.code(), publicMessage(ex.code())));
+    }
+
+    @ExceptionHandler(MyDayException.class)
+    ResponseEntity<ApiError> myDay(MyDayException ex) {
+        var status = switch (ex.code()) {
+            case "MY_DAY_NOT_FOUND", "MY_DAY_CARD_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "MY_DAY_NOT_ELIGIBLE" -> HttpStatus.FORBIDDEN;
+            case "MY_DAY_CARD_STATUS_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "MY_DAY_GENERATION_UNAVAILABLE", "MY_DAY_OUTPUT_INVALID" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "MY_DAY_SAFETY_BLOCKED", "MY_DAY_TARGET_CONFLICT", "MY_DAY_CARD_ALREADY_FINAL",
+                 "STALE_REVISION", "IDEMPOTENCY_CONFLICT" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        return ResponseEntity.status(status).body(ApiError.of(ex.code(), switch (status) {
+            case NOT_FOUND -> "My Day not found";
+            case FORBIDDEN -> "My Day is not available for the current lifecycle state";
+            case UNPROCESSABLE_ENTITY -> "My Day request contains an invalid value";
+            case SERVICE_UNAVAILABLE -> "My Day generation is temporarily unavailable";
+            case CONFLICT -> "My Day request conflicts with the current state";
+            default -> "Unexpected server error";
+        }));
     }
 
     @ExceptionHandler(CheckinException.class)

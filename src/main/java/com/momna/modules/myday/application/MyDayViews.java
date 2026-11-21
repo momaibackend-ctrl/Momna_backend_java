@@ -10,7 +10,8 @@ public final class MyDayViews {
     public record MyDayView(
         String myDayId,
         String localDate,
-        String timezone,
+        String timezoneAtGeneration,
+        String status,
         String lifecyclePeriod,
         String language,
         long revision,
@@ -50,4 +51,7 @@ public final class MyDayViews {
     public record SourceView(String phase, String sourceLocalDate, String state, String completionRatio, String effectiveShare) {}
 
     public record GenerateResult(MyDayView myDay, String outcome) {}
+
+    /** MOMNA-1027 entry state of the current local date; GET today never generates. */
+    public record TodayView(String state, String localDate, String timezone, MyDayView myDay) {}
 }

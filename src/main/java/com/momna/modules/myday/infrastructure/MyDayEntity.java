@@ -90,7 +90,7 @@ public class MyDayEntity {
         this.timezoneAtGeneration = timezoneAtGeneration;
         this.lifecyclePeriod = lifecyclePeriod;
         this.language = language;
-        this.status = "ACTIVE";
+        this.status = "READY";
         this.orchestrationId = orchestrationId;
         this.orchestrationVersion = orchestrationVersion;
         this.baselineShare = baselineShare;
@@ -116,6 +116,9 @@ public class MyDayEntity {
     }
 
     public void touch(Instant at) { this.updatedAt = at; }
+
+    /** Served from a similar verified day because generation was unavailable. */
+    public void markDegraded() { this.status = "DEGRADED_READY"; }
 
     public String getMyDayId() { return myDayId; }
     public String getUserId() { return userId; }

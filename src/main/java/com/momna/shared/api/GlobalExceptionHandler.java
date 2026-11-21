@@ -69,15 +69,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MyDayException.class)
     ResponseEntity<ApiError> myDay(MyDayException ex) {
         var status = switch (ex.code()) {
-            case "MY_DAY_NOT_FOUND", "MY_DAY_CARD_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            case "MY_DAY_NOT_ELIGIBLE" -> HttpStatus.FORBIDDEN;
+            case "MY_DAY_NOT_FOUND", "MY_DAY_NOT_GENERATED", "MY_DAY_CARD_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "MY_DAY_CONTEXT_INSUFFICIENT" -> HttpStatus.FORBIDDEN;
             case "MY_DAY_CARD_STATUS_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
-            case "MY_DAY_GENERATION_UNAVAILABLE", "MY_DAY_OUTPUT_INVALID" -> HttpStatus.SERVICE_UNAVAILABLE;
-            case "MY_DAY_SAFETY_BLOCKED", "MY_DAY_TARGET_CONFLICT", "MY_DAY_CARD_ALREADY_FINAL",
+            case "MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "MY_DAY_OUTPUT_INVALID" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "MY_DAY_SAFETY_BLOCKED", "MY_DAY_TARGET_CONFLICT", "MY_DAY_CARD_STATE_CONFLICT",
+                 "MY_DAY_ALREADY_COMPLETED", "MY_DAY_GENERATION_IN_PROGRESS",
                  "STALE_REVISION", "IDEMPOTENCY_CONFLICT" -> HttpStatus.CONFLICT;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
-        return ResponseEntity.status(status).body(ApiError.of(ex.code(), switch (status) {
+        var response = ResponseEntity.status(status);
+        if ("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE".equals(ex.code())) {
+            response.header("Retry-After", "30");
+        }
+        return response.body(ApiError.of(ex.code(), switch (status) {
             case NOT_FOUND -> "My Day not found";
             case FORBIDDEN -> "My Day is not available for the current lifecycle state";
             case UNPROCESSABLE_ENTITY -> "My Day request contains an invalid value";

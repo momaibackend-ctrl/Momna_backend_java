@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MyDayApplicationService {
     private static final Set<String> FINAL_CARD_STATES = Set.of("COMPLETED", "SKIPPED");
+    private static final Set<String> GENERATE_SOURCES = Set.of("HOME", "CHECKIN_HANDOFF", "RETRY");
+    /** MyDayCompleted: every AM and PM card is COMPLETED or SKIPPED; optional cards do not count. */
+    private static final Set<String> COMPLETION_SLOTS = Set.of("AM", "PM");
 
     private final CheckinMyDayOrchestrator orchestrator;
     private final CheckinDayContextService dayContexts;
@@ -53,7 +56,20 @@ public class MyDayApplicationService {
      * My Day(D) through the Check-in orchestrator, which consumes them only after the day is stored.
      */
     @Transactional
-    public GenerateResult generate(String userId) {
+    public GenerateResult generate(String userId, String source, String idempotencyKey) {
+        requireKey(idempotencyKey);
+        var requestSource = source == null || source.isBlank() ? "HOME" : source;
+        if (!GENERATE_SOURCES.contains(requestSource)) {
+            throw new IllegalArgumentException("source must be HOME, CHECKIN_HANDOFF or RETRY");
+        }
+        var fingerprint = sha("generate|" + requestSource);
+        var replay = idempotency.findById(new MyDayIdempotencyId(userId, "generate", idempotencyKey)).orElse(null);
+        if (replay != null) {
+            if (!replay.getFingerprintSha256().equals(fingerprint)) {
+                throw new MyDayException("IDEMPOTENCY_CONFLICT", "Idempotency-Key was used for another request");
+            }
+            return new GenerateResult(view(owned(userId, replay.getResultMyDayId())), "EXISTING");
+        }
         CheckinMyDayOrchestrator.Result result;
         try {
             result = orchestrator.materialize(userId, clock.instant());
@@ -65,17 +81,19 @@ public class MyDayApplicationService {
             };
         }
         if (result.myDayId() == null) {
-            throw new MyDayException("MY_DAY_GENERATION_UNAVAILABLE", "My Day materialization is unavailable");
+            throw new MyDayException("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "My Day materialization is unavailable");
         }
+        idempotency.save(new MyDayIdempotencyEntity(userId, "generate", idempotencyKey, fingerprint,
+            result.myDayId(), clock.instant()));
         return new GenerateResult(view(owned(userId, result.myDayId())), result.materializationOutcome());
     }
 
     @Transactional(readOnly = true)
-    public MyDayView today(String userId) {
-        var localDate = dayContexts.resolve(userId, clock.instant()).localDate();
-        return days.findByUserIdAndLocalDate(userId, localDate)
-            .map(this::view)
-            .orElseThrow(() -> new MyDayException("MY_DAY_NOT_FOUND", "My Day has not been generated today"));
+    public TodayView today(String userId) {
+        var day = dayContexts.resolve(userId, clock.instant());
+        return days.findByUserIdAndLocalDate(userId, day.localDate())
+            .map(found -> new TodayView(found.getStatus(), day.localDate().toString(), day.timezone().getId(), view(found)))
+            .orElseGet(() -> new TodayView("NOT_GENERATED", day.localDate().toString(), day.timezone().getId(), null));
     }
 
     @Transactional(readOnly = true)
@@ -86,9 +104,7 @@ public class MyDayApplicationService {
     @Transactional
     public MyDayView updateCard(String userId, String myDayId, String cardId, long expectedRevision,
                                 String status, String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 200) {
-            throw new IllegalArgumentException("Idempotency-Key is required");
-        }
+        requireKey(idempotencyKey);
         if (status == null || !FINAL_CARD_STATES.contains(status)) {
             throw new MyDayException("MY_DAY_CARD_STATUS_INVALID", "Card status must be COMPLETED or SKIPPED");
         }
@@ -108,7 +124,7 @@ public class MyDayApplicationService {
         var card = cards.findById(new MyDayCardId(myDayId, cardId))
             .orElseThrow(() -> new MyDayException("MY_DAY_CARD_NOT_FOUND", "My Day card not found"));
         if (!"PENDING".equals(card.getStatus())) {
-            throw new MyDayException("MY_DAY_CARD_ALREADY_FINAL", "My Day card is already " + card.getStatus());
+            throw new MyDayException("MY_DAY_CARD_STATE_CONFLICT", "My Day card is already " + card.getStatus());
         }
         var now = clock.instant();
         card.changeStatus(status, now);
@@ -125,8 +141,33 @@ public class MyDayApplicationService {
             now,
             Map.of("schemaVersion", 1, "myDayId", myDayId, "userId", userId, "cardId", cardId,
                 "slot", card.getSlot(), "localDate", day.getLocalDate().toString())));
+        publishCompletionOnce(day, now);
         idempotency.save(new MyDayIdempotencyEntity(userId, "card", idempotencyKey, fingerprint, myDayId, now));
         return view(day);
+    }
+
+    /**
+     * AM and PM cards never return to PENDING, so the day completes exactly once: on the update
+     * that finalises the last of them. The deterministic event id keeps it once per day.
+     */
+    private void publishCompletionOnce(MyDayEntity day, java.time.Instant at) {
+        var counted = cards.findByMyDayIdOrderBySlotAscPositionAsc(day.getMyDayId()).stream()
+            .filter(c -> COMPLETION_SLOTS.contains(c.getSlot()))
+            .toList();
+        if (counted.isEmpty() || !counted.stream().allMatch(c -> FINAL_CARD_STATES.contains(c.getStatus()))) return;
+        var eventId = "myday-completed-" + day.getMyDayId();
+        if (outbox.existsById(eventId)) return;
+        long completed = counted.stream().filter(c -> "COMPLETED".equals(c.getStatus())).count();
+        outbox.save(new OutboxEventEntity(eventId, "MyDayCompleted", at, Map.of(
+            "schemaVersion", 1, "myDayId", day.getMyDayId(), "userId", day.getUserId(),
+            "localDate", day.getLocalDate().toString(),
+            "completedCount", completed, "skippedCount", counted.size() - completed)));
+    }
+
+    private static void requireKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 200) {
+            throw new IllegalArgumentException("Idempotency-Key is required");
+        }
     }
 
     private MyDayEntity owned(String userId, String myDayId) {
@@ -149,6 +190,7 @@ public class MyDayApplicationService {
             day.getMyDayId(),
             day.getLocalDate().toString(),
             day.getTimezoneAtGeneration(),
+            day.getStatus(),
             day.getLifecyclePeriod(),
             day.getLanguage(),
             day.getRevision(),

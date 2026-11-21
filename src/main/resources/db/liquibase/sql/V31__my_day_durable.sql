@@ -8,7 +8,7 @@ CREATE TABLE momna.my_days (
     timezone_at_generation TEXT NOT NULL,
     lifecycle_period TEXT NOT NULL CHECK (lifecycle_period IN ('MENARCHE','CYCLE','PLANNING','PREGNANCY','POSTPARTUM','PERIMENOPAUSE','MENOPAUSE')),
     language TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('ACTIVE')),
+    status TEXT NOT NULL CHECK (status IN ('READY','DEGRADED_READY')),
     revision BIGINT NOT NULL CHECK (revision >= 0),
     orchestration_id TEXT NOT NULL,
     orchestration_version TEXT NOT NULL,
@@ -56,3 +56,22 @@ CREATE TABLE momna.my_day_idempotency (
 );
 
 CREATE INDEX idx_my_days_user_date ON momna.my_days(user_id, local_date DESC);
+
+-- Verified generation results reusable across users (generation spec: semantic cache, TTL 90 days).
+-- A template, never a user's history: no user id, no progress. Deleting it never deletes a My Day.
+CREATE TABLE momna.my_day_generation_cache (
+    cache_key TEXT PRIMARY KEY,
+    life_mode TEXT NOT NULL,
+    language TEXT NOT NULL,
+    cards JSONB NOT NULL CHECK (jsonb_typeof(cards) = 'array' AND jsonb_array_length(cards) = 9),
+    card_source TEXT NOT NULL,
+    generation_policy_version TEXT NOT NULL,
+    prompt_version TEXT,
+    model_ref TEXT,
+    safety_version TEXT,
+    created_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL CHECK (expires_at > created_at)
+);
+
+CREATE INDEX idx_my_day_generation_cache_similar
+    ON momna.my_day_generation_cache(life_mode, language, expires_at DESC);

@@ -6,6 +6,8 @@ import com.momna.modules.profile.application.ProfileService;
 import com.momna.shared.outbox.OutboxEventEntity;
 import com.momna.shared.outbox.OutboxEventRepository;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,6 +27,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class MyDayMaterializationService implements MyDayMaterializationPort {
     public static final String GENERATION_POLICY_VERSION = "myday.generation.v1";
+    public static final String CACHE_FALLBACK_SOURCE = "CACHE_FALLBACK";
+    /** Generation spec: cache TTL 90 days. */
+    public static final Duration CACHE_TTL = Duration.ofDays(90);
 
     private final MyDayRepository days;
     private final MyDayCardRepository cards;
@@ -32,6 +37,7 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
     private final LifecycleQueryService lifecycle;
     private final ProfileService profiles;
     private final ObjectProvider<MyDayCardSource> cardSources;
+    private final MyDayGenerationCacheRepository cache;
     private final Clock clock = Clock.systemUTC();
 
     public MyDayMaterializationService(
@@ -40,8 +46,10 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         OutboxEventRepository outbox,
         LifecycleQueryService lifecycle,
         ProfileService profiles,
-        ObjectProvider<MyDayCardSource> cardSources
+        ObjectProvider<MyDayCardSource> cardSources,
+        MyDayGenerationCacheRepository cache
     ) {
+        this.cache = cache;
         this.days = days;
         this.cards = cards;
         this.outbox = outbox;
@@ -68,28 +76,41 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
             return new Result(existing.getMyDayId(), "PROVENANCE_UPDATED", command.orchestrationId());
         }
 
-        var source = cardSources.getIfAvailable();
-        if (source == null) {
-            throw new MyDayException("MY_DAY_GENERATION_UNAVAILABLE", "No My Day card source is configured");
-        }
         var period = lifecycle.current(command.userId(), now).primary();
         if (period == null) {
-            throw new MyDayException("MY_DAY_NOT_ELIGIBLE", "Lifecycle period is required for My Day");
+            throw new MyDayException("MY_DAY_CONTEXT_INSUFFICIENT", "Lifecycle period is required for My Day");
         }
         var periodCode = period.period().name();
+        var lifeMode = MyDayCards.LIFE_MODES.get(periodCode);
         var language = language(command.userId());
-        var generated = source.generate(new MyDayCardSource.Input(
-            command.userId(), command.localDate(), command.timezone(), periodCode,
-            MyDayCards.LIFE_MODES.get(periodCode), language, command.orchestrationId(),
-            command.baseline().share(), command.sources(), command.adjustments()));
-        MyDayCards.requireComplete(generated.cards());
+        MyDayCards.GeneratedDay generated;
+        boolean degraded = false;
+        try {
+            var source = cardSources.getIfAvailable();
+            if (source == null) {
+                throw new MyDayException("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "No My Day card source is configured");
+            }
+            generated = source.generate(new MyDayCardSource.Input(
+                command.userId(), command.localDate(), command.timezone(), periodCode, lifeMode, language,
+                command.orchestrationId(), command.baseline().share(), command.sources(), command.adjustments()));
+            MyDayCards.requireComplete(generated.cards());
+            remember(generated, lifeMode, language, now);
+        } catch (RuntimeException failure) {
+            // Generation spec: an unavailable or invalid answer is never shown. Serve a verified day of
+            // the same period and language if one exists, otherwise "not ready yet, retry".
+            generated = similarVerifiedDay(lifeMode, language, now).orElseThrow(() -> new MyDayException(
+                "MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "My Day is not ready yet"));
+            degraded = true;
+        }
 
         var myDayId = UUID.randomUUID().toString();
-        days.saveAndFlush(new MyDayEntity(
+        var day = new MyDayEntity(
             myDayId, command.userId(), command.localDate(), command.timezone(), periodCode, language,
             command.orchestrationId(), command.orchestrationVersion(), command.baseline().share(),
             provenance(command), generated.cardSource(), generated.generationPolicyVersion(),
-            generated.promptVersion(), generated.modelRef(), generated.safetyVersion(), generated.cacheKey(), now));
+            generated.promptVersion(), generated.modelRef(), generated.safetyVersion(), generated.cacheKey(), now);
+        if (degraded) day.markDegraded();
+        days.saveAndFlush(day);
         for (var card : generated.cards()) {
             cards.save(new MyDayCardEntity(myDayId, cardId(card.slot(), card.position()), card.slot(),
                 card.position(), card.title(), card.microcopy(), card.whatToDo(), card.whyToday(),
@@ -102,9 +123,50 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
             "localDate", command.localDate().toString(),
             "cardCount", generated.cards().size(),
             "cardSource", generated.cardSource(),
+            "degraded", degraded,
             "generationPolicyVersion", generated.generationPolicyVersion()
         )));
         return new Result(myDayId, "CREATED", command.orchestrationId());
+    }
+
+    /** Similar = same life mode and language, unexpired. Overlay matching joins once overlays exist. */
+    private java.util.Optional<MyDayCards.GeneratedDay> similarVerifiedDay(String lifeMode, String language, Instant now) {
+        return cache.findFirstByLifeModeAndLanguageAndExpiresAtAfterOrderByCreatedAtDesc(lifeMode, language, now)
+            .map(entry -> new MyDayCards.GeneratedDay(
+                entry.getCards().stream().map(MyDayMaterializationService::card).toList(),
+                CACHE_FALLBACK_SOURCE, entry.getGenerationPolicyVersion(), entry.getPromptVersion(),
+                entry.getModelRef(), entry.getSafetyVersion(), entry.getCacheKey()));
+    }
+
+    private void remember(MyDayCards.GeneratedDay generated, String lifeMode, String language, Instant now) {
+        if (generated.cacheKey() == null || generated.cacheKey().isBlank()) return;
+        var existing = cache.findById(generated.cacheKey()).orElse(null);
+        if (existing != null && existing.getExpiresAt().isAfter(now)) return;
+        cache.save(new MyDayGenerationCacheEntity(generated.cacheKey(), lifeMode, language,
+            generated.cards().stream().map(MyDayMaterializationService::map).toList(), generated.cardSource(),
+            generated.generationPolicyVersion(), generated.promptVersion(), generated.modelRef(),
+            generated.safetyVersion(), now, now.plus(CACHE_TTL)));
+    }
+
+    private static Map<String, Object> map(MyDayCards.Card card) {
+        var item = new LinkedHashMap<String, Object>();
+        item.put("slot", card.slot());
+        item.put("position", card.position());
+        item.put("title", card.title());
+        item.put("microcopy", card.microcopy());
+        item.put("whatToDo", card.whatToDo());
+        item.put("whyToday", card.whyToday());
+        item.put("howToDo", card.howToDo());
+        item.put("ifSkipped", card.ifSkipped());
+        item.put("support", card.support());
+        return item;
+    }
+
+    private static MyDayCards.Card card(Map<String, Object> item) {
+        return new MyDayCards.Card((String) item.get("slot"), ((Number) item.get("position")).intValue(),
+            (String) item.get("title"), (String) item.get("microcopy"), (String) item.get("whatToDo"),
+            (String) item.get("whyToday"), (String) item.get("howToDo"), (String) item.get("ifSkipped"),
+            (String) item.get("support"));
     }
 
     public static String cardId(String slot, int position) {

@@ -72,7 +72,7 @@ class MyDayHttpE2eTest {
         MyDayCardSource fixtureCardSource() {
             return input -> {
                 if (SOURCE_DOWN.get()) {
-                    throw new MyDayException("MY_DAY_GENERATION_UNAVAILABLE", "Fixture source is down");
+                    throw new MyDayException("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "Fixture source is down");
                 }
                 SOURCE_CALLS.add(input);
                 var cards = new ArrayList<MyDayCards.Card>();
@@ -83,7 +83,7 @@ class MyDayHttpE2eTest {
                     }
                 }
                 return new MyDayCards.GeneratedDay(cards, "TEST_FIXTURE", "myday.generation.v1",
-                    "test.prompt.v1", "test-model", "safety.catalog.v1", "test-cache-key");
+                    "test.prompt.v1", "test-model", "safety.catalog.v1", "fixture:" + input.lifeMode() + ":" + input.language());
             };
         }
     }
@@ -123,13 +123,31 @@ class MyDayHttpE2eTest {
         assertEquals(1, jdbc.queryForObject(
             "SELECT count(*) FROM momna.my_days WHERE user_id = ?", Integer.class, user.userId()));
 
+        assertEquals("READY", day.path("status").asText());
         var today = get("/api/v1/my-day/today", user.token());
         assertEquals(200, today.statusCode(), today.body());
-        assertEquals(day.path("myDayId").asText(), json.readTree(today.body()).path("myDayId").asText());
+        var todayJson = json.readTree(today.body());
+        assertEquals("READY", todayJson.path("state").asText());
+        assertEquals(day.path("myDayId").asText(), todayJson.path("myDay").path("myDayId").asText());
+
+        // Idempotency-Key: required; a replay returns the same day; reuse for another request conflicts.
+        var noKey = send("POST", "/api/v1/my-day/generate", "{}", user, null);
+        assertTrue(noKey.statusCode() >= 400 && noKey.statusCode() < 500, noKey.body());
+        String key = "gen-" + UUID.randomUUID();
+        var first = send("POST", "/api/v1/my-day/generate", "{\"source\":\"HOME\"}", user, key);
+        assertEquals(200, first.statusCode(), first.body());
+        var replay = send("POST", "/api/v1/my-day/generate", "{\"source\":\"HOME\"}", user, key);
+        assertEquals(200, replay.statusCode(), replay.body());
+        assertEquals(day.path("myDayId").asText(), json.readTree(replay.body()).path("myDayId").asText());
+        assertEquals("IDEMPOTENCY_CONFLICT", code(send("POST", "/api/v1/my-day/generate",
+            "{\"source\":\"RETRY\"}", user, key)));
 
         var stranger = user(LifecyclePeriod.CYCLE, "myday-stranger");
         assertEquals(404, get("/api/v1/my-day/" + day.path("myDayId").asText(), stranger.token()).statusCode());
-        assertEquals(404, get("/api/v1/my-day/today", stranger.token()).statusCode());
+        var strangerToday = get("/api/v1/my-day/today", stranger.token());
+        assertEquals(200, strangerToday.statusCode(), strangerToday.body());
+        assertEquals("NOT_GENERATED", json.readTree(strangerToday.body()).path("state").asText());
+        assertTrue(json.readTree(strangerToday.body()).path("myDay").isNull());
         assertEquals(401, get("/api/v1/my-day/" + day.path("myDayId").asText(), null).statusCode());
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
             "WHERE event_type = 'MyDayGenerated' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
@@ -158,7 +176,7 @@ class MyDayHttpE2eTest {
         assertEquals("IDEMPOTENCY_CONFLICT", code(patch(root + "/cards/am-1", revision, "SKIPPED", user, key)));
         assertEquals("STALE_REVISION", code(patch(root + "/cards/pm-1", revision, "SKIPPED", user, "k-" + UUID.randomUUID())));
         long current = doneJson.path("revision").asLong();
-        assertEquals("MY_DAY_CARD_ALREADY_FINAL", code(patch(root + "/cards/am-1", current, "SKIPPED", user, "k-" + UUID.randomUUID())));
+        assertEquals("MY_DAY_CARD_STATE_CONFLICT", code(patch(root + "/cards/am-1", current, "SKIPPED", user, "k-" + UUID.randomUUID())));
         var invalid = patch(root + "/cards/pm-1", current, "PENDING", user, "k-" + UUID.randomUUID());
         assertEquals(422, invalid.statusCode(), invalid.body());
         var unknown = patch(root + "/cards/zz-9", current, "SKIPPED", user, "k-" + UUID.randomUUID());
@@ -180,6 +198,29 @@ class MyDayHttpE2eTest {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
             "WHERE event_type = 'MyDayCardSkipped' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
 
+        // MyDayCompleted: once, when every AM and PM card is final; optional cards do not count.
+        long revisionNow = json.readTree(skipped.body()).path("revision").asLong();
+        for (var cardId : List.of("am-2", "am-3", "pm-1", "pm-2", "pm-3")) {
+            String status = "pm-3".equals(cardId) ? "SKIPPED" : "COMPLETED";
+            String countBefore = String.valueOf(jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
+                "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
+            assertEquals("0", countBefore, "completed before " + cardId);
+            var updated = patch(root + "/cards/" + cardId, revisionNow, status, user, "k-" + UUID.randomUUID());
+            assertEquals(200, updated.statusCode(), updated.body());
+            revisionNow = json.readTree(updated.body()).path("revision").asLong();
+        }
+        var completion = jdbc.queryForList("SELECT payload::text AS p FROM momna.transactional_outbox " +
+            "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", day.path("myDayId").asText());
+        assertEquals(1, completion.size());
+        var completionPayload = json.readTree((String) completion.get(0).get("p"));
+        assertEquals(5, completionPayload.path("completedCount").asInt());
+        assertEquals(1, completionPayload.path("skippedCount").asInt());
+        assertFalse(completion.get(0).get("p").toString().contains("Fixture"));
+        var optional = patch(root + "/cards/optional-1", revisionNow, "COMPLETED", user, "k-" + UUID.randomUUID());
+        assertEquals(200, optional.statusCode(), optional.body());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
+            "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
+
         var stranger = user(LifecyclePeriod.PREGNANCY, "myday-progress-stranger");
         var foreign = patch(root + "/cards/pm-1", current, "SKIPPED", stranger, "k-" + UUID.randomUUID());
         assertEquals(404, foreign.statusCode(), foreign.body());
@@ -187,7 +228,8 @@ class MyDayHttpE2eTest {
 
     @Test
     void submittedMorningCheckinFeedsTheDayAndIsConsumedOnlyAfterItIsStored() throws Exception {
-        var user = user(LifecyclePeriod.CYCLE, "myday-morning");
+        // PLANNING: no other test generates it, so there is no verified day to fall back to.
+        var user = user(LifecyclePeriod.PLANNING, "myday-morning");
         var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
         String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
@@ -204,7 +246,8 @@ class MyDayHttpE2eTest {
         try {
             var failed = post("/api/v1/my-day/generate", user);
             assertEquals(503, failed.statusCode(), failed.body());
-            assertEquals("MY_DAY_GENERATION_UNAVAILABLE", json.readTree(failed.body()).path("code").asText());
+            assertEquals("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", json.readTree(failed.body()).path("code").asText());
+            assertEquals("30", failed.headers().firstValue("Retry-After").orElse(null));
         } finally {
             SOURCE_DOWN.set(false);
         }
@@ -226,6 +269,29 @@ class MyDayHttpE2eTest {
         assertEquals(day.path("myDayId").asText(), jdbc.queryForObject(
             "SELECT consumed_by_ref FROM momna.checkin_sessions WHERE session_id = ?",
             String.class, session.path("sessionId").asText()));
+    }
+
+    @Test
+    void whenGenerationIsDownASimilarVerifiedDayIsServedAsDegraded() throws Exception {
+        var first = user(LifecyclePeriod.MENOPAUSE, "myday-cache-source");
+        assertEquals(201, post("/api/v1/my-day/generate", first).statusCode());
+        SOURCE_DOWN.set(true);
+        try {
+            var second = user(LifecyclePeriod.MENOPAUSE, "myday-cache-fallback");
+            var served = post("/api/v1/my-day/generate", second);
+            assertEquals(201, served.statusCode(), served.body());
+            var day = json.readTree(served.body());
+            assertEquals("DEGRADED_READY", day.path("status").asText());
+            assertEquals("CACHE_FALLBACK", day.path("provenance").path("cardSource").asText());
+            assertEquals(9, day.path("cards").size());
+            assertEquals("DEGRADED_READY", json.readTree(get("/api/v1/my-day/today", second.token()).body())
+                .path("state").asText());
+            // The cache is a template, not the other user's day: separate ids, separate progress.
+            assertNotEquals(json.readTree(get("/api/v1/my-day/today", first.token()).body())
+                .path("myDay").path("myDayId").asText(), day.path("myDayId").asText());
+        } finally {
+            SOURCE_DOWN.set(false);
+        }
     }
 
     private User user(LifecyclePeriod period, String label) throws Exception {
@@ -257,7 +323,7 @@ class MyDayHttpE2eTest {
     }
 
     private HttpResponse<String> post(String path, User user) throws Exception {
-        return send("POST", path, "{}", user, null);
+        return send("POST", path, "{}", user, "gen-" + UUID.randomUUID());
     }
 
     private HttpResponse<String> postWithKey(String path, String body, User user, String key) throws Exception {

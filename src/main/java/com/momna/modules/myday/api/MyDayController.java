@@ -4,6 +4,7 @@ import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.auth.domain.AuthenticatedActor;
 import com.momna.modules.myday.application.MyDayApplicationService;
 import com.momna.modules.myday.application.MyDayViews.MyDayView;
+import com.momna.modules.myday.application.MyDayViews.TodayView;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,15 +22,20 @@ public class MyDayController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<MyDayView> generate(Authentication authentication) {
-        var result = myDay.generate(actor(authentication).userId());
+    public ResponseEntity<MyDayView> generate(
+        Authentication authentication,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @RequestBody(required = false) GenerateRequest request
+    ) {
+        var result = myDay.generate(actor(authentication).userId(),
+            request == null ? null : request.source(), idempotencyKey);
         return "CREATED".equals(result.outcome())
             ? ResponseEntity.status(201).body(result.myDay())
             : ResponseEntity.ok(result.myDay());
     }
 
     @GetMapping("/today")
-    public MyDayView today(Authentication authentication) {
+    public TodayView today(Authentication authentication) {
         return myDay.today(actor(authentication).userId());
     }
 
@@ -49,6 +55,9 @@ public class MyDayController {
         return myDay.updateCard(actor(authentication).userId(), myDayId, cardId,
             request.expectedRevision(), request.status(), idempotencyKey);
     }
+
+    /** Only a safe origin is accepted; lifecycle, answers, weights, prompts and models never come from the client. */
+    public record GenerateRequest(String source) {}
 
     public record CardProgressRequest(@NotNull Long expectedRevision, @NotBlank String status) {}
 

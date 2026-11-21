@@ -48,6 +48,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", message, Map.of(error.getField(), missing ? "required" : "invalid")));
     }
 
+    /** Matches the working Kotlin API: a missing or blank Idempotency-Key is 400 IDEMPOTENCY_KEY_REQUIRED. */
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    ResponseEntity<ApiError> missingHeader(org.springframework.web.bind.MissingRequestHeaderException ex) {
+        if ("Idempotency-Key".equalsIgnoreCase(ex.getHeaderName())) {
+            return ResponseEntity.badRequest().body(ApiError.of("IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key is required"));
+        }
+        return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request is invalid"));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> badRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request is invalid"));

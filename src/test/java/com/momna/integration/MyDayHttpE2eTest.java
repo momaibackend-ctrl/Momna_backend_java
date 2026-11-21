@@ -132,7 +132,8 @@ class MyDayHttpE2eTest {
 
         // Idempotency-Key: required; a replay returns the same day; reuse for another request conflicts.
         var noKey = send("POST", "/api/v1/my-day/generate", "{}", user, null);
-        assertTrue(noKey.statusCode() >= 400 && noKey.statusCode() < 500, noKey.body());
+        assertEquals(400, noKey.statusCode(), noKey.body());
+        assertEquals("IDEMPOTENCY_KEY_REQUIRED", json.readTree(noKey.body()).path("code").asText());
         String key = "gen-" + UUID.randomUUID();
         var first = send("POST", "/api/v1/my-day/generate", "{\"source\":\"HOME\"}", user, key);
         assertEquals(200, first.statusCode(), first.body());

@@ -162,3 +162,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-my-day-drop-shared-generation-cache-v32
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V32__my_day_drop_shared_generation_cache.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

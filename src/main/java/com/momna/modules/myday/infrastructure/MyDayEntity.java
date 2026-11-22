@@ -117,8 +117,6 @@ public class MyDayEntity {
 
     public void touch(Instant at) { this.updatedAt = at; }
 
-    /** Served from a similar verified day because generation was unavailable. */
-    public void markDegraded() { this.status = "DEGRADED_READY"; }
 
     public String getMyDayId() { return myDayId; }
     public String getUserId() { return userId; }

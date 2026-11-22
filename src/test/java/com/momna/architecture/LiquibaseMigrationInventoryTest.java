@@ -22,8 +22,8 @@ class LiquibaseMigrationInventoryTest {
                 .map(path -> path.getFileName().toString())
                 .collect(Collectors.toSet());
 
-            assertEquals(31, names.size());
-            for (int version = 1; version <= 31; version++) {
+            assertEquals(32, names.size());
+            for (int version = 1; version <= 32; version++) {
                 var prefix = "V" + version + "__";
                 var count = names.stream()
                     .filter(name -> name.startsWith(prefix))

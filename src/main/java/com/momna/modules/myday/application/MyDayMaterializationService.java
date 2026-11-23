@@ -17,10 +17,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
- * The durable side of My Day: one personal day per (user, local date). A new day takes its
- * cards from the configured {@link MyDayCardSource}; a later Check-in for the same day only
- * updates provenance, so card identity and progress are never lost. Called by the Check-in
- * orchestrator, which consumes the source sessions after this returns.
+ * The durable side of My Day: one personal day per (user, local date), generated once. A new day
+ * takes its cards from the configured {@link MyDayCardSource}; its sources are fixed at that moment
+ * and nothing later changes them (MOMNA-989, 23.11.2026). Called by the Check-in orchestrator, which
+ * consumes the source sessions after this returns.
  */
 @Service
 public class MyDayMaterializationService implements MyDayMaterializationPort {
@@ -59,13 +59,8 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
             throw new MyDayException("MY_DAY_TARGET_CONFLICT", "Check-in points to another My Day");
         }
         if (existing != null) {
-            if (existing.getOrchestrationId().equals(command.orchestrationId())) {
-                return new Result(existing.getMyDayId(), "UNCHANGED", command.orchestrationId());
-            }
-            existing.recordOrchestration(command.orchestrationId(), command.orchestrationVersion(),
-                command.baseline().share(), provenance(command), now);
-            days.save(existing);
-            return new Result(existing.getMyDayId(), "PROVENANCE_UPDATED", command.orchestrationId());
+            // One generation per day: the stored day is returned as it is, with its own sources.
+            return new Result(existing.getMyDayId(), "EXISTING", existing.getOrchestrationId());
         }
 
         var period = lifecycle.current(command.userId(), now).primary();
@@ -112,6 +107,11 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
             "generationPolicyVersion", generated.generationPolicyVersion()
         )));
         return new Result(myDayId, "CREATED", command.orchestrationId());
+    }
+
+    @Override
+    public java.util.Optional<String> findMyDayId(String userId, LocalDate localDate) {
+        return days.findByUserIdAndLocalDate(userId, localDate).map(MyDayEntity::getMyDayId);
     }
 
     private static MyDayException notReady() {

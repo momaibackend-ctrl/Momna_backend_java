@@ -71,23 +71,26 @@ class MyDayMaterializationServiceTest {
     }
 
     @Test
-    void sameOrchestrationIsUnchangedAndNeverRegenerates() {
+    void sameOrchestrationReturnsTheStoredDayAndNeverRegenerates() {
         when(days.findByUserIdAndLocalDate("u1", DAY)).thenReturn(Optional.of(existing("orch-1")));
         var result = service.upsert(command(null, "orch-1"));
-        assertEquals("UNCHANGED", result.outcome());
+        assertEquals("EXISTING", result.outcome());
         assertEquals("day-1", result.myDayId());
         verifyNoInteractions(sources, source, cards, outbox);
     }
 
+    /** One generation per day (MOMNA-989, 23.11.2026): a later source never changes a stored day. */
     @Test
-    void laterCheckinUpdatesProvenanceOnlyAndKeepsCardsAndProgress() {
+    void laterSourcesNeverChangeAStoredDay() {
         var day = existing("orch-1");
         when(days.findByUserIdAndLocalDate("u1", DAY)).thenReturn(Optional.of(day));
         var result = service.upsert(command("day-1", "orch-2"));
-        assertEquals("PROVENANCE_UPDATED", result.outcome());
-        assertEquals("orch-2", day.getOrchestrationId());
-        assertEquals("2026-11-20", ((List<Map<String, Object>>) day.getProvenance().get("sources")).stream()
-            .filter(s -> "EVENING".equals(s.get("phase"))).findFirst().orElseThrow().get("sourceLocalDate"));
+        assertEquals("EXISTING", result.outcome());
+        assertEquals("orch-1", result.appliedOrchestrationId());
+        assertEquals("orch-1", day.getOrchestrationId());
+        assertEquals(Map.of(), day.getProvenance());
+        verify(days, never()).save(any());
+        verify(days, never()).saveAndFlush(any());
         verifyNoInteractions(sources, source, cards, outbox);
     }
 

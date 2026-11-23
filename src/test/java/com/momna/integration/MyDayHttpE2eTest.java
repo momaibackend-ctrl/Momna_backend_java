@@ -96,6 +96,8 @@ class MyDayHttpE2eTest {
     @Autowired UserProfileRepository userProfiles;
     @Autowired LifecyclePeriodHistoryRepository lifecycleHistory;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired com.momna.modules.checkin.infrastructure.CheckinSessionRepository checkinSessions;
+    @Autowired com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog checkinDefinitions;
 
     private record User(String token, String userId) {}
 
@@ -177,8 +179,9 @@ class MyDayHttpE2eTest {
         assertEquals("IDEMPOTENCY_CONFLICT", code(patch(root + "/cards/am-1", revision, "SKIPPED", user, key)));
         assertEquals("STALE_REVISION", code(patch(root + "/cards/pm-1", revision, "SKIPPED", user, "k-" + UUID.randomUUID())));
         long current = doneJson.path("revision").asLong();
-        assertEquals("MY_DAY_CARD_STATE_CONFLICT", code(patch(root + "/cards/am-1", current, "SKIPPED", user, "k-" + UUID.randomUUID())));
-        var invalid = patch(root + "/cards/pm-1", current, "PENDING", user, "k-" + UUID.randomUUID());
+        assertEquals("MY_DAY_CARD_STATE_CONFLICT", code(patch(root + "/cards/am-1", current, "COMPLETED", user, "k-" + UUID.randomUUID())));
+        assertEquals("MY_DAY_CARD_STATE_CONFLICT", code(patch(root + "/cards/pm-1", current, "PENDING", user, "k-" + UUID.randomUUID())));
+        var invalid = patch(root + "/cards/pm-1", current, "DONE", user, "k-" + UUID.randomUUID());
         assertEquals(422, invalid.statusCode(), invalid.body());
         var unknown = patch(root + "/cards/zz-9", current, "SKIPPED", user, "k-" + UUID.randomUUID());
         assertEquals(404, unknown.statusCode(), unknown.body());
@@ -199,14 +202,24 @@ class MyDayHttpE2eTest {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
             "WHERE event_type = 'MyDayCardSkipped' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
 
-        // MyDayCompleted: once, when every AM and PM card is final; optional cards do not count.
+        // "Mark as Not Completed" (design D-7): a mark can be taken back and given again.
         long revisionNow = json.readTree(skipped.body()).path("revision").asLong();
+        var reopened = patch(root + "/cards/am-1", revisionNow, "PENDING", user, "k-" + UUID.randomUUID());
+        assertEquals(200, reopened.statusCode(), reopened.body());
+        var reopenedCard = json.readTree(reopened.body()).path("cards").get(0);
+        assertEquals("PENDING", reopenedCard.path("status").asText());
+        assertTrue(reopenedCard.path("statusChangedAt").isNull());
+        revisionNow = json.readTree(reopened.body()).path("revision").asLong();
+        var redone = patch(root + "/cards/am-1", revisionNow, "COMPLETED", user, "k-" + UUID.randomUUID());
+        assertEquals(200, redone.statusCode(), redone.body());
+        revisionNow = json.readTree(redone.body()).path("revision").asLong();
+        assertEquals(2, outboxCount("MyDayCardCompleted", day.path("myDayId").asText()));
+        assertEquals(1, outboxCount("MyDayCardReopened", day.path("myDayId").asText()));
+
+        // MyDayCompleted: once, when every AM and PM card is COMPLETED; optional cards do not count.
         for (var cardId : List.of("am-2", "am-3", "pm-1", "pm-2", "pm-3")) {
-            String status = "pm-3".equals(cardId) ? "SKIPPED" : "COMPLETED";
-            String countBefore = String.valueOf(jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
-                "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
-            assertEquals("0", countBefore, "completed before " + cardId);
-            var updated = patch(root + "/cards/" + cardId, revisionNow, status, user, "k-" + UUID.randomUUID());
+            assertEquals(0, outboxCount("MyDayCompleted", day.path("myDayId").asText()), "completed before " + cardId);
+            var updated = patch(root + "/cards/" + cardId, revisionNow, "COMPLETED", user, "k-" + UUID.randomUUID());
             assertEquals(200, updated.statusCode(), updated.body());
             revisionNow = json.readTree(updated.body()).path("revision").asLong();
         }
@@ -214,13 +227,18 @@ class MyDayHttpE2eTest {
             "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", day.path("myDayId").asText());
         assertEquals(1, completion.size());
         var completionPayload = json.readTree((String) completion.get(0).get("p"));
-        assertEquals(5, completionPayload.path("completedCount").asInt());
-        assertEquals(1, completionPayload.path("skippedCount").asInt());
+        assertEquals(6, completionPayload.path("completedCount").asInt());
         assertFalse(completion.get(0).get("p").toString().contains("Fixture"));
+        // Taking a mark back and giving it again never completes the day a second time.
+        var undo = patch(root + "/cards/pm-3", revisionNow, "PENDING", user, "k-" + UUID.randomUUID());
+        assertEquals(200, undo.statusCode(), undo.body());
+        var again = patch(root + "/cards/pm-3", json.readTree(undo.body()).path("revision").asLong(), "COMPLETED",
+            user, "k-" + UUID.randomUUID());
+        assertEquals(200, again.statusCode(), again.body());
+        revisionNow = json.readTree(again.body()).path("revision").asLong();
         var optional = patch(root + "/cards/optional-1", revisionNow, "COMPLETED", user, "k-" + UUID.randomUUID());
         assertEquals(200, optional.statusCode(), optional.body());
-        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
-            "WHERE event_type = 'MyDayCompleted' AND payload->>'myDayId' = ?", Integer.class, day.path("myDayId").asText()));
+        assertEquals(1, outboxCount("MyDayCompleted", day.path("myDayId").asText()));
 
         var stranger = user(LifecyclePeriod.PREGNANCY, "myday-progress-stranger");
         var foreign = patch(root + "/cards/pm-1", current, "SKIPPED", stranger, "k-" + UUID.randomUUID());
@@ -266,6 +284,8 @@ class MyDayHttpE2eTest {
         assertEquals("SUBMITTED", sources.get(0).path("state").asText());
         assertTrue(day.path("provenance").path("baselineShare").asDouble() < 1.0);
         assertFalse(sources.get(0).has("sourceRef"), "session ids are not part of the public provenance");
+        assertEquals("PERSONAL", day.path("kind").asText());
+        assertEquals("Personal", day.path("badge").asText());
         assertEquals(day.path("myDayId").asText(), jdbc.queryForObject(
             "SELECT consumed_by_ref FROM momna.checkin_sessions WHERE session_id = ?",
             String.class, session.path("sessionId").asText()));
@@ -291,7 +311,149 @@ class MyDayHttpE2eTest {
         }
     }
 
+    /**
+     * One generation per day (MOMNA-989, 23.11.2026): once the plan exists, the morning Check-in is
+     * closed until the evening with Product's text, and a draft started earlier cannot join the day.
+     */
+    @Test
+    void afterThePlanTheMorningCheckinIsClosedWithTheProductText() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "myday-morning-closed");
+        var draft = json.readTree(postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
+        var open = morningSummary(user);
+        assertEquals("RESUME", open.path("allowedEntryAction").asText(), open.toString());
+        assertTrue(open.path("entryBlockedReason").isNull(), open.toString());
+
+        assertEquals(201, post("/api/v1/my-day/generate", user).statusCode());
+
+        var closed = morningSummary(user);
+        assertEquals("NONE", closed.path("allowedEntryAction").asText(), closed.toString());
+        assertEquals("MY_DAY_PLAN_ALREADY_SET", closed.path("entryBlockedReason").asText());
+        assertEquals("Today's plan is already set. You can check in this evening, and every morning before your plan is made.",
+            closed.path("entryBlockedText").asText());
+        var profile = userProfiles.findById(user.userId()).orElseThrow();
+        profile.updateLocalization("ru", "ru-RU", "RU", profile.getTimezone(), Instant.now());
+        userProfiles.saveAndFlush(profile);
+        assertEquals("План на сегодня уже составлен. Вы можете пройти чек-ин сегодня вечером и каждый день утром до составления плана дня.",
+            morningSummary(user).path("entryBlockedText").asText());
+
+        var start = postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID());
+        assertEquals(409, start.statusCode(), start.body());
+        assertEquals("CHECKIN_MORNING_PLAN_ALREADY_SET", code(start));
+        var submit = postWithKey("/api/v1/check-in/sessions/" + draft.path("sessionId").asText() + "/submit",
+            json.createObjectNode().put("expectedRevision", draft.path("revision").asLong()).toString(),
+            user, "sub-" + UUID.randomUUID());
+        assertEquals(409, submit.statusCode(), submit.body());
+        assertEquals("CHECKIN_MORNING_PLAN_ALREADY_SET", code(submit));
+        assertNull(jdbc.queryForObject("SELECT consumed_by_ref FROM momna.checkin_sessions WHERE session_id = ?",
+            String.class, draft.path("sessionId").asText()));
+        assertEquals(1, generationCalls(user));
+    }
+
+    /**
+     * The plan's kind follows its sources, and screen A names the plan its second button will make:
+     * no Check-in -> "Get General Plan", a standard plan; only Evening(D-1) -> "Get My Plan", a personal one.
+     */
+    @Test
+    void thePlanKindFollowsItsSourcesAndScreenANamesThePlanItWillMake() throws Exception {
+        var plain = user(LifecyclePeriod.CYCLE, "myday-kind-standard");
+        var choice = json.readTree(get("/api/v1/my-day/today", plain.token()).body());
+        assertEquals("NOT_GENERATED", choice.path("state").asText(), choice.toString());
+        assertEquals("GENERAL", choice.path("planChoice").path("secondary").asText());
+        assertEquals("Standard", choice.path("planChoice").path("standard").path("title").asText());
+        assertEquals("Personal", choice.path("planChoice").path("personal").path("title").asText());
+        assertTrue(choice.path("generationFailure").isNull());
+        var standard = json.readTree(send("POST", "/api/v1/my-day/generate", "{\"source\":\"STANDARD\"}", plain,
+            "gen-" + UUID.randomUUID()).body());
+        assertEquals("STANDARD", standard.path("kind").asText(), standard.toString());
+        assertTrue(standard.path("badge").isNull());
+        var card = standard.path("cards").get(0);
+        assertEquals(List.of("WHAT TO DO", "WHY TODAY", "HOW TO DO IT", "IF IT DIDN'T WORK OUT"),
+            card.path("sections").findValuesAsText("header"));
+        assertEquals("if skipped", card.path("sections").get(3).path("text").asText());
+        assertEquals("A NOTE FROM MOMNA", card.path("note").path("badge").asText());
+        assertEquals("support", card.path("note").path("body").asText());
+        assertTrue(card.path("note").path("title").isNull());
+
+        var evening = user(LifecyclePeriod.CYCLE, "myday-kind-evening");
+        finalEveningYesterday(evening);
+        var eveningChoice = json.readTree(get("/api/v1/my-day/today", evening.token()).body());
+        assertEquals("FROM_EVENING_CHECKIN", eveningChoice.path("planChoice").path("secondary").asText(),
+            eveningChoice.toString());
+        assertEquals("From last night", eveningChoice.path("planChoice").path("standard").path("title").asText());
+        var personal = json.readTree(send("POST", "/api/v1/my-day/generate", "{\"source\":\"STANDARD\"}", evening,
+            "gen-" + UUID.randomUUID()).body());
+        assertEquals("PERSONAL", personal.path("kind").asText(), personal.toString());
+        assertEquals("Personal", personal.path("badge").asText());
+        var sources = personal.path("provenance").path("sources");
+        assertEquals(1, sources.size());
+        assertEquals("EVENING", sources.get(0).path("phase").asText());
+        assertEquals(java.time.LocalDate.parse(personal.path("localDate").asText()).minusDays(1).toString(),
+            sources.get(0).path("sourceLocalDate").asText());
+        assertEquals(personal.path("myDayId").asText(), jdbc.queryForObject(
+            "SELECT consumed_by_ref FROM momna.checkin_sessions WHERE user_id = ? AND phase = 'EVENING'",
+            String.class, evening.userId()));
+    }
+
+    /**
+     * After the morning window closes with no plan, the first open makes the plan once (the one GET
+     * exception, decided 23.11.2026). If generation fails, screen A comes back with the failure text.
+     */
+    @Test
+    void afterTheMorningWindowTheFirstOpenMakesThePlanOnce() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "myday-auto", true);
+        var first = json.readTree(get("/api/v1/my-day/today", user.token()).body());
+        assertEquals("READY", first.path("state").asText(), first.toString());
+        assertEquals("STANDARD", first.path("myDay").path("kind").asText());
+        assertTrue(first.path("planChoice").isNull());
+        var second = json.readTree(get("/api/v1/my-day/today", user.token()).body());
+        assertEquals(first.path("myDay").path("myDayId").asText(), second.path("myDay").path("myDayId").asText());
+        assertEquals(1, generationCalls(user));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM momna.my_days WHERE user_id = ?",
+            Integer.class, user.userId()));
+
+        var down = user(LifecyclePeriod.CYCLE, "myday-auto-down", true);
+        SOURCE_DOWN.set(true);
+        try {
+            var failed = get("/api/v1/my-day/today", down.token());
+            assertEquals(200, failed.statusCode(), failed.body());
+            var failedJson = json.readTree(failed.body());
+            assertEquals("NOT_GENERATED", failedJson.path("state").asText());
+            assertEquals("We couldn't prepare your plan. Please try again.", failedJson.path("generationFailure").asText());
+            assertEquals("GENERAL", failedJson.path("planChoice").path("secondary").asText());
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM momna.my_days WHERE user_id = ?",
+                Integer.class, down.userId()));
+        } finally {
+            SOURCE_DOWN.set(false);
+        }
+        assertEquals("READY", json.readTree(get("/api/v1/my-day/today", down.token()).body()).path("state").asText());
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode morningSummary(User user) throws Exception {
+        var today = get("/api/v1/check-in/today", user.token());
+        assertEquals(200, today.statusCode(), today.body());
+        for (var phase : json.readTree(today.body()).path("phases")) {
+            if ("MORNING".equals(phase.path("phase").asText())) return phase;
+        }
+        throw new AssertionError("no MORNING phase: " + today.body());
+    }
+
+    private long generationCalls(User user) {
+        return SOURCE_CALLS.stream().filter(call -> user.userId().equals(call.userId())).count();
+    }
+
+    /** A user whose local time is in the morning window, well clear of its edges. */
     private User user(LifecyclePeriod period, String label) throws Exception {
+        return user(period, label, false);
+    }
+
+    /**
+     * afternoon: local time 14:00-21:59, after the morning window (default 12:00) has closed;
+     * otherwise 02:00-09:59, inside it. The zone is chosen from the real clock, so the test does not
+     * depend on when CI runs.
+     */
+    private User user(LifecyclePeriod period, String label, boolean afternoon) throws Exception {
         String email = label + "-" + UUID.randomUUID() + "@example.test";
         DELIVERED_CODE.set(null);
         var challenge = send("POST", "/api/v1/auth/email/challenges",
@@ -306,12 +468,49 @@ class MyDayHttpE2eTest {
         String userId = authSessions.findById(credentials.path("session").path("sessionId").asText())
             .orElseThrow().getUserId();
         var profile = new UserProfileEntity(userId, Instant.now());
-        String tz = LocalTime.now(ZoneOffset.ofHours(2)).isBefore(LocalTime.NOON) ? "Etc/GMT-2" : "Etc/GMT+10";
+        String tz = zoneAt(afternoon ? 14 : 2, afternoon ? 21 : 9);
         profile.updateLocalization("en", "en-US", "US", tz, Instant.now());
         userProfiles.saveAndFlush(profile);
         lifecycleHistory.saveAndFlush(new LifecyclePeriodHistoryEntity(UUID.randomUUID().toString(), userId, period,
             null, Instant.now().minusSeconds(86400), null, label, 1.0, true));
         return new User(credentials.path("accessCredential").asText(), userId);
+    }
+
+    private static String zoneAt(int fromHour, int toHour) {
+        var now = Instant.now();
+        for (int offset = -12; offset <= 14; offset++) {
+            int hour = now.atOffset(ZoneOffset.ofHours(offset)).getHour();
+            if (hour >= fromHour && hour <= toHour) {
+                return offset == 0 ? "Etc/GMT" : offset > 0 ? "Etc/GMT-" + offset : "Etc/GMT+" + (-offset);
+            }
+        }
+        throw new IllegalStateException("no zone with local hour " + fromHour + "-" + toHour);
+    }
+
+    private int outboxCount(String eventType, String myDayId) {
+        return jdbc.queryForObject("SELECT count(*) FROM momna.transactional_outbox " +
+            "WHERE event_type = ? AND payload->>'myDayId' = ?", Integer.class, eventType, myDayId);
+    }
+
+    /** A final evening Check-in of the user's previous local date, with every item answered. */
+    private void finalEveningYesterday(User user) {
+        var profile = userProfiles.findById(user.userId()).orElseThrow();
+        var zone = java.time.ZoneId.of(profile.getTimezone());
+        var yesterday = java.time.LocalDate.now(zone).minusDays(1);
+        var definition = checkinDefinitions.latest(
+            com.momna.modules.checkin.domain.CheckinDefinitionPeriod.CYCLE,
+            com.momna.modules.checkin.domain.CheckinPhase.EVENING);
+        var items = definition.items().stream()
+            .map(com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog.Item::itemCode).toList();
+        var opensAt = yesterday.atTime(12, 0).atZone(zone).toInstant();
+        var closesAt = yesterday.atTime(23, 59, 59).atZone(zone).toInstant();
+        var session = new com.momna.modules.checkin.infrastructure.CheckinSessionEntity(
+            UUID.randomUUID().toString(), user.userId(), com.momna.modules.checkin.domain.CheckinPhase.EVENING,
+            yesterday, "CYCLE", null, zone.getId(), definition.definitionVersion(), definition.poolVersion(),
+            items, opensAt, closesAt, opensAt);
+        session.updateCompletion(items.size(), opensAt.plusSeconds(60));
+        session.finalizeByUser(opensAt.plusSeconds(120));
+        checkinSessions.saveAndFlush(session);
     }
 
     private String code(HttpResponse<String> response) throws Exception {

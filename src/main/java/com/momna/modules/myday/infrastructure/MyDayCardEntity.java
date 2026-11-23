@@ -54,9 +54,10 @@ public class MyDayCardEntity {
         this.status = "PENDING";
     }
 
+    /** A PENDING card has no change time (ck_my_day_card_status_time), also after a mark is taken back. */
     public void changeStatus(String status, Instant at) {
         this.status = status;
-        this.statusChangedAt = at;
+        this.statusChangedAt = "PENDING".equals(status) ? null : at;
     }
 
     public String getMyDayId() { return myDayId; }

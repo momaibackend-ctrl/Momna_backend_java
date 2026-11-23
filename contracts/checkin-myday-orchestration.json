@@ -42,7 +42,18 @@
     "direct checkin DB reads from My Day",
     "second scoring engine",
     "second safety engine",
-    "new persistence"
+    "new persistence",
+    "updating provenance of a stored My Day",
+    "late morning sources for an existing My Day"
   ],
-  "targetDateRule": "My Day D uses MORNING on D and EVENING on D-1 in the user's canonical timezone"
+  "targetDateRule": "My Day D uses MORNING on D and EVENING on D-1 in the user's canonical timezone",
+  "oneGenerationPerDay": {
+    "decided": "Product 23.11.2026, MOMNA-989 sections 2-4, MOMNA-106 item 2",
+    "rule": "one successful generation per (user, local date); a stored My Day(D) is returned as it is and nothing later changes its sources or consumes a session for it",
+    "sourcesFixedAtGeneration": "Morning(D) takes part only if final before the plan; a morning left mutable after its window closed is auto-finalised before sources are read",
+    "morningAfterPlan": "closed until the evening: allowedEntryAction NONE, entryBlockedReason MY_DAY_PLAN_ALREADY_SET, start and submit 409 CHECKIN_MORNING_PLAN_ALREADY_SET",
+    "planKind": "PERSONAL when Morning(D) or Evening(D-1) contributes (effectiveShare > 0); STANDARD only when neither does; derived from provenance, never from the request source",
+    "screenASecondary": "GENERAL when Evening(D-1) does not contribute, FROM_EVENING_CHECKIN when it does; it always matches the kind of the plan generate(source STANDARD) produces",
+    "autoGeneration": "GET /api/v1/my-day/today after the morning window closes with no plan generates once; a failure returns NOT_GENERATED with generationFailure and planChoice"
+  }
 }

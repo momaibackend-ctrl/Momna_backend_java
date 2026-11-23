@@ -7,6 +7,13 @@ import java.util.List;
 public interface MyDayMaterializationPort {
     Result upsert(Command command);
 
+    /**
+     * The My Day already stored for this user and local date, if any. One successful generation per
+     * (user, local date) (MOMNA-989, 23.11.2026): once it exists, the morning Check-in is closed until
+     * the evening and no later source changes the day.
+     */
+    java.util.Optional<String> findMyDayId(String userId, LocalDate localDate);
+
     record BaselineReference(
         String contextFingerprint,
         String projectionFingerprint,

@@ -41,20 +41,20 @@ public class CheckinMyDayOrchestrator {
         this.myDay = myDay;
     }
 
+    /**
+     * One generation per (user, local date) (MOMNA-989, 23.11.2026): the sources are fixed when My Day(D)
+     * is generated. Once the day exists it is returned unchanged and no session is consumed by it later.
+     */
     @Transactional
     public Result materialize(String userId, Instant referenceAt) {
         var day = contexts.resolve(userId, referenceAt);
-        var sourceSessions = new ArrayList<CheckinSessionEntity>();
-
-        // My Day D is informed by the previous evening (D-1) and today's morning (D).
-        // Keep the session's own local date unchanged; only its My Day target is D.
-        sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
-            userId, CheckinPhase.MORNING, day.localDate(), day.period().name()
-        ).filter(this::isFinal).ifPresent(sourceSessions::add);
-        sessions.findByUserIdAndPhaseAndLocalDate(
-            userId, CheckinPhase.EVENING, sourceDateFor(CheckinPhase.EVENING, day.localDate())
-        ).filter(this::isFinal).ifPresent(sourceSessions::add);
-        sourceSessions.sort(Comparator.comparing(x -> x.getPhase().ordinal()));
+        var port = myDay.getIfAvailable();
+        var stored = port == null ? Optional.<String>empty() : port.findMyDayId(userId, day.localDate());
+        if (stored.isPresent()) {
+            return new Result(stored.get(), day.localDate().toString(), day.timezone().getId(), null, null,
+                VERSION, "EXISTING", stored.get(), null, List.of(), List.of(), Set.of());
+        }
+        var sourceSessions = finalSources(userId, day, referenceAt);
 
         if (sourceSessions.stream().anyMatch(CheckinSessionEntity::isSafetyBlocking)) {
             throw new CheckinMyDayOrchestrationException("SAFETY_BLOCKED", "Safety clarification blocks My Day");
@@ -124,7 +124,6 @@ public class CheckinMyDayOrchestrator {
             userId, day.localDate().toString(), scenario, phases, evidence
         ));
 
-        var port = myDay.getIfAvailable();
         if (port == null) {
             return new Result(
                 null,
@@ -213,6 +212,43 @@ public class CheckinMyDayOrchestrator {
             List.copyOf(evidence),
             Set.copyOf(consumed)
         );
+    }
+
+    /**
+     * Whether Evening(D-1) would take part in a My Day(D) generated now: a final session with at least
+     * one answer. It decides the second choice of screen A ("Get My Plan" instead of "Get General Plan"),
+     * so the label always matches the plan that choice produces.
+     */
+    @Transactional
+    public boolean eveningContributes(String userId, Instant referenceAt) {
+        var day = contexts.resolve(userId, referenceAt);
+        return finalSources(userId, day, referenceAt).stream()
+            .anyMatch(s -> s.getPhase() == CheckinPhase.EVENING && s.getCompletionRatio().signum() > 0);
+    }
+
+    /**
+     * Final Morning(D) and Evening(D-1). A morning left mutable after its window closed is finalised here
+     * first, exactly as reading it would, so the result does not depend on which request came first.
+     */
+    private List<CheckinSessionEntity> finalSources(String userId, CheckinDayContextService.DayContext day,
+                                                    Instant referenceAt) {
+        var sourceSessions = new ArrayList<CheckinSessionEntity>();
+        // My Day D is informed by the previous evening (D-1) and today's morning (D).
+        // Keep the session's own local date unchanged; only its My Day target is D.
+        sessions.findByUserIdAndPhaseAndLocalDateAndPeriodAtTime(
+            userId, CheckinPhase.MORNING, day.localDate(), day.period().name()
+        ).map(morning -> {
+            if (!isFinal(morning) && !morning.isSafetyBlocking() && !referenceAt.isBefore(morning.getWindowClosesAt())) {
+                morning.autoFinalize(referenceAt);
+                return sessions.saveAndFlush(morning);
+            }
+            return morning;
+        }).filter(this::isFinal).ifPresent(sourceSessions::add);
+        sessions.findByUserIdAndPhaseAndLocalDate(
+            userId, CheckinPhase.EVENING, sourceDateFor(CheckinPhase.EVENING, day.localDate())
+        ).filter(this::isFinal).ifPresent(sourceSessions::add);
+        sourceSessions.sort(Comparator.comparing(x -> x.getPhase().ordinal()));
+        return sourceSessions;
     }
 
     static LocalDate sourceDateFor(CheckinPhase phase, LocalDate targetDate) {

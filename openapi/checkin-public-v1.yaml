@@ -10,11 +10,12 @@ info:
   x-window-semantics: '[opensAt, closesAt); exact close is CLOSED; no session is created merely because a window closes'
   x-answer-semantics: '0,1,2 are explicit values; unanswered is absence; null in PATCH removes an answer'
   x-finalization-semantics: 'SUBMITTED only by explicit submit; AUTO_FINALIZED only by server window close; consumedAt is orthogonal'
+  x-one-generation-per-day: 'MOMNA-989/1025, 23.11.2026: once My Day(D) exists the MORNING phase is closed until the evening. Its summary has allowedEntryAction NONE, entryBlockedReason MY_DAY_PLAN_ALREADY_SET and a localized entryBlockedText; MORNING start and submit return 409 CHECKIN_MORNING_PLAN_ALREADY_SET.'
 paths:
   /api/v1/check-in/today:
     get:
       operationId: getCheckinToday
-      description: Read both Morning and Evening phase summaries without creating a session.
+      description: Read both Morning and Evening phase summaries without creating a session. Each summary carries entryBlockedReason and entryBlockedText (null unless MY_DAY_PLAN_ALREADY_SET).
       responses:
         '200': { description: Authoritative current local-day phase state, exact windows and existing final/consumed projections }
         '401': { description: Authentication required }
@@ -36,7 +37,7 @@ paths:
       responses:
         '200': { description: Existing current/resumable/final session; final or consumed sessions are never reopened }
         '201': { description: New DRAFT session created while the requested phase window is open }
-        '409': { description: Idempotency conflict or window is not startable }
+        '409': { description: Idempotency conflict, window is not startable, or CHECKIN_MORNING_PLAN_ALREADY_SET for MORNING once today's plan exists }
   /api/v1/check-in/sessions/{sessionId}:
     get:
       operationId: getCheckinSession
@@ -117,7 +118,7 @@ paths:
                 expectedRevision: { type: integer, format: int64, minimum: 0 }
       responses:
         '200': { description: Immutable SUBMITTED final state and typed downstream handoff; completionRatio may be less than 1 }
-        '409': { description: Finalized/consumed, stale, idempotency, closed-window or blocking-Safety conflict }
+        '409': { description: Finalized/consumed, stale, idempotency, closed-window, blocking-Safety conflict, or CHECKIN_MORNING_PLAN_ALREADY_SET for a MORNING session once today's plan exists }
 components:
   parameters:
     SessionId:

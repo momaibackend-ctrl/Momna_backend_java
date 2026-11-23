@@ -11,7 +11,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
+import com.momna.modules.myday.application.MyDayMaterializationPort;
+import com.momna.modules.profile.application.ProfileService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +30,8 @@ public class CheckinApplicationService {
     private final WeightedCheckinScoringEngine scoring;
     private final CheckinSafetyEvaluator safety;
     private final CheckinDayContextService contexts;
+    private final ObjectProvider<MyDayMaterializationPort> myDay;
+    private final ProfileService profiles;
     private final Clock clock = Clock.systemUTC();
 
     public CheckinApplicationService(
@@ -36,8 +42,12 @@ public class CheckinApplicationService {
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
         CheckinDayContextService contexts,
-        CheckinSafetyEvaluator safety
+        CheckinSafetyEvaluator safety,
+        ObjectProvider<MyDayMaterializationPort> myDay,
+        ProfileService profiles
     ) {
+        this.myDay = myDay;
+        this.profiles = profiles;
         this.safety = safety;
         this.sessions = sessions;
         this.answers = answers;
@@ -90,8 +100,10 @@ public class CheckinApplicationService {
                 existing.autoFinalize(now);
                 existing = sessions.saveAndFlush(existing);
             }
+            if (isMutable(existing)) requireMorningOpenForPlan(userId, phase, day.localDate());
             return new StartResult(view(existing, now), false);
         }
+        requireMorningOpenForPlan(userId, phase, day.localDate());
 
         var window = day.window(phase);
         var windowState = window.stateAt(now);
@@ -248,6 +260,7 @@ public class CheckinApplicationService {
         if (current.isSafetyBlocking()) {
             throw new CheckinException("SAFETY_CLARIFICATION_REQUIRED", "Safety clarification is required");
         }
+        requireMorningOpenForPlan(userId, current.getPhase(), current.getLocalDate());
 
         current.finalizeByUser(now);
         current = sessions.saveAndFlush(current);
@@ -291,6 +304,22 @@ public class CheckinApplicationService {
         return view(current, now);
     }
 
+    /**
+     * One generation per day (MOMNA-989, 23.11.2026): once today's plan exists, the morning Check-in is
+     * closed until the evening, so its answers can never be lost silently. A draft left at that moment
+     * still auto-finalises when its window closes, but it does not join the existing My Day.
+     */
+    private void requireMorningOpenForPlan(String userId, CheckinPhase phase, LocalDate localDate) {
+        if (phase == CheckinPhase.MORNING && planExists(userId, localDate)) {
+            throw new CheckinException("CHECKIN_MORNING_PLAN_ALREADY_SET", "Today's plan is already set");
+        }
+    }
+
+    private boolean planExists(String userId, LocalDate localDate) {
+        var port = myDay.getIfAvailable();
+        return port != null && port.findMyDayId(userId, localDate).isPresent();
+    }
+
     private PhaseSummary phaseSummary(
         String userId,
         CheckinDayContextService.DayContext day,
@@ -311,6 +340,15 @@ public class CheckinApplicationService {
         var action = stored == null
             ? ("OPEN".equals(window.stateAt(now)) ? "START" : "NONE")
             : (!isMutable(stored) || stored.getConsumedAt() != null ? "VIEW_FINAL_STATE" : "RESUME");
+        String blockedReason = null;
+        String blockedText = null;
+        if (phase == CheckinPhase.MORNING && (stored == null || isMutable(stored))
+            && planExists(userId, day.localDate())) {
+            action = "NONE";
+            blockedReason = CheckinTexts.MORNING_PLAN_ALREADY_SET;
+            var profile = profiles.get(userId);
+            blockedText = CheckinTexts.morningPlanAlreadySet(profile == null ? null : profile.getPreferredLanguage());
+        }
 
         return new PhaseSummary(
             phase.name(),
@@ -321,7 +359,9 @@ public class CheckinApplicationService {
             stored == null ? null : stored.getStatus().name(),
             stored == null ? null : stored.getConsumedAt(),
             stored == null ? null : stored.getConsumedByRef(),
-            action
+            action,
+            blockedReason,
+            blockedText
         );
     }
 

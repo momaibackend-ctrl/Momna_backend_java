@@ -30,7 +30,14 @@ public final class CheckinViews {
         String sessionStatus,
         Instant consumedAt,
         String consumedByMyDayId,
-        String allowedEntryAction
+        String allowedEntryAction,
+        /**
+         * MY_DAY_PLAN_ALREADY_SET when today's plan exists and the morning Check-in is closed until the
+         * evening (MOMNA-989 / MOMNA-1025, 23.11.2026); then allowedEntryAction is NONE.
+         */
+        String entryBlockedReason,
+        /** The localized text shown instead of the questions (the app's C1 without a button). */
+        String entryBlockedText
     ) {}
 
     public record SessionView(

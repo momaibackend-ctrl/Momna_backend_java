@@ -61,8 +61,19 @@ public interface MyDayMaterializationPort {
         String idempotencyKey,
         BaselineReference baseline,
         List<SourceReference> sources,
-        List<AdjustmentEvidence> adjustments
-    ) {}
+        List<AdjustmentEvidence> adjustments,
+        /** Answered items of the final source sessions; they feed the overlay adapter only (MOMNA-1324). */
+        List<com.momna.modules.myday.application.template.MyDayFacts.Observation> observations,
+        /** The SafetyDecision of each final source session; medical overlays come only from here. */
+        List<com.momna.modules.myday.application.template.MyDayFacts.SafetyProjection> safety
+    ) {
+        public Command {
+            sources = List.copyOf(sources);
+            adjustments = List.copyOf(adjustments);
+            observations = observations == null ? List.of() : List.copyOf(observations);
+            safety = safety == null ? List.of() : List.copyOf(safety);
+        }
+    }
 
     record Result(String myDayId, String outcome, String appliedOrchestrationId) {}
 }

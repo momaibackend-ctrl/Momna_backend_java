@@ -1,12 +1,15 @@
 package com.momna.modules.myday.application;
 
 import com.momna.modules.lifecycle.application.LifecycleQueryService;
+import com.momna.modules.lifecycle.domain.LifecycleEntry;
+import com.momna.modules.myday.application.template.*;
 import com.momna.modules.myday.infrastructure.*;
 import com.momna.modules.profile.application.ProfileService;
 import com.momna.shared.outbox.OutboxEventEntity;
 import com.momna.shared.outbox.OutboxEventRepository;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +35,7 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
     private final LifecycleQueryService lifecycle;
     private final ProfileService profiles;
     private final ObjectProvider<MyDayCardSource> cardSources;
+    private final ObjectProvider<MyDayOnboardingFactsPort> onboardingFacts;
     private final Clock clock = Clock.systemUTC();
 
     public MyDayMaterializationService(
@@ -40,7 +44,8 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         OutboxEventRepository outbox,
         LifecycleQueryService lifecycle,
         ProfileService profiles,
-        ObjectProvider<MyDayCardSource> cardSources
+        ObjectProvider<MyDayCardSource> cardSources,
+        ObjectProvider<MyDayOnboardingFactsPort> onboardingFacts
     ) {
         this.days = days;
         this.cards = cards;
@@ -48,6 +53,7 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         this.lifecycle = lifecycle;
         this.profiles = profiles;
         this.cardSources = cardSources;
+        this.onboardingFacts = onboardingFacts;
     }
 
     @Override
@@ -74,12 +80,15 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         // There is no cross-user fallback: a generated day may carry personal context, and only an
         // anonymous template (no user, no Check-in details) could ever be shared. See CORE-BE-13.
         MyDayCards.GeneratedDay generated;
+        Template template;
         try {
+            template = template(command, period, lifeMode, language);
             var source = cardSources.getIfAvailable();
             if (source == null) throw notReady();
             generated = source.generate(new MyDayCardSource.Input(
                 command.userId(), command.localDate(), command.timezone(), periodCode, lifeMode, language,
-                command.orchestrationId(), command.baseline().share(), command.sources(), command.adjustments()));
+                command.orchestrationId(), command.baseline().share(), command.sources(), command.adjustments(),
+                template.key(), template.overlays().activations()));
             MyDayCards.requireComplete(generated.cards());
         } catch (RuntimeException failure) {
             throw notReady();
@@ -89,7 +98,7 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         var day = new MyDayEntity(
             myDayId, command.userId(), command.localDate(), command.timezone(), periodCode, language,
             command.orchestrationId(), command.orchestrationVersion(), command.baseline().share(),
-            provenance(command), generated.cardSource(), generated.generationPolicyVersion(),
+            provenance(command, template), generated.cardSource(), generated.generationPolicyVersion(),
             generated.promptVersion(), generated.modelRef(), generated.safetyVersion(), generated.cacheKey(), now);
         days.saveAndFlush(day);
         for (var card : generated.cards()) {
@@ -122,8 +131,33 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         return slot.toLowerCase(Locale.ROOT) + "-" + position;
     }
 
-    /** Evening(D-1) and Morning(D) both target My Day(D); provenance keeps both dates explicit. */
+    record Template(MyDayTemplateKey key, MyDayOverlayAdapter.Result overlays) {}
+
+    /**
+     * The anonymous prompt inputs (MOMNA-1325) and the overlay keys (MOMNA-1324), computed once, when the
+     * day is generated. Onboarding answers are read through the onboarding module's contract.
+     */
+    Template template(Command command, LifecycleEntry period, String lifeMode, String language) {
+        var zone = ZoneId.of(command.timezone());
+        var facts = onboardingFacts.getIfAvailable();
+        Map<String, MyDayFacts.OnboardingFact> onboarding = facts == null ? Map.of()
+            : facts.facts(command.userId(), period.period().name(), MyDayOverlayAdapter.ONBOARDING_FIELDS);
+        var start = period.effectiveFrom() == null ? null : period.effectiveFrom().atZone(zone).toLocalDate();
+        var calendar = MyDayCalendarFacts.derive(lifeMode, onboarding, command.localDate(), start, zone);
+        var overlays = MyDayOverlayAdapter.compute(new MyDayOverlayAdapter.Input(lifeMode, command.localDate(),
+            command.observations(), command.safety(), onboarding, calendar));
+        var key = new MyDayTemplateKey(lifeMode, calendar.dayNumber(), calendar.cycleState(), calendar.phaseCode(),
+            calendar.weekNumber(), calendar.trimester(), overlays.overlayKeys(), language,
+            MyDayTemplateKey.Versions.current());
+        return new Template(key, overlays);
+    }
+
     static Map<String, Object> provenance(Command command) {
+        return provenance(command, null);
+    }
+
+    /** Evening(D-1) and Morning(D) both target My Day(D); provenance keeps both dates explicit. */
+    static Map<String, Object> provenance(Command command, Template template) {
         var sources = new ArrayList<Map<String, Object>>();
         for (var source : command.sources()) {
             var item = new LinkedHashMap<String, Object>();
@@ -163,6 +197,25 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         result.put("baseline", baseline);
         result.put("sources", sources);
         result.put("adjustments", adjustments);
+        if (template != null) {
+            var key = new LinkedHashMap<String, Object>();
+            key.put("keyVersion", MyDayTemplateKey.KEY_VERSION);
+            key.put("fingerprint", template.key().fingerprint());
+            key.put("parameters", new LinkedHashMap<>(template.key().promptParameters()));
+            key.put("versions", Map.of(
+                "prompts", template.key().versions().prompts(),
+                "validator", template.key().versions().validator(),
+                "overlayAdapter", template.key().versions().overlayAdapter(),
+                "calendarFacts", template.key().versions().calendarFacts(),
+                "contentRules", template.key().versions().contentRules()));
+            var activations = new ArrayList<Map<String, Object>>();
+            for (var a : template.overlays().activations()) {
+                activations.add(Map.of("key", a.key(), "group", a.group().name(),
+                    "strength", a.strength().toPlainString(), "passed", a.passed()));
+            }
+            key.put("overlayActivations", activations);
+            result.put("template", key);
+        }
         return result;
     }
 

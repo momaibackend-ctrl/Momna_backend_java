@@ -1,0 +1,459 @@
+{
+  "contract" : "myday-template-key-overlays",
+  "tasks" : [ "MOMNA-1324", "MOMNA-1325", "MOMNA-989" ],
+  "approvedBy" : "Product (vkdevpro), 23.11.2026; medical keys: Safety Platform (MOMNA-1145)",
+  "templateKey" : {
+    "keyVersion" : "myday.template-key.v1",
+    "purpose" : "MY_DAY",
+    "components" : [ "life_mode", "day_number", "cycle_state", "phase_code", "week_number", "trimester", "overlay_keys (sorted)", "user_language", "prompts version", "validator version", "overlay-adapter version", "calendar-facts and phase-code version", "content-rules version" ],
+    "currentVersions" : {
+      "prompts" : "myday.prompts.v1.1",
+      "validator" : "MY_DAY_CARDS_V1",
+      "overlayAdapter" : "myday.overlay-adapter.v1",
+      "calendarFacts" : "myday.calendar-facts.v1:myday.phase-code.v1",
+      "contentRules" : "myday.content-rules.v1"
+    },
+    "fingerprint" : "SHA-256 of the canonical form; never contains a user id, session id, answer or text",
+    "cacheTtlDaysMax" : 90
+  },
+  "calendarFacts" : {
+    "version" : "myday.calendar-facts.v1",
+    "phaseCodeVersion" : "myday.phase-code.v1",
+    "cycleState" : [ "cycle day = days since the onboarding LMP + 1; no LMP or a future LMP: uncertain", "days 1-5: menstrual", "regular cycle only (adult_cycle around_expected, planning fairly_predictable), Standard Days Method: 6-7 follicular, 8-19 fertile_window, 20-32 luteal, later uncertain", "irregular, menarche, perimenopause after day 5: uncertain; ovulation_peak is never derived", "pregnancy, postpartum, menopause: not_applicable" ],
+    "pregnancyWeek" : "completed weeks (ACOG) from the due date (280 days), else LMP, else the reported week plus the days since it was given in the user's zone; valid to 44 weeks, reported 1-42",
+    "trimester" : "1: to 13 6/7 weeks; 2: 14 0/7 to 27 6/7; 3: from 28 0/7 (ACOG)",
+    "postpartumWeek" : "week 1 = days 0-6 after the birth date; valid to week 52",
+    "dayNumber" : "day in the current life mode; day 1 = the day it started",
+    "phaseCode" : [ "teen_<cycle_state>", "adult_<cycle_state>", "planning_<cycle_state>", "preg_trimester<n>_w<week> | preg_unknown", "post_w<week> | post_unknown", "peri_<cycle_state>", "meno_general" ]
+  },
+  "overlayAdapter" : {
+    "version" : "myday.overlay-adapter.v1",
+    "checkinActivation" : "strength = sum over phases that answered one of the key's items of (strongest state: 0, 0.5 middle, 1 strongest) x phase base share, divided by the sum of those shares; on at >= 60%",
+    "phaseShares" : "Morning(D) 0.7 + Evening(D-1) 0.3 when both are final sources; 1.0 for the only one",
+    "medical" : "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL, on the period's own routes; never from a score or the LLM",
+    "dailyCaps" : {
+      "checkinKeys" : 3,
+      "factKeys" : 3,
+      "medicalKeys" : "all"
+    },
+    "computedOnce" : "when the day is generated; later Check-ins do not change today's keys",
+    "withoutCheckin" : "only onboarding and calendar keys",
+    "entries" : [ {
+      "overlayKey" : "teen_red_flag",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefix=MENARCHE_]",
+      "meaning" : "SafetyDecision MEDIUM+ on a menarche route",
+      "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
+      "overlayKey" : "teen_pain_high",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[M2, M11]]",
+      "meaning" : "pain M2 / body discomfort M11",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "teen_mood_sensitive",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[M7, M12]]",
+      "meaning" : "mood M7 / anxiety M12",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "teen_bleeding_now",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "CALENDAR_FACT",
+      "cap" : "FACT",
+      "rule" : "Calendar[fact=MENSTRUAL]",
+      "meaning" : "cycle days 1-5 from the onboarding last period",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "teen_school_day",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[MorningAnswered[item=M6, minState=0], All[rules=[Onboarding[field=onboarding.menarche.day_context, anyOf=[school]], Calendar[fact=WEEKDAY]]]]]",
+      "meaning" : "morning M6 answered, or school as day context on a weekday",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "teen_no_trusted_adult",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.menarche.trusted_adult, anyOf=[dont_want_to, no_one]]",
+      "meaning" : "no trusted adult",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "teen_privacy_high",
+      "lifeMode" : "teen_menarche",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[Onboarding[field=onboarding.menarche.notifications, anyOf=[neutral_wording, no_notifications]], Onboarding[field=onboarding.menarche.toilet_access, anyOf=[almost_impossible, sometimes_difficult]], Checkin[items=[M8]]]]",
+      "meaning" : "neutral notifications, hard toilet access, or privacy M8",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_red_flag",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefix=CYCLE_]",
+      "meaning" : "SafetyDecision MEDIUM+ on a cycle route",
+      "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
+      "overlayKey" : "adult_pain_high",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[C3, C13]]",
+      "meaning" : "pain C3 / cycle sensations C13",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_heavy_flow",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[C4]]",
+      "meaning" : "bleeding heavier / disruptive C4",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_low_energy",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[C2, C12]]",
+      "meaning" : "energy C2 / sleep debt C12",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_work_stress",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[C8, C11]]",
+      "meaning" : "workload C8 / workload fatigue C11",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_pms",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "All[rules=[Calendar[fact=LUTEAL], Checkin[items=[C5, C7, C9]]]]",
+      "meaning" : "luteal cycle days and bloating C5 / mood C7 / appetite C9",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "adult_relationship_tension",
+      "lifeMode" : "adult_cycle",
+      "sourceType" : "NOT_MAPPABLE",
+      "cap" : "NONE",
+      "rule" : "NotMappable[reason=weighted-v3 has no relationship item; onboarding cycle.partner is a status, not tension]",
+      "meaning" : "weighted-v3 has no relationship item; onboarding cycle.partner is a status, not tension",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_anxiety_high",
+      "lifeMode" : "planning",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[T1, T8]]",
+      "meaning" : "emotional state T1 / anxiety T8",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_fertile_window",
+      "lifeMode" : "planning",
+      "sourceType" : "CALENDAR_FACT",
+      "cap" : "FACT",
+      "rule" : "Calendar[fact=FERTILE_WINDOW]",
+      "meaning" : "Standard Days Method days 8-19 of a regular cycle",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_health_check",
+      "lifeMode" : "planning",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[MorningAnswered[item=T4, minState=1], OnboardingDateWithin[field=onboarding.planning.treatment_expected_date, fromDays=0, toDays=7]]]",
+      "meaning" : "a test or appointment today (T4), or treatment within 7 days",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_long_wait",
+      "lifeMode" : "planning",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.planning.duration, anyOf=[6_12m, more_than_year]]",
+      "meaning" : "trying 6+ months",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_cycle_irregular",
+      "lifeMode" : "planning",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.planning.regularity, anyOf=[often_irregular, timing_changes]]",
+      "meaning" : "irregular cycle",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "planning_partner_stress",
+      "lifeMode" : "planning",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[Onboarding[field=onboarding.planning.partner_involvement, anyOf=[tension]], Onboarding[field=onboarding.planning.pressure, anyOf=[relationship_tension]]]]",
+      "meaning" : "tension with the partner (pressured_unsafe is a safety matter, not this key)",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_high_risk",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefix=PREGNANCY_]",
+      "meaning" : "SafetyDecision MEDIUM+ on a pregnancy route",
+      "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
+      "overlayKey" : "preg_nausea",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[P3]]",
+      "meaning" : "nausea P3",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_fatigue",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[P2, P15]]",
+      "meaning" : "energy P2 / tiredness P15",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_anxiety",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[P18]]",
+      "meaning" : "emotional load P18",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_third_trimester",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "CALENDAR_FACT",
+      "cap" : "FACT",
+      "rule" : "Calendar[fact=PREGNANCY_WEEK_28_PLUS]",
+      "meaning" : "week 28+",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_first_pregnancy",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.pregnancy.preg_history, anyOf=[first_pregnancy]]",
+      "meaning" : "first pregnancy",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_partner_present",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.pregnancy.partner, anyOf=[yes_live_together]]",
+      "meaning" : "partner lives together",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_partner_absent",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.pregnancy.partner, anyOf=[no_partner, yes_no_live_together]]",
+      "meaning" : "partner not near",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "preg_work_active",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.pregnancy.occupation, anyOf=[work]]",
+      "meaning" : "works",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_ppd_screen",
+      "lifeMode" : "postpartum",
+      "sourceType" : "NOT_MAPPABLE",
+      "cap" : "NONE",
+      "rule" : "NotMappable[reason=MOMNA-1146: no approved mental-health route; never from a score]",
+      "meaning" : "MOMNA-1146: no approved mental-health route; never from a score",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_birth_week_1_4",
+      "lifeMode" : "postpartum",
+      "sourceType" : "CALENDAR_FACT",
+      "cap" : "FACT",
+      "rule" : "Calendar[fact=POSTPARTUM_WEEKS_1_4]",
+      "meaning" : "weeks 1-4 after the birth date",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_c_section",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.postpartum.delivery, anyOf=[emergency_c_section, multiples_all_c_section, multiples_mixed, planned_c_section]]",
+      "meaning" : "caesarean birth",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_low_milk",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.postpartum.feeding_issues, anyOf=[milk_supply_worry]]",
+      "meaning" : "milk supply worry",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_breastfeeding",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[Onboarding[field=onboarding.postpartum.feeding, anyOf=[breast, breast_milk, breastfeeding, combination, exclusive_breastfeeding, expressed_milk, mixed, mixed_feeding, mostly_breastfeeding, pumping]], Onboarding[field=onboarding.postpartum.feeding_issues, anyOf=[clogged_duct, engorgement, latching_trouble, milk_supply_worry, pumping_effort, sore_nipples]]]]",
+      "meaning" : "breast or mixed feeding",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_no_partner",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.postpartum.partner, anyOf=[no_partner, not_living_together]]",
+      "meaning" : "no partner near",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_partner_present",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.postpartum.partner, anyOf=[live_together]]",
+      "meaning" : "partner lives together",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_returning_work",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.postpartum.work, anyOf=[from_home, in_person, need_return_soon, shifts]]",
+      "meaning" : "back at work or returning soon",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "post_intimacy_ready",
+      "lifeMode" : "postpartum",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "All[rules=[Onboarding[field=onboarding.postpartum.intimacy_status, anyOf=[sometimes, yes_regularly]], Calendar[fact=POSTPARTUM_AFTER_WEEK_6]]]",
+      "meaning" : "intimacy resumed, after week 6",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_hot_flashes",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[PM2, PM9]]",
+      "meaning" : "hot flashes PM2 / PM9",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_sleep_disrupted",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[PM1]]",
+      "meaning" : "sleep PM1",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_mood_shift",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[PM5, PM10]]",
+      "meaning" : "mood PM5 / tension PM10",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_brain_fog",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[PM4, PM11]]",
+      "meaning" : "concentration PM4 / PM11",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_work_challenge",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "All[rules=[Onboarding[field=onboarding.perimenopause.occupation, anyOf=[work]], Checkin[items=[PM6]], Any[rules=[Checkin[items=[PM2, PM9]], Checkin[items=[PM4, PM11]], Checkin[items=[PM1]]]]]]",
+      "meaning" : "works, packed day PM6 and a symptom key's items",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_cycle_irregular",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.perimenopause.changes, anyOf=[earlier, later, skip_some]]",
+      "meaning" : "cycle timing changes",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "peri_low_libido",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.perimenopause.intimacy, anyOf=[desire_decreased]]",
+      "meaning" : "desire decreased",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_sleep_poor",
+      "lifeMode" : "menopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[MN1]]",
+      "meaning" : "sleep MN1",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_hot_flashes",
+      "lifeMode" : "menopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[MN3, MN13]]",
+      "meaning" : "hot flashes MN3 / MN13",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_joint_pain",
+      "lifeMode" : "menopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[MN4]]",
+      "meaning" : "joint discomfort MN4",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_mood_low",
+      "lifeMode" : "menopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[MN7]]",
+      "meaning" : "mood MN7",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_vaginal_dryness",
+      "lifeMode" : "menopause",
+      "sourceType" : "CHECKIN_ITEM",
+      "cap" : "STATE",
+      "rule" : "Checkin[items=[MN8]]",
+      "meaning" : "urogenital discomfort MN8",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_active_work",
+      "lifeMode" : "menopause",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.menopause.occupation, anyOf=[work]]",
+      "meaning" : "works",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_new_chapter",
+      "lifeMode" : "menopause",
+      "sourceType" : "NOT_MAPPABLE",
+      "cap" : "NONE",
+      "rule" : "NotMappable[reason=no Check-in item or onboarding field states a new project; needs a Product question]",
+      "meaning" : "no Check-in item or onboarding field states a new project; needs a Product question",
+      "owner" : "Product (vkdevpro), 23.11.2026"
+    } ]
+  }
+}

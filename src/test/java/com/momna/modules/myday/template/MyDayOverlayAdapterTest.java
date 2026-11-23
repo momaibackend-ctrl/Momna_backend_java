@@ -123,29 +123,58 @@ class MyDayOverlayAdapterTest {
         assertFalse(result.overlayKeys().contains("post_ppd_screen"));
     }
 
-    /** PST_FEEDING (MOMNA-561), per baby: at least one baby on breast milk turns the key on. */
+    /** PST_FEEDING (MOMNA-561, Product decision 24.11.2026): all seven codes, the clarification, several babies. */
     @Test
-    void breastfeedingFollowsTheFeedingAnswerOfAnyBaby() {
-        for (var code : List.of("breastfeeding", "pumped_breast_milk", "combination_feeding")) {
-            assertOn("post_breastfeeding", feeding(code));
+    void breastfeedingFollowsTheSevenFeedingCodesPerBaby() {
+        assertEquals(Set.of("nursing_at_breast", "pumped_breast_milk", "combination_feeding", "infant_formula",
+            "tube_or_medically_supported", "feeding_plan_changing", "prefer_not_to_say"), MyDayOverlayAdapter.FEEDING_CODES);
+        for (var code : MyDayOverlayAdapter.FEEDING_CODES) {
+            boolean on = Set.of("nursing_at_breast", "pumped_breast_milk", "combination_feeding").contains(code);
+            for (var shape : List.<Object>of(code, Map.of("1", code), List.of(Map.of("childRef", "1", "value", code)))) {
+                if (on) assertOn("post_breastfeeding", feeding(shape, null));
+                else assertOff("post_breastfeeding", feeding(shape, null));
+            }
         }
-        for (var code : List.of("infant_formula", "tube_or_medical", "plan_changing", "prefer_not_to_say")) {
-            assertOff("post_breastfeeding", feeding(code));
+        // the clarification decides tube/medical feeding and a changing plan: yes on, no off, skipped UNKNOWN off
+        for (var code : List.of("tube_or_medically_supported", "feeding_plan_changing")) {
+            assertOn("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "yes")));
+            assertOn("post_breastfeeding", feeding(code, "yes"));
+            assertOff("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "no")));
+            assertOff("post_breastfeeding", feeding(Map.of("1", code), null));
         }
-        // twins: one on formula, one at the breast
-        assertOn("post_breastfeeding", feeding(Map.of("child-1", "infant_formula", "child-2", "breastfeeding")));
-        assertOn("post_breastfeeding", feeding(List.of(Map.of("childRef", "child-1", "value", "infant_formula"),
-            Map.of("childRef", "child-2", "value", "pumped_breast_milk"))));
-        assertOff("post_breastfeeding", feeding(Map.of("child-1", "infant_formula", "child-2", "tube_or_medical")));
-        // a feeding difficulty is not proof of breast milk
-        for (var issue : List.of("latching_trouble", "sore_nipples", "engorgement", "milk_supply_worry")) {
+        // a "yes" about a formula-fed baby does not make breast milk
+        assertOff("post_breastfeeding", feeding(Map.of("1", "infant_formula"), Map.of("1", "yes")));
+    }
+
+    @Test
+    void withSeveralBabiesOneConfirmedBabyIsEnough() {
+        assertOn("post_breastfeeding", feeding(Map.of("1", "infant_formula", "2", "nursing_at_breast"), null));
+        assertOn("post_breastfeeding", feeding(List.of(Map.of("childRef", "a", "value", "infant_formula"),
+            Map.of("childRef", "b", "value", "pumped_breast_milk")), null));
+        // the clarification belongs to its own baby
+        assertOn("post_breastfeeding", feeding(Map.of("1", "tube_or_medically_supported", "2", "feeding_plan_changing"),
+            Map.of("1", "no", "2", "yes")));
+        assertOff("post_breastfeeding", feeding(Map.of("1", "tube_or_medically_supported", "2", "infant_formula"),
+            Map.of("2", "yes")));
+        assertOff("post_breastfeeding", feeding(Map.of("1", "infant_formula", "2", "feeding_plan_changing"),
+            Map.of("2", "no")));
+        assertOff("post_breastfeeding", feeding(Map.of("1", "infant_formula", "2", "prefer_not_to_say"), null));
+    }
+
+    @Test
+    void aFeedingDifficultyIsNotProofOfBreastMilk() {
+        for (var issue : List.of("latching_trouble", "sore_nipples", "engorgement", "clogged_duct", "pumping_effort",
+            "milk_supply_worry")) {
             assertOff("post_breastfeeding", input("postpartum", MONDAY, List.of(), List.of(),
                 Map.of("onboarding.postpartum.feeding_issues", fact(List.of(issue)))));
         }
     }
 
-    static MyDayOverlayAdapter.Input feeding(Object answer) {
-        return input("postpartum", MONDAY, List.of(), List.of(), Map.of("onboarding.postpartum.feeding", fact(answer)));
+    static MyDayOverlayAdapter.Input feeding(Object answer, Object breastMilkNow) {
+        var onboarding = new HashMap<String, OnboardingFact>();
+        onboarding.put("onboarding.postpartum.feeding", fact(answer));
+        if (breastMilkNow != null) onboarding.put("onboarding.postpartum.feeding_breast_milk_now", fact(breastMilkNow));
+        return input("postpartum", MONDAY, List.of(), List.of(), onboarding);
     }
 
     // ---------------------------------------------------------------- caps
@@ -259,7 +288,7 @@ class MyDayOverlayAdapterTest {
         out.add(onboardingCase("post_birth_week_1_4", "postpartum", "onboarding.postpartum.birth_date",
             MONDAY.minusDays(27).toString(), MONDAY.minusDays(28).toString()));
         out.add(onboardingCase("post_breastfeeding", "postpartum", "onboarding.postpartum.feeding",
-            "breastfeeding", "infant_formula"));
+            Map.of("1", "nursing_at_breast"), Map.of("1", "infant_formula")));
         out.add(onboardingCase("post_no_partner", "postpartum", "onboarding.postpartum.partner",
             "no_partner", "live_together"));
         out.add(onboardingCase("post_partner_present", "postpartum", "onboarding.postpartum.partner",

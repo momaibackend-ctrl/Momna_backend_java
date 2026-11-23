@@ -68,6 +68,40 @@ public final class MyDayFacts {
             }
         }
 
+        /**
+         * The answer per child: {@code {childRef: code}} and {@code [{childRef, value}]} keep their child
+         * references; a single scalar answer, or a list of plain codes, is keyed "*" / by position.
+         */
+        public Map<String, String> perChild() {
+            var raw = unwrap(payload);
+            var out = new TreeMap<String, String>();
+            if (raw instanceof Map<?, ?> map) {
+                for (var entry : map.entrySet()) {
+                    var value = unwrap(entry.getValue());
+                    if (value != null && !(value instanceof Map<?, ?>) && !(value instanceof Collection<?>)
+                        && !(value instanceof Boolean)) {
+                        out.put(String.valueOf(entry.getKey()), String.valueOf(value));
+                    }
+                }
+            } else if (raw instanceof List<?> list) {
+                for (int i = 0; i < list.size(); i++) {
+                    var item = list.get(i);
+                    if (item instanceof Map<?, ?> element) {
+                        var child = element.containsKey("childRef") ? element.get("childRef") : element.get("child");
+                        var value = unwrap(element.get("value"));
+                        if (value != null && !(value instanceof Map<?, ?>) && !(value instanceof Collection<?>)) {
+                            out.put(child == null ? String.valueOf(i + 1) : String.valueOf(child), String.valueOf(value));
+                        }
+                    } else if (item != null) {
+                        out.put(String.valueOf(i + 1), String.valueOf(unwrap(item)));
+                    }
+                }
+            } else if (raw != null && !(raw instanceof Boolean)) {
+                out.put("*", String.valueOf(raw));
+            }
+            return Collections.unmodifiableMap(out);
+        }
+
         /** The single scalar value, if the answer is one. */
         public Optional<String> scalar() {
             var raw = unwrap(payload);

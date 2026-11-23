@@ -307,8 +307,8 @@
       "lifeMode" : "postpartum",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Onboarding[field=onboarding.postpartum.feeding, anyOf=[breast, breastfeeding, combination, combination_feeding, expressed_milk, mixed, mixed_feeding, nursing, pumped_breast_milk, pumped_milk, pumping]]",
-      "meaning" : "PST_FEEDING (MOMNA-561): at least one baby nursing at the breast, on pumped breast milk or combination feeding; formula, tube/medical, changing plan and no answer do not count; feeding_issues alone never",
+      "rule" : "BreastMilkFeeding[]",
+      "meaning" : "PST_FEEDING (MOMNA-561), per baby: nursing_at_breast, pumped_breast_milk or combination_feeding; tube_or_medically_supported / feeding_plan_changing only with breast milk now = yes; at least one baby; feeding_issues never",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
       "overlayKey" : "post_no_partner",

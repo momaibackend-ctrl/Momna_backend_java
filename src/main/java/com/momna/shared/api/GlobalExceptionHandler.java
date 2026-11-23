@@ -4,6 +4,7 @@ import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.billing.application.BillingRestoreService;
 import com.momna.modules.checkin.application.CheckinException;
 import com.momna.modules.flow.application.FlowException;
+import com.momna.modules.myday.application.MyDayException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import java.lang.reflect.RecordComponent;
@@ -47,6 +48,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", message, Map.of(error.getField(), missing ? "required" : "invalid")));
     }
 
+    /** Matches the working Kotlin API: a missing or blank Idempotency-Key is 400 IDEMPOTENCY_KEY_REQUIRED. */
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    ResponseEntity<ApiError> missingHeader(org.springframework.web.bind.MissingRequestHeaderException ex) {
+        if ("Idempotency-Key".equalsIgnoreCase(ex.getHeaderName())) {
+            return ResponseEntity.badRequest().body(ApiError.of("IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key is required"));
+        }
+        return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request is invalid"));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> badRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ApiError.of("VALIDATION_ERROR", "Request is invalid"));
@@ -63,6 +73,32 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.UNAUTHORIZED;
         };
         return ResponseEntity.status(status).body(ApiError.of(ex.code(), publicMessage(ex.code())));
+    }
+
+    @ExceptionHandler(MyDayException.class)
+    ResponseEntity<ApiError> myDay(MyDayException ex) {
+        var status = switch (ex.code()) {
+            case "MY_DAY_NOT_FOUND", "MY_DAY_NOT_GENERATED", "MY_DAY_CARD_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "MY_DAY_CONTEXT_INSUFFICIENT" -> HttpStatus.FORBIDDEN;
+            case "MY_DAY_CARD_STATUS_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", "MY_DAY_OUTPUT_INVALID" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "MY_DAY_SAFETY_BLOCKED", "MY_DAY_TARGET_CONFLICT", "MY_DAY_CARD_STATE_CONFLICT",
+                 "MY_DAY_ALREADY_COMPLETED", "MY_DAY_GENERATION_IN_PROGRESS",
+                 "STALE_REVISION", "IDEMPOTENCY_CONFLICT" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        var response = ResponseEntity.status(status);
+        if ("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE".equals(ex.code())) {
+            response.header("Retry-After", "30");
+        }
+        return response.body(ApiError.of(ex.code(), switch (status) {
+            case NOT_FOUND -> "My Day not found";
+            case FORBIDDEN -> "My Day is not available for the current lifecycle state";
+            case UNPROCESSABLE_ENTITY -> "My Day request contains an invalid value";
+            case SERVICE_UNAVAILABLE -> "My Day generation is temporarily unavailable";
+            case CONFLICT -> "My Day request conflicts with the current state";
+            default -> "Unexpected server error";
+        }));
     }
 
     @ExceptionHandler(CheckinException.class)

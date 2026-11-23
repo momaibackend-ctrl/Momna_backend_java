@@ -35,7 +35,7 @@ class MyDayMaterializationServiceTest {
     private final MyDayCardSource source = mock(MyDayCardSource.class);
     private final LifecycleQueryService lifecycle = lifecycle();
     private final MyDayMaterializationService service = new MyDayMaterializationService(
-        days, cards, outbox, lifecycle, mock(ProfileService.class), sources);
+        days, cards, outbox, lifecycle, mock(ProfileService.class), sources, mock(ObjectProvider.class));
 
     private static LifecycleQueryService lifecycle() {
         var lifecycle = mock(LifecycleQueryService.class);
@@ -117,6 +117,6 @@ class MyDayMaterializationServiceTest {
                     new BigDecimal("0.700000"), new BigDecimal("0.700000"), "3", "weighted-v3"),
                 new SourceReference("CHECKIN", "s-e", "EVENING", "SUBMITTED", "FRESH", BigDecimal.ZERO,
                     new BigDecimal("0.300000"), new BigDecimal("0.000000"), "3", "weighted-v3")),
-            List.of());
+            List.of(), List.of(), List.of());
     }
 }

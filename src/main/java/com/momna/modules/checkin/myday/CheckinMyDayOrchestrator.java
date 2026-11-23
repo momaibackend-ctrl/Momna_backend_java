@@ -4,6 +4,7 @@ import com.momna.modules.checkin.application.CheckinDayContextService;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.*;
 import com.momna.modules.myday.application.MyDayMaterializationPort;
+import com.momna.modules.myday.application.template.MyDayFacts;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -27,17 +28,20 @@ public class CheckinMyDayOrchestrator {
     private final CheckinDayContextService contexts;
     private final CheckinSessionRepository sessions;
     private final CheckinAdjustmentSignalRepository signals;
+    private final CheckinAnswerRepository answers;
     private final ObjectProvider<MyDayMaterializationPort> myDay;
 
     public CheckinMyDayOrchestrator(
         CheckinDayContextService contexts,
         CheckinSessionRepository sessions,
         CheckinAdjustmentSignalRepository signals,
+        CheckinAnswerRepository answers,
         ObjectProvider<MyDayMaterializationPort> myDay
     ) {
         this.contexts = contexts;
         this.sessions = sessions;
         this.signals = signals;
+        this.answers = answers;
         this.myDay = myDay;
     }
 
@@ -141,6 +145,21 @@ public class CheckinMyDayOrchestrator {
             );
         }
 
+        // Typed facts for the overlay adapter (MOMNA-1324): the answered items with their phase's base
+        // share, and each source's authoritative SafetyDecision. Nothing here is recomputed.
+        var observations = new ArrayList<MyDayFacts.Observation>();
+        for (var phase : phases) {
+            for (var answer : answers.findBySessionIdOrderByItemCodeAsc(phase.sourceSessionId())) {
+                observations.add(new MyDayFacts.Observation(phase.phase(), answer.getItemCode(), answer.getValue(),
+                    phase.baseShare()));
+            }
+        }
+        var safety = sourceSessions.stream()
+            .filter(s -> s.getSafetyRouteCode() != null)
+            .map(s -> new MyDayFacts.SafetyProjection(s.getPhase().name(), s.getSafetyRouteCode(),
+                s.getSafetySeverity(), s.getSafetyDecisionVersion()))
+            .toList();
+
         var materialized = port.upsert(new MyDayMaterializationPort.Command(
             userId,
             day.localDate(),
@@ -180,7 +199,9 @@ public class CheckinMyDayOrchestrator {
                 x.effectivePhaseWeight(),
                 x.rulesVersion(),
                 x.definitionVersion()
-            )).toList()
+            )).toList(),
+            observations,
+            safety
         ));
 
         if (existingTarget != null && !existingTarget.equals(materialized.myDayId())) {

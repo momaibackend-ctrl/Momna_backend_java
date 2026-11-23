@@ -25,6 +25,10 @@ public interface MyDayCardSource {
         String orchestrationId,
         BigDecimal baselineShare,
         List<SourceReference> sources,
-        List<AdjustmentEvidence> adjustments
+        List<AdjustmentEvidence> adjustments,
+        /** The only thing that may reach the prompt and the template cache (MOMNA-1325). */
+        com.momna.modules.myday.application.template.MyDayTemplateKey templateKey,
+        /** Why each overlay key was or was not passed on; provenance only. */
+        java.util.List<com.momna.modules.myday.application.template.MyDayOverlayAdapter.Activation> overlayActivations
     ) {}
 }

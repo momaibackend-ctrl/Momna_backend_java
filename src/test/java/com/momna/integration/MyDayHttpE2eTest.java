@@ -98,6 +98,8 @@ class MyDayHttpE2eTest {
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired com.momna.modules.checkin.infrastructure.CheckinSessionRepository checkinSessions;
     @Autowired com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog checkinDefinitions;
+    @Autowired com.momna.modules.flow.infrastructure.FlowInstanceRepository flowInstances;
+    @Autowired com.momna.modules.flow.infrastructure.FlowAnswerRepository flowAnswers;
 
     private record User(String token, String userId) {}
 
@@ -289,6 +291,55 @@ class MyDayHttpE2eTest {
         assertEquals(day.path("myDayId").asText(), jdbc.queryForObject(
             "SELECT consumed_by_ref FROM momna.checkin_sessions WHERE session_id = ?",
             String.class, session.path("sessionId").asText()));
+    }
+
+    /**
+     * MOMNA-1324/1325: the onboarding answers and the weighted Check-in decide the overlay keys once, when
+     * the day is made; only the anonymous template key reaches the card source, and the public API shows
+     * neither the key nor the overlays.
+     */
+    @Test
+    void theTemplateKeyCarriesTheOverlaysOfTheAnswersAndNothingPersonal() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "myday-template");
+        var zone = java.time.ZoneId.of(userProfiles.findById(user.userId()).orElseThrow().getTimezone());
+        var today = java.time.LocalDate.now(zone);
+        completedOnboarding(user, "CYCLE", "period-onboarding-cycle", java.util.Map.of(
+            "onboarding.cycle.lmp", today.minusDays(1).toString(),
+            "onboarding.cycle.regularity", "around_expected"));
+
+        var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
+        String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
+        var change = json.createObjectNode().put("expectedRevision", session.path("revision").asLong());
+        var answers = change.putArray("answerChanges");
+        answers.addObject().put("itemCode", "C3").put("value", 2);   // pain: noticeable
+        answers.addObject().put("itemCode", "C4").put("value", 1);   // flow: only mildly heavier
+        var patched = send("PATCH", endpoint, change.toString(), user, "p-" + UUID.randomUUID());
+        assertEquals(200, patched.statusCode(), patched.body());
+        var submitted = postWithKey(endpoint + "/submit", json.createObjectNode()
+            .put("expectedRevision", json.readTree(patched.body()).path("revision").asLong()).toString(), user,
+            "sub-" + UUID.randomUUID());
+        assertEquals(200, submitted.statusCode(), submitted.body());
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        var key = call.templateKey();
+        assertEquals("adult_cycle", key.lifeMode());
+        assertEquals("menstrual", key.cycleState());
+        assertEquals("adult_menstrual", key.phaseCode());
+        assertEquals(2, key.dayNumber());
+        assertEquals(List.of("adult_pain_high"), key.overlayKeys(), "one mild answer does not make an overlay");
+        assertEquals("en", key.userLanguage());
+        assertFalse(key.canonical().contains(user.userId()));
+        assertFalse(key.canonical().contains(session.path("sessionId").asText()));
+
+        var day = json.readTree(created.body());
+        assertFalse(day.path("provenance").has("template"), "the client never sees the key or the overlays");
+        assertFalse(created.body().contains("adult_pain_high"));
+        assertEquals(key.fingerprint(), jdbc.queryForObject(
+            "SELECT provenance->'template'->>'fingerprint' FROM momna.my_days WHERE my_day_id = ?", String.class,
+            day.path("myDayId").asText()));
     }
 
     @Test
@@ -511,6 +562,20 @@ class MyDayHttpE2eTest {
         session.updateCompletion(items.size(), opensAt.plusSeconds(60));
         session.finalizeByUser(opensAt.plusSeconds(120));
         checkinSessions.saveAndFlush(session);
+    }
+
+    /** A completed period onboarding with the given answers, as the flow engine stores them. */
+    private void completedOnboarding(User user, String period, String definitionKey, java.util.Map<String, Object> answers) {
+        var now = Instant.now().minusSeconds(3600);
+        var instance = new com.momna.modules.flow.infrastructure.FlowInstanceEntity(UUID.randomUUID(), definitionKey, 1,
+            com.momna.modules.flow.domain.FlowType.PERIOD_ONBOARDING, user.userId(), null, period, null, null,
+            com.momna.modules.flow.domain.FlowInstanceStatus.COMPLETED, null, "start-" + UUID.randomUUID(), now, now);
+        flowInstances.saveAndFlush(instance);
+        for (var answer : answers.entrySet()) {
+            flowAnswers.saveAndFlush(new com.momna.modules.flow.infrastructure.FlowAnswerEntity(instance.getInstanceId(),
+                answer.getKey(), java.util.Map.of("value", answer.getValue()),
+                com.momna.modules.flow.domain.FlowAnswerStatus.ANSWERED, "op-" + UUID.randomUUID(), now));
+        }
     }
 
     private String code(HttpResponse<String> response) throws Exception {

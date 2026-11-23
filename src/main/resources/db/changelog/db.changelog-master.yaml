@@ -180,3 +180,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-feeding-breast-milk-now-options-v34
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V34__feeding_breast_milk_now_options.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

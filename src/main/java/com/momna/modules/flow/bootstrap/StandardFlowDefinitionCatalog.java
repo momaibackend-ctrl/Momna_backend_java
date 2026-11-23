@@ -153,7 +153,7 @@ public final class StandardFlowDefinitionCatalog {
     }
 
     private static Spec postpartum() {
-        return spec("period-onboarding-postpartum", 2, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
+        return spec("period-onboarding-postpartum", 3, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
             step("birth_date", "onboarding.postpartum.birth_date", true, true),
             step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, false,
                 absent("onboarding.postpartum.birth_date")),
@@ -193,6 +193,12 @@ public final class StandardFlowDefinitionCatalog {
             step("physical", "onboarding.postpartum.physical", true, true),
             step("feeding", "onboarding.postpartum.feeding", false, true,
                 notIn("onboarding.postpartum.child_status", "loss")),
+            // v3 (MOMNA-561, 24.11.2026): per baby, only after tube/medical feeding or a changing plan.
+            step("feeding_breast_milk_now", "onboarding.postpartum.feeding_breast_milk_now", false, true,
+                any(
+                    in("onboarding.postpartum.feeding", "tube_or_medically_supported", "feeding_plan_changing"),
+                    anyMatchIn("onboarding.postpartum.feeding", "tube_or_medically_supported", "feeding_plan_changing")
+                )),
             step("feeding_issues", "onboarding.postpartum.feeding_issues", false, true,
                 notIn("onboarding.postpartum.child_status", "loss")),
             step("medications", "onboarding.postpartum.medications", false, true),

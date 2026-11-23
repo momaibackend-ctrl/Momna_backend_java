@@ -66,6 +66,15 @@ class MyDayTemplateBoundaryTest {
         assertEquals(Set.of("a"), fact(Map.of("value", Map.of("kind", "OBJECT", "value", Map.of("a", true)))).options());
         assertEquals("20", fact(Map.of("value", Map.of("kind", "NUMBER", "value", 20))).scalar().orElseThrow());
         assertTrue(fact(Map.of("value", List.of("a"))).scalar().isEmpty());
+        // per child: the answers count, never the child references
+        assertEquals(Set.of("nursing_at_breast", "infant_formula"),
+            fact(Map.of("value", Map.of("child-1", "nursing_at_breast", "child-2", "infant_formula"))).options());
+        assertEquals(Map.of("child-1", "nursing_at_breast", "child-2", "infant_formula"),
+            fact(Map.of("value", Map.of("child-1", "nursing_at_breast", "child-2", "infant_formula"))).perChild());
+        assertEquals(Map.of("*", "yes"), fact(Map.of("value", "yes")).perChild());
+        assertEquals(Map.of("b", "no"), fact(Map.of("value", List.of(Map.of("childRef", "b", "value", "no")))).perChild());
+        assertEquals(Set.of("combination_feeding"), fact(Map.of("value", List.of(
+            Map.of("childRef", "child-1", "value", "combination_feeding")))).options());
     }
 
     @Test

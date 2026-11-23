@@ -152,16 +152,16 @@ class MyDayTemplatePropertyTest {
         assertEquals(first.canonical().equals(second.canonical()), first.fingerprint().equals(second.fingerprint()));
         assertEquals(first.equals(second), first.fingerprint().equals(second.fingerprint()));
         var changes = List.of(
-            new MyDayTemplateKey.Versions("myday.prompts.v1.2", versions.validator(), versions.overlayAdapter(),
+            new MyDayTemplateKey.Versions(versions.prompts() + ".next", versions.validator(), versions.overlayAdapter(),
                 versions.calendarFacts(), versions.contentRules()),
-            new MyDayTemplateKey.Versions(versions.prompts(), "MY_DAY_CARDS_V2", versions.overlayAdapter(),
+            new MyDayTemplateKey.Versions(versions.prompts(), versions.validator() + ".next", versions.overlayAdapter(),
                 versions.calendarFacts(), versions.contentRules()),
-            new MyDayTemplateKey.Versions(versions.prompts(), versions.validator(), "myday.overlay-adapter.v2",
+            new MyDayTemplateKey.Versions(versions.prompts(), versions.validator(), versions.overlayAdapter() + ".next",
                 versions.calendarFacts(), versions.contentRules()),
             new MyDayTemplateKey.Versions(versions.prompts(), versions.validator(), versions.overlayAdapter(),
-                "myday.calendar-facts.v2", versions.contentRules()),
+                versions.calendarFacts() + ".next", versions.contentRules()),
             new MyDayTemplateKey.Versions(versions.prompts(), versions.validator(), versions.overlayAdapter(),
-                versions.calendarFacts(), "myday.content-rules.v2"));
+                versions.calendarFacts(), versions.contentRules() + ".next"));
         for (var changed : changes) {
             assertNotEquals(first.fingerprint(), key(a, a.overlays(), changed).fingerprint());
         }

@@ -171,3 +171,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-postpartum-feeding-codes-v33
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V33__postpartum_feeding_codes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

@@ -32,7 +32,23 @@ import java.util.*;
  * {@value #MAX_FACT_KEYS} onboarding/calendar keys (catalog priority) are passed on; medical keys always.
  */
 public final class MyDayOverlayAdapter {
-    public static final String VERSION = "myday.overlay-adapter.v1";
+    public static final String VERSION = "myday.overlay-adapter.v2";
+
+    /**
+     * PST_FEEDING (MOMNA-561, Product decision 24.11.2026), the seven canonical codes registered in the
+     * Canonical Field Registry (V33), answered per baby.
+     */
+    public static final Set<String> FEEDING_CODES = Set.of("nursing_at_breast", "pumped_breast_milk",
+        "combination_feeding", "infant_formula", "tube_or_medically_supported", "feeding_plan_changing",
+        "prefer_not_to_say");
+    /** Breast milk for that baby, whatever the clarification says. */
+    public static final Set<String> BREAST_MILK_FEEDING = Set.of("nursing_at_breast", "pumped_breast_milk",
+        "combination_feeding");
+    /** Breast milk only if the per-baby clarification answers "yes"; "no" or no answer (UNKNOWN) does not count. */
+    public static final Set<String> FEEDING_NEEDS_CLARIFICATION = Set.of("tube_or_medically_supported",
+        "feeding_plan_changing");
+    static final String FEEDING_FIELD = "onboarding.postpartum.feeding";
+    static final String BREAST_MILK_NOW_FIELD = "onboarding.postpartum.feeding_breast_milk_now";
     public static final int ACTIVATION_PERCENT = 60;
     public static final int MAX_STATE_KEYS = 3;
     public static final int MAX_FACT_KEYS = 3;
@@ -240,6 +256,31 @@ public final class MyDayOverlayAdapter {
         }
     }
 
+    /**
+     * {@code post_breastfeeding}, per baby: on when at least one baby is fed breast milk. For tube/medical
+     * feeding or a changing plan the clarification of the same baby decides ("yes" on, "no" off, none
+     * UNKNOWN = off). A single clarification answer without child references applies to every such baby.
+     */
+    public record BreastMilkFeeding() implements Rule {
+        @Override
+        public Optional<BigDecimal> evaluate(Input input) {
+            var feeding = input.onboarding().get(FEEDING_FIELD);
+            if (feeding == null) return Optional.empty();
+            var clarification = input.onboarding().get(BREAST_MILK_NOW_FIELD);
+            var answers = clarification == null ? Map.<String, String>of() : clarification.perChild();
+            for (var child : feeding.perChild().entrySet()) {
+                var code = child.getValue();
+                if (BREAST_MILK_FEEDING.contains(code)) return Optional.of(ONE);
+                if (FEEDING_NEEDS_CLARIFICATION.contains(code)) {
+                    var now = answers.containsKey(child.getKey()) ? answers.get(child.getKey())
+                        : answers.size() == 1 && answers.containsKey("*") ? answers.get("*") : null;
+                    if ("yes".equals(now)) return Optional.of(ONE);
+                }
+            }
+            return Optional.empty();
+        }
+    }
+
     public record NotMappable(String reason) implements Rule {
         @Override
         public Optional<BigDecimal> evaluate(Input input) { return Optional.empty(); }
@@ -336,12 +377,10 @@ public final class MyDayOverlayAdapter {
             "caesarean birth"),
         fact("post_low_milk", "postpartum", OB, new Onboarding(C + "postpartum.feeding_issues", "milk_supply_worry"),
             "milk supply worry"),
-        fact("post_breastfeeding", "postpartum", OB, new Any(
-            new Onboarding(C + "postpartum.feeding", "breastfeeding", "breast", "breast_milk",
-                "exclusive_breastfeeding", "mostly_breastfeeding", "mixed", "mixed_feeding", "combination",
-                "pumping", "expressed_milk"),
-            new Onboarding(C + "postpartum.feeding_issues", "sore_nipples", "engorgement", "clogged_duct",
-                "latching_trouble", "pumping_effort", "milk_supply_worry")), "breast or mixed feeding"),
+        fact("post_breastfeeding", "postpartum", OB, new BreastMilkFeeding(),
+            "PST_FEEDING (MOMNA-561), per baby: nursing_at_breast, pumped_breast_milk or combination_feeding; "
+                + "tube_or_medically_supported / feeding_plan_changing only with breast milk now = yes; "
+                + "at least one baby; feeding_issues never"),
         fact("post_no_partner", "postpartum", OB,
             new Onboarding(C + "postpartum.partner", "no_partner", "not_living_together"), "no partner near"),
         fact("post_partner_present", "postpartum", OB, new Onboarding(C + "postpartum.partner", "live_together"),
@@ -393,7 +432,8 @@ public final class MyDayOverlayAdapter {
         var out = new TreeSet<String>(List.of(
             "onboarding.menarche.last_period", "onboarding.cycle.lmp", "onboarding.cycle.regularity",
             "onboarding.planning.lmp", "onboarding.perimenopause.lmp", "onboarding.pregnancy.edd",
-            "onboarding.pregnancy.lmp", "onboarding.pregnancy.gestational_weeks", "onboarding.postpartum.birth_date"));
+            "onboarding.pregnancy.lmp", "onboarding.pregnancy.gestational_weeks", "onboarding.postpartum.birth_date",
+            FEEDING_FIELD, BREAST_MILK_NOW_FIELD));
         for (var entry : CATALOG) collect(entry.rule(), out);
         return Collections.unmodifiableSet(out);
     }

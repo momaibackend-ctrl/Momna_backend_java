@@ -36,21 +36,70 @@ public final class MyDayFacts {
         public Set<String> options() {
             var raw = unwrap(payload);
             var out = new TreeSet<String>();
+            collect(raw, out, 0);
+            return Collections.unmodifiableSet(out);
+        }
+
+        /**
+         * Scalars count as options; a list contributes its elements; an object of flags ({@code {code: true}})
+         * contributes its true keys; an object of answers per child ({@code {childRef: code}} or
+         * {@code [{childRef, value}]}) contributes the answers, never the child references.
+         */
+        private static void collect(Object value, Set<String> out, int depth) {
+            if (value == null || depth > 4) return;
+            var raw = unwrap(value);
             if (raw instanceof Collection<?> list) {
-                for (var item : list) {
-                    var value = unwrap(item);
-                    if (value != null && !(value instanceof Map<?, ?>)) out.add(String.valueOf(value));
-                }
+                for (var item : list) collect(item, out, depth + 1);
             } else if (raw instanceof Map<?, ?> map) {
-                for (var entry : map.entrySet()) {
-                    var value = entry.getValue();
-                    if (value == null || Boolean.FALSE.equals(value)) continue;
-                    out.add(String.valueOf(entry.getKey()));
+                if (map.containsKey("value")) {
+                    collect(map.get("value"), out, depth + 1);
+                    return;
                 }
-            } else if (raw != null) {
+                for (var entry : map.entrySet()) {
+                    var item = entry.getValue();
+                    if (item instanceof Boolean flag) {
+                        if (flag) out.add(String.valueOf(entry.getKey()));
+                    } else {
+                        collect(item, out, depth + 1);
+                    }
+                }
+            } else if (!(raw instanceof Boolean)) {
                 out.add(String.valueOf(raw));
             }
-            return Collections.unmodifiableSet(out);
+        }
+
+        /**
+         * The answer per child: {@code {childRef: code}} and {@code [{childRef, value}]} keep their child
+         * references; a single scalar answer, or a list of plain codes, is keyed "*" / by position.
+         */
+        public Map<String, String> perChild() {
+            var raw = unwrap(payload);
+            var out = new TreeMap<String, String>();
+            if (raw instanceof Map<?, ?> map) {
+                for (var entry : map.entrySet()) {
+                    var value = unwrap(entry.getValue());
+                    if (value != null && !(value instanceof Map<?, ?>) && !(value instanceof Collection<?>)
+                        && !(value instanceof Boolean)) {
+                        out.put(String.valueOf(entry.getKey()), String.valueOf(value));
+                    }
+                }
+            } else if (raw instanceof List<?> list) {
+                for (int i = 0; i < list.size(); i++) {
+                    var item = list.get(i);
+                    if (item instanceof Map<?, ?> element) {
+                        var child = element.containsKey("childRef") ? element.get("childRef") : element.get("child");
+                        var value = unwrap(element.get("value"));
+                        if (value != null && !(value instanceof Map<?, ?>) && !(value instanceof Collection<?>)) {
+                            out.put(child == null ? String.valueOf(i + 1) : String.valueOf(child), String.valueOf(value));
+                        }
+                    } else if (item != null) {
+                        out.put(String.valueOf(i + 1), String.valueOf(unwrap(item)));
+                    }
+                }
+            } else if (raw != null && !(raw instanceof Boolean)) {
+                out.put("*", String.valueOf(raw));
+            }
+            return Collections.unmodifiableMap(out);
         }
 
         /** The single scalar value, if the answer is one. */

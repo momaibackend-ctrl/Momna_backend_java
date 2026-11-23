@@ -36,21 +36,36 @@ public final class MyDayFacts {
         public Set<String> options() {
             var raw = unwrap(payload);
             var out = new TreeSet<String>();
+            collect(raw, out, 0);
+            return Collections.unmodifiableSet(out);
+        }
+
+        /**
+         * Scalars count as options; a list contributes its elements; an object of flags ({@code {code: true}})
+         * contributes its true keys; an object of answers per child ({@code {childRef: code}} or
+         * {@code [{childRef, value}]}) contributes the answers, never the child references.
+         */
+        private static void collect(Object value, Set<String> out, int depth) {
+            if (value == null || depth > 4) return;
+            var raw = unwrap(value);
             if (raw instanceof Collection<?> list) {
-                for (var item : list) {
-                    var value = unwrap(item);
-                    if (value != null && !(value instanceof Map<?, ?>)) out.add(String.valueOf(value));
-                }
+                for (var item : list) collect(item, out, depth + 1);
             } else if (raw instanceof Map<?, ?> map) {
-                for (var entry : map.entrySet()) {
-                    var value = entry.getValue();
-                    if (value == null || Boolean.FALSE.equals(value)) continue;
-                    out.add(String.valueOf(entry.getKey()));
+                if (map.containsKey("value")) {
+                    collect(map.get("value"), out, depth + 1);
+                    return;
                 }
-            } else if (raw != null) {
+                for (var entry : map.entrySet()) {
+                    var item = entry.getValue();
+                    if (item instanceof Boolean flag) {
+                        if (flag) out.add(String.valueOf(entry.getKey()));
+                    } else {
+                        collect(item, out, depth + 1);
+                    }
+                }
+            } else if (!(raw instanceof Boolean)) {
                 out.add(String.valueOf(raw));
             }
-            return Collections.unmodifiableSet(out);
         }
 
         /** The single scalar value, if the answer is one. */

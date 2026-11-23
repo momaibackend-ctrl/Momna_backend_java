@@ -123,6 +123,31 @@ class MyDayOverlayAdapterTest {
         assertFalse(result.overlayKeys().contains("post_ppd_screen"));
     }
 
+    /** PST_FEEDING (MOMNA-561), per baby: at least one baby on breast milk turns the key on. */
+    @Test
+    void breastfeedingFollowsTheFeedingAnswerOfAnyBaby() {
+        for (var code : List.of("breastfeeding", "pumped_breast_milk", "combination_feeding")) {
+            assertOn("post_breastfeeding", feeding(code));
+        }
+        for (var code : List.of("infant_formula", "tube_or_medical", "plan_changing", "prefer_not_to_say")) {
+            assertOff("post_breastfeeding", feeding(code));
+        }
+        // twins: one on formula, one at the breast
+        assertOn("post_breastfeeding", feeding(Map.of("child-1", "infant_formula", "child-2", "breastfeeding")));
+        assertOn("post_breastfeeding", feeding(List.of(Map.of("childRef", "child-1", "value", "infant_formula"),
+            Map.of("childRef", "child-2", "value", "pumped_breast_milk"))));
+        assertOff("post_breastfeeding", feeding(Map.of("child-1", "infant_formula", "child-2", "tube_or_medical")));
+        // a feeding difficulty is not proof of breast milk
+        for (var issue : List.of("latching_trouble", "sore_nipples", "engorgement", "milk_supply_worry")) {
+            assertOff("post_breastfeeding", input("postpartum", MONDAY, List.of(), List.of(),
+                Map.of("onboarding.postpartum.feeding_issues", fact(List.of(issue)))));
+        }
+    }
+
+    static MyDayOverlayAdapter.Input feeding(Object answer) {
+        return input("postpartum", MONDAY, List.of(), List.of(), Map.of("onboarding.postpartum.feeding", fact(answer)));
+    }
+
     // ---------------------------------------------------------------- caps
 
     @Test
@@ -233,8 +258,8 @@ class MyDayOverlayAdapterTest {
         // postpartum
         out.add(onboardingCase("post_birth_week_1_4", "postpartum", "onboarding.postpartum.birth_date",
             MONDAY.minusDays(27).toString(), MONDAY.minusDays(28).toString()));
-        out.add(onboardingCase("post_breastfeeding", "postpartum", "onboarding.postpartum.feeding_issues",
-            "latching_trouble", "none"));
+        out.add(onboardingCase("post_breastfeeding", "postpartum", "onboarding.postpartum.feeding",
+            "breastfeeding", "infant_formula"));
         out.add(onboardingCase("post_no_partner", "postpartum", "onboarding.postpartum.partner",
             "no_partner", "live_together"));
         out.add(onboardingCase("post_partner_present", "postpartum", "onboarding.postpartum.partner",

@@ -32,7 +32,18 @@ import java.util.*;
  * {@value #MAX_FACT_KEYS} onboarding/calendar keys (catalog priority) are passed on; medical keys always.
  */
 public final class MyDayOverlayAdapter {
-    public static final String VERSION = "myday.overlay-adapter.v1";
+    public static final String VERSION = "myday.overlay-adapter.v2";
+
+    /**
+     * PST_FEEDING (MOMNA-561), asked per baby. Codes: {@code breastfeeding} (Nursing at the breast),
+     * {@code pumped_breast_milk}, {@code combination_feeding}, {@code infant_formula}, {@code tube_or_medical},
+     * {@code plan_changing}, {@code prefer_not_to_say}. The first three mean breast milk; tube/medical and a
+     * changing plan do not say whether breast milk is used, so they do not count until Product decides.
+     * Common spellings of the three are accepted until the client codes are confirmed.
+     */
+    public static final Set<String> BREAST_MILK_FEEDING = Set.of("breastfeeding", "nursing", "breast",
+        "pumped_breast_milk", "pumped_milk", "expressed_milk", "pumping", "combination_feeding", "combination",
+        "mixed", "mixed_feeding");
     public static final int ACTIVATION_PERCENT = 60;
     public static final int MAX_STATE_KEYS = 3;
     public static final int MAX_FACT_KEYS = 3;
@@ -336,12 +347,9 @@ public final class MyDayOverlayAdapter {
             "caesarean birth"),
         fact("post_low_milk", "postpartum", OB, new Onboarding(C + "postpartum.feeding_issues", "milk_supply_worry"),
             "milk supply worry"),
-        fact("post_breastfeeding", "postpartum", OB, new Any(
-            new Onboarding(C + "postpartum.feeding", "breastfeeding", "breast", "breast_milk",
-                "exclusive_breastfeeding", "mostly_breastfeeding", "mixed", "mixed_feeding", "combination",
-                "pumping", "expressed_milk"),
-            new Onboarding(C + "postpartum.feeding_issues", "sore_nipples", "engorgement", "clogged_duct",
-                "latching_trouble", "pumping_effort", "milk_supply_worry")), "breast or mixed feeding"),
+        fact("post_breastfeeding", "postpartum", OB, new Onboarding(C + "postpartum.feeding", BREAST_MILK_FEEDING),
+            "PST_FEEDING (MOMNA-561): at least one baby nursing at the breast, on pumped breast milk or combination "
+                + "feeding; formula, tube/medical, changing plan and no answer do not count; feeding_issues alone never"),
         fact("post_no_partner", "postpartum", OB,
             new Onboarding(C + "postpartum.partner", "no_partner", "not_living_together"), "no partner near"),
         fact("post_partner_present", "postpartum", OB, new Onboarding(C + "postpartum.partner", "live_together"),

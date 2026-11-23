@@ -9,7 +9,7 @@
     "currentVersions" : {
       "prompts" : "myday.prompts.v1.1",
       "validator" : "MY_DAY_CARDS_V1",
-      "overlayAdapter" : "myday.overlay-adapter.v1",
+      "overlayAdapter" : "myday.overlay-adapter.v2",
       "calendarFacts" : "myday.calendar-facts.v1:myday.phase-code.v1",
       "contentRules" : "myday.content-rules.v1"
     },
@@ -27,7 +27,7 @@
     "phaseCode" : [ "teen_<cycle_state>", "adult_<cycle_state>", "planning_<cycle_state>", "preg_trimester<n>_w<week> | preg_unknown", "post_w<week> | post_unknown", "peri_<cycle_state>", "meno_general" ]
   },
   "overlayAdapter" : {
-    "version" : "myday.overlay-adapter.v1",
+    "version" : "myday.overlay-adapter.v2",
     "checkinActivation" : "strength = sum over phases that answered one of the key's items of (strongest state: 0, 0.5 middle, 1 strongest) x phase base share, divided by the sum of those shares; on at >= 60%",
     "phaseShares" : "Morning(D) 0.7 + Evening(D-1) 0.3 when both are final sources; 1.0 for the only one",
     "medical" : "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL, on the period's own routes; never from a score or the LLM",
@@ -307,8 +307,8 @@
       "lifeMode" : "postpartum",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Any[rules=[Onboarding[field=onboarding.postpartum.feeding, anyOf=[breast, breast_milk, breastfeeding, combination, exclusive_breastfeeding, expressed_milk, mixed, mixed_feeding, mostly_breastfeeding, pumping]], Onboarding[field=onboarding.postpartum.feeding_issues, anyOf=[clogged_duct, engorgement, latching_trouble, milk_supply_worry, pumping_effort, sore_nipples]]]]",
-      "meaning" : "breast or mixed feeding",
+      "rule" : "Onboarding[field=onboarding.postpartum.feeding, anyOf=[breast, breastfeeding, combination, combination_feeding, expressed_milk, mixed, mixed_feeding, nursing, pumped_breast_milk, pumped_milk, pumping]]",
+      "meaning" : "PST_FEEDING (MOMNA-561): at least one baby nursing at the breast, on pumped breast milk or combination feeding; formula, tube/medical, changing plan and no answer do not count; feeding_issues alone never",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
       "overlayKey" : "post_no_partner",

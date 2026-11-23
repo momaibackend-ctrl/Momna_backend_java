@@ -57,6 +57,17 @@ class MyDayTemplateBoundaryTest {
         }
     }
 
+    /** The registry is the single list of codes: the adapter reads exactly what the migrations register. */
+    @Test
+    void theFeedingCodesAreTheRegisteredOnes() throws Exception {
+        var v33 = Files.readString(Path.of("src/main/resources/db/liquibase/sql/V33__postpartum_feeding_codes.sql"));
+        for (var code : com.momna.modules.myday.application.template.MyDayOverlayAdapter.FEEDING_CODES) {
+            assertTrue(v33.contains('"' + code + '"'), code);
+        }
+        var v34 = Files.readString(Path.of("src/main/resources/db/liquibase/sql/V34__feeding_breast_milk_now_options.sql"));
+        assertTrue(v34.contains("[\"yes\", \"no\", \"not_sure\", \"prefer_not_to_say\"]"));
+    }
+
     @Test
     void onboardingAnswersAreReadInEveryStoredShape() {
         assertEquals(Set.of("school"), fact(Map.of("value", "school")).options());

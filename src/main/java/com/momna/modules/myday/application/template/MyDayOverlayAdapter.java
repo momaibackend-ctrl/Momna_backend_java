@@ -44,7 +44,10 @@ public final class MyDayOverlayAdapter {
     /** Breast milk for that baby, whatever the clarification says. */
     public static final Set<String> BREAST_MILK_FEEDING = Set.of("nursing_at_breast", "pumped_breast_milk",
         "combination_feeding");
-    /** Breast milk only if the per-baby clarification answers "yes"; "no" or no answer (UNKNOWN) does not count. */
+    /**
+     * Breast milk only if the per-baby clarification answers "yes". "no" turns it off; "not_sure",
+     * "prefer_not_to_say" and a skipped answer are UNKNOWN and do not count either (design brief 24.11.2026).
+     */
     public static final Set<String> FEEDING_NEEDS_CLARIFICATION = Set.of("tube_or_medically_supported",
         "feeding_plan_changing");
     static final String FEEDING_FIELD = "onboarding.postpartum.feeding";

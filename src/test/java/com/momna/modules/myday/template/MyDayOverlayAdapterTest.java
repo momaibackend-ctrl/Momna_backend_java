@@ -140,6 +140,8 @@ class MyDayOverlayAdapterTest {
             assertOn("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "yes")));
             assertOn("post_breastfeeding", feeding(code, "yes"));
             assertOff("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "no")));
+            assertOff("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "not_sure")));
+            assertOff("post_breastfeeding", feeding(Map.of("1", code), Map.of("1", "prefer_not_to_say")));
             assertOff("post_breastfeeding", feeding(Map.of("1", code), null));
         }
         // a "yes" about a formula-fed baby does not make breast milk

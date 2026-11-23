@@ -33,10 +33,9 @@ class MyDayMaterializationServiceTest {
     @SuppressWarnings("unchecked")
     private final ObjectProvider<MyDayCardSource> sources = mock(ObjectProvider.class);
     private final MyDayCardSource source = mock(MyDayCardSource.class);
-    private final MyDayGenerationCacheRepository cache = mock(MyDayGenerationCacheRepository.class);
     private final LifecycleQueryService lifecycle = lifecycle();
     private final MyDayMaterializationService service = new MyDayMaterializationService(
-        days, cards, outbox, lifecycle, mock(ProfileService.class), sources, cache);
+        days, cards, outbox, lifecycle, mock(ProfileService.class), sources);
 
     private static LifecycleQueryService lifecycle() {
         var lifecycle = mock(LifecycleQueryService.class);
@@ -50,8 +49,6 @@ class MyDayMaterializationServiceTest {
     void withoutACardSourceOrCachedDayNothingIsStoredAndGenerationFailsClosed() {
         when(days.findByUserIdAndLocalDate("u1", DAY)).thenReturn(Optional.empty());
         when(sources.getIfAvailable()).thenReturn(null);
-        when(cache.findFirstByLifeModeAndLanguageAndExpiresAtAfterOrderByCreatedAtDesc(any(), any(), any()))
-            .thenReturn(Optional.empty());
         var failure = assertThrows(MyDayException.class, () -> service.upsert(command(null, "orch-1")));
         assertEquals("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", failure.code());
         verifyNoInteractions(cards, outbox);
@@ -59,35 +56,18 @@ class MyDayMaterializationServiceTest {
     }
 
     @Test
-    void anInvalidAnswerIsNeverStoredAndASimilarVerifiedDayIsServedDegraded() {
+    void anInvalidOrFailedAnswerIsNeverStoredAndNoOtherUsersDayIsServed() {
         when(days.findByUserIdAndLocalDate("u1", DAY)).thenReturn(Optional.empty());
         when(sources.getIfAvailable()).thenReturn(source);
         when(source.generate(any())).thenReturn(new com.momna.modules.myday.application.MyDayCards.GeneratedDay(
             List.of(), "AI", "myday.generation.v1", null, null, null, "key-invalid"));
-        var cached = new MyDayGenerationCacheEntity("key-1", "adult_cycle", "en", nineCards(), "AI",
-            "myday.generation.v1", "p1", "m1", "s1", Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600));
-        when(cache.findFirstByLifeModeAndLanguageAndExpiresAtAfterOrderByCreatedAtDesc(eq("adult_cycle"), eq("en"), any()))
-            .thenReturn(Optional.of(cached));
-        var result = service.upsert(command(null, "orch-1"));
-        assertEquals("CREATED", result.outcome());
-        var saved = org.mockito.ArgumentCaptor.forClass(MyDayEntity.class);
-        verify(days).saveAndFlush(saved.capture());
-        assertEquals("DEGRADED_READY", saved.getValue().getStatus());
-        assertEquals("CACHE_FALLBACK", saved.getValue().getCardSource());
-        assertEquals("key-1", saved.getValue().getCacheKey());
-        verify(cards, times(9)).save(any());
-        verify(cache, never()).save(any());
-    }
-
-    private static List<Map<String, Object>> nineCards() {
-        var result = new java.util.ArrayList<Map<String, Object>>();
-        for (var slot : List.of("AM", "PM", "OPTIONAL")) {
-            for (int i = 1; i <= 3; i++) {
-                result.add(Map.of("slot", slot, "position", i, "title", "t", "microcopy", "m", "whatToDo", "w",
-                    "whyToday", "y", "howToDo", "h", "ifSkipped", "i", "support", "s"));
-            }
-        }
-        return result;
+        assertEquals("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE",
+            assertThrows(MyDayException.class, () -> service.upsert(command(null, "orch-1"))).code());
+        when(source.generate(any())).thenThrow(new IllegalStateException("provider timeout"));
+        assertEquals("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE",
+            assertThrows(MyDayException.class, () -> service.upsert(command(null, "orch-1"))).code());
+        verify(days, never()).saveAndFlush(any());
+        verifyNoInteractions(cards, outbox);
     }
 
     @Test
@@ -96,7 +76,7 @@ class MyDayMaterializationServiceTest {
         var result = service.upsert(command(null, "orch-1"));
         assertEquals("UNCHANGED", result.outcome());
         assertEquals("day-1", result.myDayId());
-        verifyNoInteractions(sources, source, cards, outbox, cache);
+        verifyNoInteractions(sources, source, cards, outbox);
     }
 
     @Test

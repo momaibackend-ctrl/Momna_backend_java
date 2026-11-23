@@ -229,8 +229,7 @@ class MyDayHttpE2eTest {
 
     @Test
     void submittedMorningCheckinFeedsTheDayAndIsConsumedOnlyAfterItIsStored() throws Exception {
-        // PLANNING: no other test generates it, so there is no verified day to fall back to.
-        var user = user(LifecyclePeriod.PLANNING, "myday-morning");
+                var user = user(LifecyclePeriod.PLANNING, "myday-morning");
         var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
         String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
@@ -273,23 +272,20 @@ class MyDayHttpE2eTest {
     }
 
     @Test
-    void whenGenerationIsDownASimilarVerifiedDayIsServedAsDegraded() throws Exception {
-        var first = user(LifecyclePeriod.MENOPAUSE, "myday-cache-source");
+    void whenGenerationIsDownAnotherUsersDayIsNeverServed() throws Exception {
+        var first = user(LifecyclePeriod.MENOPAUSE, "myday-other-user");
         assertEquals(201, post("/api/v1/my-day/generate", first).statusCode());
         SOURCE_DOWN.set(true);
         try {
-            var second = user(LifecyclePeriod.MENOPAUSE, "myday-cache-fallback");
-            var served = post("/api/v1/my-day/generate", second);
-            assertEquals(201, served.statusCode(), served.body());
-            var day = json.readTree(served.body());
-            assertEquals("DEGRADED_READY", day.path("status").asText());
-            assertEquals("CACHE_FALLBACK", day.path("provenance").path("cardSource").asText());
-            assertEquals(9, day.path("cards").size());
-            assertEquals("DEGRADED_READY", json.readTree(get("/api/v1/my-day/today", second.token()).body())
+            var second = user(LifecyclePeriod.MENOPAUSE, "myday-no-shared-fallback");
+            var failed = post("/api/v1/my-day/generate", second);
+            assertEquals(503, failed.statusCode(), failed.body());
+            assertEquals("MY_DAY_GENERATION_TEMPORARILY_UNAVAILABLE", json.readTree(failed.body()).path("code").asText());
+            assertEquals("30", failed.headers().firstValue("Retry-After").orElse(null));
+            assertEquals("NOT_GENERATED", json.readTree(get("/api/v1/my-day/today", second.token()).body())
                 .path("state").asText());
-            // The cache is a template, not the other user's day: separate ids, separate progress.
-            assertNotEquals(json.readTree(get("/api/v1/my-day/today", first.token()).body())
-                .path("myDay").path("myDayId").asText(), day.path("myDayId").asText());
+            assertEquals(0, jdbc.queryForObject(
+                "SELECT count(*) FROM momna.my_days WHERE user_id = ?", Integer.class, second.userId()));
         } finally {
             SOURCE_DOWN.set(false);
         }

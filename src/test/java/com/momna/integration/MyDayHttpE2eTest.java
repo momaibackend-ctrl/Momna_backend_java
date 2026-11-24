@@ -432,7 +432,9 @@ class MyDayHttpE2eTest {
         var eveningChoice = json.readTree(get("/api/v1/my-day/today", evening.token()).body());
         assertEquals("FROM_EVENING_CHECKIN", eveningChoice.path("planChoice").path("secondary").asText(),
             eveningChoice.toString());
-        assertEquals("From last night", eveningChoice.path("planChoice").path("standard").path("title").asText());
+        assertEquals("Last Night", eveningChoice.path("planChoice").path("standard").path("title").asText());
+        assertEquals("Your plan, shaped by how you felt last night.",
+            eveningChoice.path("planChoice").path("standard").path("description").asText());
         var personal = json.readTree(send("POST", "/api/v1/my-day/generate", "{\"source\":\"STANDARD\"}", evening,
             "gen-" + UUID.randomUUID()).body());
         assertEquals("PERSONAL", personal.path("kind").asText(), personal.toString());

@@ -29,7 +29,7 @@ public final class MyDayTexts {
     private static final Set EN = new Set(
         new Choice("Personal", "Answer a few questions — you'll get recommendations tailored to how you feel today."),
         new Choice("Standard", "General recommendations — no questions."),
-        new Choice("From last night", "A plan based on your evening Check-in."),
+        new Choice("Last Night", "Your plan, shaped by how you felt last night."),
         "Personal",
         List.of("WHAT TO DO", "WHY TODAY", "HOW TO DO IT", "IF IT DIDN'T WORK OUT"),
         "A NOTE FROM MOMNA",
@@ -39,7 +39,7 @@ public final class MyDayTexts {
     private static final Set RU = new Set(
         new Choice("Персональный", "Ответьте на несколько вопросов — и рекомендации учтут, как вы себя чувствуете сегодня."),
         new Choice("Общий", "Общие рекомендации — без вопросов."),
-        new Choice("По вчерашнему вечеру", "План по вашему вечернему Check-in."),
+        new Choice("Вчера вечером", "Ваш план — по тому, как вы чувствовали себя вчера вечером."),
         "Персональный",
         List.of("ЧТО СДЕЛАТЬ", "ПОЧЕМУ СЕГОДНЯ", "КАК СДЕЛАТЬ", "ЕСЛИ НЕ ПОЛУЧИЛОСЬ"),
         "ЗАМЕТКА ОТ MOMNA",

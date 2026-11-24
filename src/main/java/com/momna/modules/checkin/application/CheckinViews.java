@@ -18,7 +18,9 @@ public final class CheckinViews {
         String timezone,
         String lifecyclePeriod,
         String lifecycleSubstage,
-        List<PhaseSummary> phases
+        List<PhaseSummary> phases,
+        /** The Check-in tab subtitle ("How you feel, turned into a plan."). */
+        String subtitle
     ) {}
 
     public record PhaseSummary(
@@ -37,7 +39,12 @@ public final class CheckinViews {
          */
         String entryBlockedReason,
         /** The localized text shown instead of the questions (the app's C1 without a button). */
-        String entryBlockedText
+        String entryBlockedText,
+        /**
+         * The phase card of the Check-in tab: the invitation while START or RESUME is allowed, the
+         * "completed" card once the phase is final; null when the entry is blocked or not available.
+         */
+        CheckinTexts.PhaseCard card
     ) {}
 
     public record SessionView(

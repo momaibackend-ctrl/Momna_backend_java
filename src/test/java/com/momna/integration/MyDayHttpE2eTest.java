@@ -342,6 +342,45 @@ class MyDayHttpE2eTest {
             day.path("myDayId").asText()));
     }
 
+    /**
+     * Texts of the implemented design (Adult Cycle export of 24.11.2026): the My Day subtitle, the
+     * Standard card, screen L, and the Check-in tab cards before and after the morning Check-in.
+     */
+    @Test
+    void theScreensCarryTheDesignTexts() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "myday-design-texts");
+        var today = json.readTree(get("/api/v1/my-day/today", user.token()).body());
+        assertEquals("Recommendations for a regular cycle.", today.path("subtitle").asText());
+        assertEquals("Standard", today.path("planChoice").path("standard").path("title").asText());
+        assertEquals("General recommendations for a regular cycle — no questions.",
+            today.path("planChoice").path("standard").path("description").asText());
+        assertEquals("Getting your plan ready", today.path("generating").path("title").asText());
+        assertEquals("I'm turning your answers into today's recommendations.",
+            today.path("generating").path("description").asText());
+
+        var checkin = json.readTree(get("/api/v1/check-in/today", user.token()).body());
+        assertEquals("How you feel, turned into a plan.", checkin.path("subtitle").asText());
+        var morning = checkin.path("phases").get(0);
+        assertEquals("MORNING", morning.path("phase").asText());
+        assertEquals("How are you today?", morning.path("card").path("title").asText());
+        assertEquals("A few quick questions about mood, energy, and body — I'll shape your day around the answers.",
+            morning.path("card").path("body").asText());
+
+        var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
+        String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
+        var change = json.createObjectNode().put("expectedRevision", session.path("revision").asLong());
+        change.putArray("answerChanges").addObject().put("itemCode", "C1").put("value", 0);
+        var patched = json.readTree(send("PATCH", endpoint, change.toString(), user, "p-" + UUID.randomUUID()).body());
+        assertEquals(200, postWithKey(endpoint + "/submit", json.createObjectNode()
+            .put("expectedRevision", patched.path("revision").asLong()).toString(), user, "sub-" + UUID.randomUUID())
+            .statusCode());
+        var after = json.readTree(get("/api/v1/check-in/today", user.token()).body()).path("phases").get(0);
+        assertEquals("VIEW_FINAL_STATE", after.path("allowedEntryAction").asText());
+        assertEquals("Your personal plan is ready", after.path("card").path("title").asText());
+        assertEquals("Today is tailored to how you feel.", after.path("card").path("body").asText());
+    }
+
     @Test
     void whenGenerationIsDownAnotherUsersDayIsNeverServed() throws Exception {
         var first = user(LifecyclePeriod.MENOPAUSE, "myday-other-user");

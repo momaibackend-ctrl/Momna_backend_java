@@ -207,3 +207,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-onboarding-behavior-choices-v37
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V37__onboarding_behavior_choices.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

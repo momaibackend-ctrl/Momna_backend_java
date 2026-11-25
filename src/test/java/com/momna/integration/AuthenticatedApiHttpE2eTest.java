@@ -471,7 +471,7 @@ class AuthenticatedApiHttpE2eTest {
 
         var answerBody=json.createObjectNode().put("expectedDefinitionVersion",version)
             .put("expectedRevision",beforeAnswer).put("mode","SUBMIT");
-        answerBody.putObject("value").put("kind","ENUM").put("value","track_cycle");
+        answerValue(answerBody,returned.path("currentStep"),"track_cycle");
         String answerKey="answer-"+UUID.randomUUID();
         String path="/api/v1/flow-instances/"+id+"/answers/"+firstField;
         var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path))
@@ -529,6 +529,26 @@ class AuthenticatedApiHttpE2eTest {
             token,"premature-"+UUID.randomUUID());
         assertEquals(409,premature.statusCode(),premature.body());
 
+        // ONB-API-01: the step says what an answer may be, and a value outside it is refused.
+        var firstStep=state.path("currentStep");
+        assertEquals("onboarding.cycle.goals",firstStep.path("fieldId").asText(),firstStep.toString());
+        assertEquals("OBJECT",firstStep.path("dataType").asText());
+        assertTrue(firstStep.path("options").toString().contains("know_next_period"),firstStep.toString());
+        var invalidBody=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).put("mode","SUBMIT");
+        invalidBody.putObject("value").put("kind","ENUM").put("value","no");
+        var invalid=client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+
+            root+"/answers/onboarding.cycle.goals"))
+            .header("Content-Type","application/json")
+            .header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","cycle-invalid-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(invalidBody.toString())).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(422,invalid.statusCode(),invalid.body());
+        assertEquals("INVALID_FIELD_VALUE",json.readTree(invalid.body()).path("code").asText());
+        assertEquals(state.path("revision").asLong(),json.readTree(get(root,token).body()).path("revision").asLong(),
+            "a refused answer changes nothing");
+
         int answered=0;
         while (state.path("currentStep").isObject() && answered<100) {
             var step=state.path("currentStep");
@@ -536,7 +556,7 @@ class AuthenticatedApiHttpE2eTest {
             var body=json.createObjectNode().put("expectedDefinitionVersion",version)
                 .put("expectedRevision",state.path("revision").asLong())
                 .put("mode","SUBMIT");
-            body.putObject("value").put("kind","ENUM").put("value","no");
+            answerValue(body,state.path("currentStep"),"no");
             var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+
                 root+"/answers/"+field))
                 .header("Content-Type","application/json")
@@ -600,7 +620,7 @@ class AuthenticatedApiHttpE2eTest {
                     .put("expectedDefinitionVersion",definitionVersion)
                     .put("expectedRevision",state.path("revision").asLong())
                     .put("mode","SUBMIT");
-                body.putObject("value").put("kind","ENUM").put("value","no");
+                answerValue(body,state.path("currentStep"),"no");
                 var request=HttpRequest.newBuilder(URI.create(
                     "http://127.0.0.1:"+port+root+"/answers/"+field))
                     .header("Content-Type","application/json")
@@ -669,7 +689,7 @@ class AuthenticatedApiHttpE2eTest {
                 .put("expectedDefinitionVersion",routerVersion)
                 .put("expectedRevision",state.path("revision").asLong())
                 .put("mode","SUBMIT");
-            payload.putObject("value").put("kind","ENUM").put("value",choice);
+            answerValue(payload,state.path("currentStep"),choice);
             var request=HttpRequest.newBuilder(URI.create(
                 "http://127.0.0.1:"+port+routerPath+"/answers/"+field))
                 .header("Content-Type","application/json")
@@ -714,7 +734,7 @@ class AuthenticatedApiHttpE2eTest {
                 .put("expectedDefinitionVersion",definitionVersion)
                 .put("expectedRevision",flow.path("revision").asLong())
                 .put("mode","SUBMIT");
-            payload.putObject("value").put("kind","ENUM").put("value","no");
+            answerValue(payload,flow.path("currentStep"),"no");
             var request=HttpRequest.newBuilder(URI.create(
                 "http://127.0.0.1:"+port+onboardingPath+"/answers/"+field))
                 .header("Content-Type","application/json")
@@ -812,7 +832,7 @@ class AuthenticatedApiHttpE2eTest {
                 var data=json.createObjectNode().put("mode","SUBMIT")
                     .put("expectedDefinitionVersion",v)
                     .put("expectedRevision",router.path("revision").asLong());
-                data.putObject("value").put("kind","ENUM").put("value",
+                answerValue(data,router.path("currentStep"),
                     field.equals("onboarding.router.menarche_status") ? onset : "no");
                 var request=HttpRequest.newBuilder(URI.create(
                     "http://127.0.0.1:"+port+root+"/answers/"+field))
@@ -846,7 +866,7 @@ class AuthenticatedApiHttpE2eTest {
                 var data=json.createObjectNode().put("mode","SUBMIT")
                     .put("expectedDefinitionVersion",version)
                     .put("expectedRevision",period.path("revision").asLong());
-                data.putObject("value").put("kind","ENUM").put("value","no");
+                answerValue(data,period.path("currentStep"),"no");
                 var request=HttpRequest.newBuilder(URI.create(
                     "http://127.0.0.1:"+port+periodRoot+"/answers/"+field))
                     .header("Content-Type","application/json")
@@ -898,7 +918,7 @@ class AuthenticatedApiHttpE2eTest {
         var firstBody=json.createObjectNode().put("mode","SUBMIT")
             .put("expectedDefinitionVersion",version)
             .put("expectedRevision",state.path("revision").asLong());
-        firstBody.putObject("value").put("kind","ENUM").put("value","no");
+        answerValue(firstBody,state.path("currentStep"),"no");
         String key="mn-answer-"+UUID.randomUUID();
         var firstResponse=client.send(HttpRequest.newBuilder(
             URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
@@ -938,7 +958,8 @@ class AuthenticatedApiHttpE2eTest {
         var changedBody=json.createObjectNode().put("mode","CHANGE")
             .put("expectedDefinitionVersion",version)
             .put("expectedRevision",backState.path("revision").asLong());
-        changedBody.putObject("value").put("kind","ENUM").put("value","yes");
+        var changedValue=answerValue(changedBody,backState.path("currentStep"),
+            backState.path("currentStep").path("options").get(1).asText());
         var changed=client.send(HttpRequest.newBuilder(
             URI.create("http://127.0.0.1:"+port+root+"/answers/"+first))
             .header("Content-Type","application/json").header("Authorization","Bearer "+token)
@@ -953,8 +974,8 @@ class AuthenticatedApiHttpE2eTest {
             json.readTree(resumed.body()).path("revision").asLong());
         var result=get(root+"/result",token);
         assertEquals(200,result.statusCode(),result.body());
-        assertEquals("yes",json.readTree(result.body()).path("answers")
-            .path(first).path("value").asText());
+        assertEquals(changedValue,json.readTree(result.body()).path("answers")
+            .path(first).path("value"));
 
         var nextStep=changedState.path("currentStep");
         assertTrue(nextStep.isObject(),changed.body());
@@ -1078,6 +1099,7 @@ class AuthenticatedApiHttpE2eTest {
         String userId=authSessions.findById(creds.path("session").path("sessionId").asText())
             .orElseThrow().getUserId();
 
+        String goalSent=null;
         for(int iteration=0;iteration<2;iteration++) {
             var start=postWithKey("/api/v1/flow-instances",
                 json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
@@ -1093,8 +1115,10 @@ class AuthenticatedApiHttpE2eTest {
                 var answer=json.createObjectNode().put("mode","SUBMIT")
                     .put("expectedDefinitionVersion",version)
                     .put("expectedRevision",state.path("revision").asLong());
-                answer.putObject("value").put("kind","ENUM")
-                    .put("value",iteration==0 ? "no" : "yes");
+                var stepOptions=state.path("currentStep").path("options");
+                var sent=answerValue(answer,state.path("currentStep"),
+                    stepOptions.size()>1 ? stepOptions.get(iteration).asText() : iteration==0 ? "no" : "yes");
+                if (field.equals("onboarding.menarche.goal")) goalSent=sent.toString();
                 var response=client.send(HttpRequest.newBuilder(URI.create(
                     "http://127.0.0.1:"+port+root+"/answers/"+field))
                     .header("Content-Type","application/json")
@@ -1114,9 +1138,9 @@ class AuthenticatedApiHttpE2eTest {
             assertTrue(json.readTree(completed.body()).path("completed").asBoolean());
             var persisted=get(root+"/result",token);
             assertEquals(200,persisted.statusCode(),persisted.body());
-            assertEquals(iteration==0 ? "no" : "yes",json.readTree(persisted.body())
+            assertEquals(goalSent,json.readTree(persisted.body())
                 .path("answers").path("onboarding.menarche.goal")
-                .path("value").asText());
+                .path("value").toString());
             var afterCompletion=client.send(HttpRequest.newBuilder(URI.create(
                 "http://127.0.0.1:"+port+root+"/answers/onboarding.menarche.goal"))
                 .header("Content-Type","application/json")
@@ -1191,8 +1215,7 @@ class AuthenticatedApiHttpE2eTest {
             var answer=json.createObjectNode().put("mode","SUBMIT")
                 .put("expectedDefinitionVersion",version)
                 .put("expectedRevision",flow.path("revision").asLong());
-            answer.putObject("value").put("kind","ENUM")
-                .put("value",field.equals(relationship)?"yes":"no");
+            answerValue(answer,flow.path("currentStep"),field.equals(relationship)?"yes":"no");
             var response=client.send(HttpRequest.newBuilder(URI.create(
                 "http://127.0.0.1:"+port+root+"/answers/"+field))
                 .header("Content-Type","application/json")
@@ -1213,7 +1236,7 @@ class AuthenticatedApiHttpE2eTest {
         var changed=json.createObjectNode().put("mode","CHANGE")
             .put("expectedDefinitionVersion",version)
             .put("expectedRevision",flow.path("revision").asLong());
-        changed.putObject("value").put("kind","ENUM").put("value","no");
+        answerValue(changed,flow.path("currentStep"),"no");
         var response=client.send(HttpRequest.newBuilder(URI.create(
             "http://127.0.0.1:"+port+root+"/answers/"+relationship))
             .header("Content-Type","application/json")
@@ -1506,6 +1529,54 @@ class AuthenticatedApiHttpE2eTest {
             "answer-all-"+UUID.randomUUID());
         assertEquals(200,answered.statusCode(),answered.body());
         return json.readTree(answered.body());
+    }
+
+
+    /**
+     * A valid answer for the current step (ONB-API-01): the preferred code when the field allows it, else a
+     * neutral code of the field ("no", "prefer_not_to_say", "not_sure", "none"), else its first one. Dates,
+     * numbers and texts get a value inside the field's range.
+     */
+    private com.fasterxml.jackson.databind.JsonNode answerValue(com.fasterxml.jackson.databind.node.ObjectNode body,
+            com.fasterxml.jackson.databind.JsonNode step, String preferred) {
+        var value=body.putObject("value");
+        String type=step.path("dataType").asText(null);
+        var options=new java.util.ArrayList<String>();
+        for (var o : step.path("options")) options.add(o.asText());
+        String choice=preferred;
+        if (!options.isEmpty() && !options.contains(preferred)) {
+            choice=java.util.stream.Stream.of("no","prefer_not_to_say","not_sure","none")
+                .filter(options::contains).findFirst().orElse(options.get(0));
+        }
+        if ("OBJECT".equals(type)) {
+            value.put("kind","OBJECT");
+            if (step.path("requiredKeys").isArray()) {
+                var keyed=value.putObject("value");
+                for (var key : step.path("requiredKeys")) {
+                    var choices=step.path("valuesByKey").path(key.asText());
+                    if (choices.isArray() && !choices.isEmpty()) keyed.put(key.asText(),choices.get(0).asText());
+                    else keyed.put(key.asText(),true);
+                }
+            } else if (step.path("perChild").asBoolean()) {
+                value.putObject("value").put("1",choice);
+            } else {
+                value.putArray("value").add(choice);
+            }
+        } else if ("DATE".equals(type)) {
+            String field=step.path("fieldId").asText();
+            var today=java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+            var date=field.equals("profile.birth_date") ? today.minusYears(13)
+                : field.endsWith("birth_date") ? today.minusDays(30) : today;
+            value.put("kind","DATE").put("value",date.toString());
+        } else if ("NUMBER".equals(type)) {
+            value.put("kind","NUMBER").put("value",1);
+        } else if ("TEXT".equals(type)) {
+            String field=step.path("fieldId").asText();
+            value.put("kind","TEXT").put("value",field.equals("profile.country_region") ? "US" : "text");
+        } else {
+            value.put("kind","ENUM").put("value",choice);
+        }
+        return value.path("value");
     }
 
     private HttpResponse<String> safetyAction(MorningCheckin checkin, String routeId, String action,

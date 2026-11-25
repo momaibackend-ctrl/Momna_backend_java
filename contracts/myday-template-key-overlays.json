@@ -1,15 +1,15 @@
 {
   "contract" : "myday-template-key-overlays",
   "tasks" : [ "MOMNA-1324", "MOMNA-1325", "MOMNA-989" ],
-  "approvedBy" : "Product (vkdevpro), 23.11.2026; medical keys: Safety Platform (MOMNA-1145)",
+  "approvedBy" : "Product (vkdevpro), 23.11.2026 and 25.11.2026; medical keys: Safety Platform (MOMNA-1145)",
   "templateKey" : {
-    "keyVersion" : "myday.template-key.v1",
+    "keyVersion" : "myday.template-key.v2",
     "purpose" : "MY_DAY",
-    "components" : [ "life_mode", "day_number", "cycle_state", "phase_code", "week_number", "trimester", "overlay_keys (sorted)", "user_language", "prompts version", "validator version", "overlay-adapter version", "calendar-facts and phase-code version", "content-rules version" ],
+    "components" : [ "life_mode", "day_number", "cycle_state", "phase_code", "week_number", "trimester", "overlay_keys (sorted)", "user_language", "tone (gentle | friendly | close_friend | direct | null)", "prompts version", "validator version", "overlay-adapter version", "calendar-facts and phase-code version", "content-rules version" ],
     "currentVersions" : {
-      "prompts" : "myday.prompts.v1.1",
+      "prompts" : "myday.prompts.v1.2",
       "validator" : "MY_DAY_CARDS_V1",
-      "overlayAdapter" : "myday.overlay-adapter.v2",
+      "overlayAdapter" : "myday.overlay-adapter.v3",
       "calendarFacts" : "myday.calendar-facts.v1:myday.phase-code.v1",
       "contentRules" : "myday.content-rules.v1"
     },
@@ -27,10 +27,12 @@
     "phaseCode" : [ "teen_<cycle_state>", "adult_<cycle_state>", "planning_<cycle_state>", "preg_trimester<n>_w<week> | preg_unknown", "post_w<week> | post_unknown", "peri_<cycle_state>", "meno_general" ]
   },
   "overlayAdapter" : {
-    "version" : "myday.overlay-adapter.v2",
+    "version" : "myday.overlay-adapter.v3",
     "checkinActivation" : "strength = sum over phases that answered one of the key's items of (strongest state: 0, 0.5 middle, 1 strongest) x phase base share, divided by the sum of those shares; on at >= 60%",
     "phaseShares" : "Morning(D) 0.7 + Evening(D-1) 0.3 when both are final sources; 1.0 for the only one",
-    "medical" : "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL, on the period's own routes; never from a score or the LLM",
+    "medical" : "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL or UNKNOWN, on the period's own routes or a GLOBAL route; one <period>_health_flag per period, R18 POSTPARTUM_MENTAL_HEALTH is post_mood_heavy; never from a score, a profile answer or the LLM",
+    "healthNote" : "only a day with a passed medical key gets a doctor line: the strongest decision behind it gives the level (CRITICAL EMERGENCY, HIGH URGENT, MEDIUM PROMPT, UNKNOWN); PROMPT and UNKNOWN add the code-owned recommendation, URGENT and EMERGENCY none (the urgent path shows them); every such day adds the disclaimer; texts myday.health-texts.v1",
+    "tone" : "onboarding.<period>.tone, one of the four tones, else null",
     "dailyCaps" : {
       "checkinKeys" : 3,
       "factKeys" : 3,
@@ -39,12 +41,12 @@
     "computedOnce" : "when the day is generated; later Check-ins do not change today's keys",
     "withoutCheckin" : "only onboarding and calendar keys",
     "entries" : [ {
-      "overlayKey" : "teen_red_flag",
+      "overlayKey" : "teen_health_flag",
       "lifeMode" : "teen_menarche",
       "sourceType" : "SAFETY_PROJECTION",
       "cap" : "MEDICAL",
-      "rule" : "Safety[routePrefix=MENARCHE_]",
-      "meaning" : "SafetyDecision MEDIUM+ on a menarche route",
+      "rule" : "Safety[routePrefixes=[MENARCHE_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a MENARCHE_* or GLOBAL_* route",
       "owner" : "Safety Platform (MOMNA-1145)"
     }, {
       "overlayKey" : "teen_pain_high",
@@ -75,32 +77,32 @@
       "lifeMode" : "teen_menarche",
       "sourceType" : "CHECKIN_ITEM",
       "cap" : "FACT",
-      "rule" : "Any[rules=[MorningAnswered[item=M6, minState=0], All[rules=[Onboarding[field=onboarding.menarche.day_context, anyOf=[school]], Calendar[fact=WEEKDAY]]]]]",
-      "meaning" : "morning M6 answered, or school as day context on a weekday",
+      "rule" : "Any[rules=[MorningAnswered[item=M6, minState=0], All[rules=[Onboarding[field=onboarding.menarche.day_context, anyOf=[college, school]], Calendar[fact=WEEKDAY]]]]]",
+      "meaning" : "morning M6 answered, or school or college as day context on a weekday",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
       "overlayKey" : "teen_no_trusted_adult",
       "lifeMode" : "teen_menarche",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Onboarding[field=onboarding.menarche.trusted_adult, anyOf=[dont_want_to, no_one]]",
-      "meaning" : "no trusted adult",
+      "rule" : "Onboarding[field=onboarding.menarche.trusted_adult, anyOf=[dont_want_to, no_one, someone_unsure]]",
+      "meaning" : "no trusted adult, or unsure whom to talk to",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
       "overlayKey" : "teen_privacy_high",
       "lifeMode" : "teen_menarche",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Any[rules=[Onboarding[field=onboarding.menarche.notifications, anyOf=[neutral_wording, no_notifications]], Onboarding[field=onboarding.menarche.toilet_access, anyOf=[almost_impossible, sometimes_difficult]], Checkin[items=[M8]]]]",
+      "rule" : "Any[rules=[Onboarding[field=onboarding.menarche.notifications, anyOf=[neutral_wording, no_notifications, only_important]], Onboarding[field=onboarding.menarche.toilet_access, anyOf=[almost_impossible, sometimes_difficult]], Checkin[items=[M8]]]]",
       "meaning" : "neutral notifications, hard toilet access, or privacy M8",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
-      "overlayKey" : "adult_red_flag",
+      "overlayKey" : "adult_health_flag",
       "lifeMode" : "adult_cycle",
       "sourceType" : "SAFETY_PROJECTION",
       "cap" : "MEDICAL",
-      "rule" : "Safety[routePrefix=CYCLE_]",
-      "meaning" : "SafetyDecision MEDIUM+ on a cycle route",
+      "rule" : "Safety[routePrefixes=[CYCLE_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a CYCLE_* or GLOBAL_* route",
       "owner" : "Safety Platform (MOMNA-1145)"
     }, {
       "overlayKey" : "adult_pain_high",
@@ -145,11 +147,19 @@
     }, {
       "overlayKey" : "adult_relationship_tension",
       "lifeMode" : "adult_cycle",
-      "sourceType" : "NOT_MAPPABLE",
-      "cap" : "NONE",
-      "rule" : "NotMappable[reason=weighted-v3 has no relationship item; onboarding cycle.partner is a status, not tension]",
-      "meaning" : "weighted-v3 has no relationship item; onboarding cycle.partner is a status, not tension",
-      "owner" : "Product (vkdevpro), 23.11.2026"
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Onboarding[field=onboarding.cycle.partner_support, anyOf=[little_support, relationship_tense]]",
+      "meaning" : "CYC_PARTNER_SUPPORT: tense relationship or little support (pressured_unsafe is a safety matter)",
+      "owner" : "Product (vkdevpro), 25.11.2026"
+    }, {
+      "overlayKey" : "planning_health_flag",
+      "lifeMode" : "planning",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefixes=[PLANNING_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a PLANNING_* or GLOBAL_* route",
+      "owner" : "Safety Platform (MOMNA-1145)"
     }, {
       "overlayKey" : "planning_anxiety_high",
       "lifeMode" : "planning",
@@ -199,13 +209,21 @@
       "meaning" : "tension with the partner (pressured_unsafe is a safety matter, not this key)",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
-      "overlayKey" : "preg_high_risk",
+      "overlayKey" : "preg_health_flag",
       "lifeMode" : "pregnancy",
       "sourceType" : "SAFETY_PROJECTION",
       "cap" : "MEDICAL",
-      "rule" : "Safety[routePrefix=PREGNANCY_]",
-      "meaning" : "SafetyDecision MEDIUM+ on a pregnancy route",
+      "rule" : "Safety[routePrefixes=[PREGNANCY_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a PREGNANCY_* or GLOBAL_* route",
       "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
+      "overlayKey" : "preg_high_risk",
+      "lifeMode" : "pregnancy",
+      "sourceType" : "ONBOARDING_FIELD",
+      "cap" : "FACT",
+      "rule" : "Any[rules=[Onboarding[field=onboarding.pregnancy.special_care, anyOf=[advised_rest, exercise_limits, need_frequent_monitoring]], Onboarding[field=onboarding.pregnancy.current_context, anyOf=[blood_pressure, blood_sugar, placenta_bleeding, preterm_labor_risk]], Onboarding[field=onboarding.pregnancy.multiples, anyOf=[more_than_three, triplets, twins]], Onboarding[field=onboarding.pregnancy.prev_details, anyOf=[high_bp_preeclampsia, preterm_birth, repeated_loss]]]]",
+      "meaning" : "profile context: closer care advised, a named condition, more than one baby, or a past preterm birth, pre-eclampsia or repeated loss; it shapes the plan and adds no doctor line",
+      "owner" : "Product (vkdevpro), 25.11.2026"
     }, {
       "overlayKey" : "preg_nausea",
       "lifeMode" : "pregnancy",
@@ -259,8 +277,8 @@
       "lifeMode" : "pregnancy",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Onboarding[field=onboarding.pregnancy.partner, anyOf=[no_partner, yes_no_live_together]]",
-      "meaning" : "partner not near",
+      "rule" : "Onboarding[field=onboarding.pregnancy.partner, anyOf=[casual_multiple, no_partner, yes_no_live_together]]",
+      "meaning" : "no partner living together",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
       "overlayKey" : "preg_work_active",
@@ -271,13 +289,21 @@
       "meaning" : "works",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
-      "overlayKey" : "post_ppd_screen",
+      "overlayKey" : "post_health_flag",
       "lifeMode" : "postpartum",
-      "sourceType" : "NOT_MAPPABLE",
-      "cap" : "NONE",
-      "rule" : "NotMappable[reason=MOMNA-1146: no approved mental-health route; never from a score]",
-      "meaning" : "MOMNA-1146: no approved mental-health route; never from a score",
-      "owner" : "Product (vkdevpro), 23.11.2026"
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefixes=[POSTPARTUM_, GLOBAL_], exactRoute=null, excludedRoutes=[POSTPARTUM_MENTAL_HEALTH]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a POSTPARTUM_* or GLOBAL_* route",
+      "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
+      "overlayKey" : "post_mood_heavy",
+      "lifeMode" : "postpartum",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefixes=[], exactRoute=POSTPARTUM_MENTAL_HEALTH, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on R18 POSTPARTUM_MENTAL_HEALTH (inputs PP2, PP18, WB1); replaces post_ppd_screen, never a score and never called a screening",
+      "owner" : "Safety Platform (MOMNA-1145)"
     }, {
       "overlayKey" : "post_birth_week_1_4",
       "lifeMode" : "postpartum",
@@ -343,6 +369,14 @@
       "meaning" : "intimacy resumed, after week 6",
       "owner" : "Product (vkdevpro), 23.11.2026"
     }, {
+      "overlayKey" : "peri_health_flag",
+      "lifeMode" : "perimenopause",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefixes=[PERIMENOPAUSE_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a PERIMENOPAUSE_* or GLOBAL_* route",
+      "owner" : "Safety Platform (MOMNA-1145)"
+    }, {
       "overlayKey" : "peri_hot_flashes",
       "lifeMode" : "perimenopause",
       "sourceType" : "CHECKIN_ITEM",
@@ -395,9 +429,17 @@
       "lifeMode" : "perimenopause",
       "sourceType" : "ONBOARDING_FIELD",
       "cap" : "FACT",
-      "rule" : "Onboarding[field=onboarding.perimenopause.intimacy, anyOf=[desire_decreased]]",
-      "meaning" : "desire decreased",
+      "rule" : "Onboarding[field=onboarding.perimenopause.intimacy, anyOf=[desire_decreased, desire_unpredictable]]",
+      "meaning" : "desire decreased or unpredictable",
       "owner" : "Product (vkdevpro), 23.11.2026"
+    }, {
+      "overlayKey" : "meno_health_flag",
+      "lifeMode" : "menopause",
+      "sourceType" : "SAFETY_PROJECTION",
+      "cap" : "MEDICAL",
+      "rule" : "Safety[routePrefixes=[MENOPAUSE_, GLOBAL_], exactRoute=null, excludedRoutes=[]]",
+      "meaning" : "SafetyDecision MEDIUM+ or UNKNOWN on a MENOPAUSE_* or GLOBAL_* route",
+      "owner" : "Safety Platform (MOMNA-1145)"
     }, {
       "overlayKey" : "meno_sleep_poor",
       "lifeMode" : "menopause",
@@ -449,11 +491,11 @@
     }, {
       "overlayKey" : "meno_new_chapter",
       "lifeMode" : "menopause",
-      "sourceType" : "NOT_MAPPABLE",
-      "cap" : "NONE",
-      "rule" : "NotMappable[reason=no Check-in item or onboarding field states a new project; needs a Product question]",
-      "meaning" : "no Check-in item or onboarding field states a new project; needs a Product question",
-      "owner" : "Product (vkdevpro), 23.11.2026"
+      "sourceType" : "CALENDAR_FACT",
+      "cap" : "FACT",
+      "rule" : "Calendar[fact=WEEKLY]",
+      "meaning" : "once a week: every seventh day of the period",
+      "owner" : "Product (vkdevpro), 25.11.2026"
     } ]
   }
 }

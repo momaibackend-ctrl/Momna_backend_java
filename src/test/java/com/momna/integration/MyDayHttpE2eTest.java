@@ -305,7 +305,8 @@ class MyDayHttpE2eTest {
         var today = java.time.LocalDate.now(zone);
         completedOnboarding(user, "CYCLE", "period-onboarding-cycle", java.util.Map.of(
             "onboarding.cycle.lmp", today.minusDays(1).toString(),
-            "onboarding.cycle.regularity", "around_expected"));
+            "onboarding.cycle.regularity", "around_expected",
+            "onboarding.cycle.tone", "direct"));
 
         var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
@@ -331,15 +332,45 @@ class MyDayHttpE2eTest {
         assertEquals(2, key.dayNumber());
         assertEquals(List.of("adult_pain_high"), key.overlayKeys(), "one mild answer does not make an overlay");
         assertEquals("en", key.userLanguage());
+        assertEquals("direct", key.tone(), "the onboarding tone is a prompt input and part of the key");
         assertFalse(key.canonical().contains(user.userId()));
         assertFalse(key.canonical().contains(session.path("sessionId").asText()));
 
         var day = json.readTree(created.body());
         assertFalse(day.path("provenance").has("template"), "the client never sees the key or the overlays");
         assertFalse(created.body().contains("adult_pain_high"));
+        assertTrue(day.path("healthNote").isNull(), "an ordinary day has no doctor advice: " + day.path("healthNote"));
         assertEquals(key.fingerprint(), jdbc.queryForObject(
             "SELECT provenance->'template'->>'fingerprint' FROM momna.my_days WHERE my_day_id = ?", String.class,
             day.path("myDayId").asText()));
+    }
+
+    /**
+     * Product decision 25.11.2026: a day with a medical overlay carries the code-owned doctor line of its
+     * level and the disclaimer, in the day's language; URGENT and EMERGENCY add no line (the urgent path has it).
+     */
+    @Test
+    void aDayWithAMedicalOverlayCarriesTheDoctorLineAndTheDisclaimer() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "myday-health-note");
+        var created = json.readTree(post("/api/v1/my-day/generate", user).body());
+        var myDayId = created.path("myDayId").asText();
+        assertTrue(created.path("healthNote").isNull(), created.toString());
+
+        jdbc.update("UPDATE momna.my_days SET provenance = jsonb_set(provenance, '{template}', "
+            + "coalesce(provenance->'template', '{}'::jsonb) || '{\"healthLevel\": \"PROMPT\"}'::jsonb) "
+            + "WHERE my_day_id = ?", myDayId);
+        var note = json.readTree(get("/api/v1/my-day/today", user.token()).body()).path("myDay").path("healthNote");
+        assertEquals("PROMPT", note.path("level").asText(), note.toString());
+        assertEquals("Please discuss this symptom with a healthcare professional.", note.path("recommendation").asText());
+        assertEquals("Momna offers guidance, not a diagnosis, and doesn't replace your doctor.",
+            note.path("disclaimer").asText());
+
+        jdbc.update("UPDATE momna.my_days SET provenance = jsonb_set(provenance, '{template,healthLevel}', "
+            + "'\"URGENT\"'::jsonb) WHERE my_day_id = ?", myDayId);
+        var urgent = json.readTree(get("/api/v1/my-day/today", user.token()).body()).path("myDay").path("healthNote");
+        assertEquals("URGENT", urgent.path("level").asText(), urgent.toString());
+        assertTrue(urgent.path("recommendation").isNull(), "the urgent path shows it; My Day does not repeat it");
+        assertFalse(urgent.path("disclaimer").asText().isBlank());
     }
 
     @Test

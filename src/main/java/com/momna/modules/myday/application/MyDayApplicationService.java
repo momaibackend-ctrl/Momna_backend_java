@@ -6,6 +6,7 @@ import com.momna.modules.checkin.application.CheckinDayContextService;
 import com.momna.modules.checkin.myday.CheckinMyDayOrchestrationException;
 import com.momna.modules.checkin.myday.CheckinMyDayOrchestrator;
 import com.momna.modules.myday.infrastructure.*;
+import com.momna.modules.myday.application.template.MyDayOverlayAdapter.HealthLevel;
 import com.momna.modules.profile.application.ProfileService;
 import com.momna.shared.outbox.OutboxEventEntity;
 import com.momna.shared.outbox.OutboxEventRepository;
@@ -279,8 +280,23 @@ public class MyDayApplicationService {
             MyDayPlanRules.PERSONAL.equals(kind) ? texts.personalBadge() : null,
             cardViews,
             new ProgressView(cardViews.size(), completed, skipped, cardViews.size() - completed - skipped),
-            provenance
+            provenance,
+            healthNote(day)
         );
+    }
+
+    /** The level fixed when the day was generated; the texts follow the day's language. */
+    static HealthNoteView healthNote(MyDayEntity day) {
+        var template = day.getProvenance().get("template");
+        if (!(template instanceof Map<?, ?> map) || !(map.get("healthLevel") instanceof String level)) return null;
+        HealthLevel parsed;
+        try {
+            parsed = HealthLevel.valueOf(level);
+        } catch (IllegalArgumentException unknown) {
+            return null;
+        }
+        return new HealthNoteView(parsed.name(), MyDayHealthTexts.recommendation(parsed, day.getLanguage()),
+            MyDayHealthTexts.disclaimer(day.getLanguage()));
     }
 
     @SuppressWarnings("unchecked")

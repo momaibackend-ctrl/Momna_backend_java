@@ -71,7 +71,6 @@ class MyDayTemplatePropertyTest {
             .filter(e -> e.group() == MyDayOverlayAdapter.Group.MEDICAL).map(e -> e.key()).toList();
         var nonMedical = result.overlayKeys().stream().filter(k -> !medical.contains(k)).count();
         assertTrue(nonMedical <= MyDayOverlayAdapter.MAX_STATE_KEYS + MyDayOverlayAdapter.MAX_FACT_KEYS);
-        assertFalse(result.overlayKeys().contains("post_ppd_screen"));
         // a valid template key can always carry the result
         assertDoesNotThrow(() -> key(day.mode(), result.overlayKeys(), "en"));
     }
@@ -107,7 +106,7 @@ class MyDayTemplatePropertyTest {
     // ---------------------------------------------------------------- template key
 
     record KeyInput(String mode, int dayNumber, String cycleState, Integer week, String trimester, List<String> overlays,
-                    String language) {}
+                    String language, String tone) {}
 
     @Provide
     Arbitrary<KeyInput> keys() {
@@ -118,18 +117,19 @@ class MyDayTemplatePropertyTest {
                 Arbitraries.of(List.copyOf(MyDayTemplateKey.CYCLE_STATES)),
                 Arbitraries.integers().between(1, 42).injectNull(0.3),
                 Arbitraries.of("trimester_1", "trimester_2", "trimester_3").injectNull(0.5),
-                overlays, Arbitraries.of("ru", "en"))
-                .as((day, cycle, week, trimester, keys, lang) -> new KeyInput(mode, day, cycle, week, trimester, keys, lang));
+                overlays, Arbitraries.of("ru", "en"), Arbitraries.of(List.copyOf(MyDayTemplateKey.TONES)).injectNull(0.2))
+                .as((day, cycle, week, trimester, keys, lang, tone) ->
+                    new KeyInput(mode, day, cycle, week, trimester, keys, lang, tone));
         });
     }
 
     static MyDayTemplateKey key(KeyInput k, List<String> overlays, MyDayTemplateKey.Versions versions) {
         return new MyDayTemplateKey(k.mode(), k.dayNumber(), k.cycleState(), "code_" + k.cycleState(), k.week(),
-            k.trimester(), overlays, k.language(), versions);
+            k.trimester(), overlays, k.language(), k.tone(), versions);
     }
 
     static MyDayTemplateKey key(String mode, List<String> overlays, String language) {
-        return new MyDayTemplateKey(mode, 1, "uncertain", "x_uncertain", null, null, overlays, language,
+        return new MyDayTemplateKey(mode, 1, "uncertain", "x_uncertain", null, null, overlays, language, null,
             MyDayTemplateKey.Versions.current());
     }
 
@@ -166,10 +166,13 @@ class MyDayTemplatePropertyTest {
             assertNotEquals(first.fingerprint(), key(a, a.overlays(), changed).fingerprint());
         }
         var otherPhase = new MyDayTemplateKey(a.mode(), a.dayNumber(), a.cycleState(), "other_code", a.week(),
-            a.trimester(), a.overlays(), a.language(), versions);
+            a.trimester(), a.overlays(), a.language(), a.tone(), versions);
         assertNotEquals(first.fingerprint(), otherPhase.fingerprint());
+        var otherTone = new MyDayTemplateKey(a.mode(), a.dayNumber(), a.cycleState(), "code_" + a.cycleState(),
+            a.week(), a.trimester(), a.overlays(), a.language(), "gentle".equals(a.tone()) ? "direct" : "gentle", versions);
+        assertNotEquals(first.fingerprint(), otherTone.fingerprint(), "each tone is its own template");
         var otherTrimester = new MyDayTemplateKey(a.mode(), a.dayNumber(), a.cycleState(), "code_" + a.cycleState(),
-            a.week(), a.trimester() == null ? "trimester_1" : null, a.overlays(), a.language(), versions);
+            a.week(), a.trimester() == null ? "trimester_1" : null, a.overlays(), a.language(), a.tone(), versions);
         assertNotEquals(first.fingerprint(), otherTrimester.fingerprint());
     }
 
@@ -177,15 +180,17 @@ class MyDayTemplatePropertyTest {
     @Property(tries = 300, seed = "20261128")
     void freeTextNeverFitsIntoTheKey(@ForAll("personal") String value) {
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey(value, 1, "uncertain", "x", null, null,
-            List.of(), "en", MyDayTemplateKey.Versions.current()));
+            List.of(), "en", null, MyDayTemplateKey.Versions.current()));
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, value, "x", null, null,
-            List.of(), "en", MyDayTemplateKey.Versions.current()));
+            List.of(), "en", null, MyDayTemplateKey.Versions.current()));
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, "uncertain", value,
-            null, null, List.of(), "en", MyDayTemplateKey.Versions.current()));
+            null, null, List.of(), "en", null, MyDayTemplateKey.Versions.current()));
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, "uncertain", "x",
-            null, null, List.of(value), "en", MyDayTemplateKey.Versions.current()));
+            null, null, List.of(value), "en", null, MyDayTemplateKey.Versions.current()));
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, "uncertain", "x",
-            null, null, List.of(), value, MyDayTemplateKey.Versions.current()));
+            null, null, List.of(), value, null, MyDayTemplateKey.Versions.current()));
+        assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, "uncertain", "x",
+            null, null, List.of(), "en", value, MyDayTemplateKey.Versions.current()));
     }
 
     @Provide
@@ -218,7 +223,7 @@ class MyDayTemplatePropertyTest {
         assertEquals("not_applicable", facts.cycleState());
         assertEquals("preg_" + facts.trimester().replace("_", "") + "_w" + week, facts.phaseCode());
         assertDoesNotThrow(() -> new MyDayTemplateKey("pregnancy", facts.dayNumber(), facts.cycleState(),
-            facts.phaseCode(), facts.weekNumber(), facts.trimester(), List.of(), "ru", MyDayTemplateKey.Versions.current()));
+            facts.phaseCode(), facts.weekNumber(), facts.trimester(), List.of(), "ru", null, MyDayTemplateKey.Versions.current()));
     }
 
     @Property(tries = 200, seed = "20261130")

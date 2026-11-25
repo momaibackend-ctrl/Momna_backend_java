@@ -148,7 +148,7 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
             command.observations(), command.safety(), onboarding, calendar));
         var key = new MyDayTemplateKey(lifeMode, calendar.dayNumber(), calendar.cycleState(), calendar.phaseCode(),
             calendar.weekNumber(), calendar.trimester(), overlays.overlayKeys(), language,
-            MyDayTemplateKey.Versions.current());
+            MyDayOverlayAdapter.tone(lifeMode, onboarding), MyDayTemplateKey.Versions.current());
         return new Template(key, overlays);
     }
 
@@ -214,6 +214,11 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
                     "strength", a.strength().toPlainString(), "passed", a.passed()));
             }
             key.put("overlayActivations", activations);
+            // The doctor recommendation level of a day with a medical overlay; absent on every other day.
+            if (template.overlays().healthLevel() != null) {
+                key.put("healthLevel", template.overlays().healthLevel().name());
+                key.put("healthTexts", MyDayHealthTexts.VERSION);
+            }
             result.put("template", key);
         }
         return result;

@@ -18,6 +18,8 @@ final class InMemoryRouteStates {
     final MedicalSafetyRouteStateRepository repository = mock(MedicalSafetyRouteStateRepository.class);
     final List<MedicalSafetyFactRevisionEntity> revisionRows = new ArrayList<>();
     final MedicalSafetyFactRevisionRepository revisions = mock(MedicalSafetyFactRevisionRepository.class);
+    final Map<String, MedicalSafetyWb1ResponseEntity> wb1Rows = new LinkedHashMap<>();
+    final MedicalSafetyWb1ResponseRepository wellbeing = mock(MedicalSafetyWb1ResponseRepository.class);
 
     InMemoryRouteStates() {
         when(repository.findByUserId(anyString())).thenAnswer(call -> rows.values().stream()
@@ -26,11 +28,17 @@ final class InMemoryRouteStates {
             rows.get(call.getArgument(0) + ":" + call.getArgument(1))));
         when(repository.findByUserIdAndSessionId(anyString(), anyString())).thenAnswer(call -> rows.values().stream()
             .filter(r -> r.getUserId().equals(call.getArgument(0))
-                && Objects.equals(r.getSessionId(), call.getArgument(1)))
+                && call.getArgument(1) != null && Objects.equals(r.getSessionId(), call.getArgument(1)))
             .toList());
         when(repository.save(any(MedicalSafetyRouteStateEntity.class))).thenAnswer(call -> store(call.getArgument(0)));
         when(repository.saveAndFlush(any(MedicalSafetyRouteStateEntity.class)))
             .thenAnswer(call -> store(call.getArgument(0)));
+        when(wellbeing.findById(anyString())).thenAnswer(call -> Optional.ofNullable(wb1Rows.get(call.getArgument(0))));
+        when(wellbeing.saveAndFlush(any(MedicalSafetyWb1ResponseEntity.class))).thenAnswer(call -> {
+            MedicalSafetyWb1ResponseEntity row = call.getArgument(0);
+            wb1Rows.put(row.getUserId(), row);
+            return row;
+        });
         when(revisions.save(any(MedicalSafetyFactRevisionEntity.class))).thenAnswer(call -> {
             revisionRows.add(call.getArgument(0));
             return call.getArgument(0);

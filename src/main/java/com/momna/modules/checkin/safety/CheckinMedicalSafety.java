@@ -85,7 +85,8 @@ public class CheckinMedicalSafety {
         project(session, at);
     }
 
-    private void project(CheckinSessionEntity session, Instant at) {
+    /** Re-reads the session's own routes, e.g. after a global entry answered one of them. */
+    public void project(CheckinSessionEntity session, Instant at) {
         var own = flow.sessionSteps(session.getUserId(), session.getSessionId());
         var p = projection(own);
         session.applySafetyDecision(p.state(), p.decisionVersion(), p.routeCode(), p.severity(), p.blocking(),
@@ -119,15 +120,7 @@ public class CheckinMedicalSafety {
 
     /** The platform severity of a step (see the class comment). */
     public static String severity(MedicalStep step) {
-        if (step.question()) return "UNKNOWN";
-        return switch (step.disposition()) {
-            case "EMERGENCY", "SAFETY_ASSESSMENT" -> "CRITICAL";
-            case "URGENT" -> "HIGH";
-            case "PROMPT" -> "MEDIUM";
-            case "ROUTINE" -> "LOW";
-            case "NOT_REPORTED" -> "NONE";
-            default -> "UNKNOWN";
-        };
+        return step.severity();
     }
 
     private static int rank(String severity) {

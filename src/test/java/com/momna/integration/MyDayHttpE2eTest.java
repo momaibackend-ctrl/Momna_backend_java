@@ -346,6 +346,114 @@ class MyDayHttpE2eTest {
     }
 
     /**
+     * ER0 (MOMNA-1145 §8) over HTTP: the period's signs, one tap to the emergency screen, idempotent per key,
+     * and the outcome reaches My Day as the health overlay with the disclaimer and no doctor line (the
+     * emergency screen already shows it).
+     */
+    @Test
+    void er0IsOneTapIdempotentAndReachesMyDay() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "safety-er0");
+        var screen = json.readTree(get("/api/v1/medical-safety/er0", user.token()).body());
+        assertEquals("Что происходит прямо сейчас?", screen.path("title").path("ru").asText(), screen.toString());
+        assertEquals(10, screen.path("options").size());
+
+        String key = "er0-" + UUID.randomUUID();
+        var tapped = postWithKey("/api/v1/medical-safety/er0",
+            json.createObjectNode().put("selectionCode", "F_CHEST_PAIN").toString(), user, key);
+        assertEquals(200, tapped.statusCode(), tapped.body());
+        var step = json.readTree(tapped.body()).path("step");
+        assertEquals("EMERGENCY", step.path("disposition").asText(), step.toString());
+        assertEquals("E", step.path("screenCode").asText());
+        assertEquals("CALL_EMERGENCY", step.path("actionCode").asText());
+        assertTrue(json.readTree(tapped.body()).path("checkinSessionId").isNull());
+
+        var replay = postWithKey("/api/v1/medical-safety/er0",
+            json.createObjectNode().put("selectionCode", "F_CHEST_PAIN").toString(), user, key);
+        assertEquals(200, replay.statusCode(), replay.body());
+        assertEquals(json.readTree(tapped.body()), json.readTree(replay.body()));
+        var reused = postWithKey("/api/v1/medical-safety/er0",
+            json.createObjectNode().put("selectionCode", "F_FAINTED").toString(), user, key);
+        assertEquals(409, reused.statusCode(), reused.body());
+        assertEquals("IDEMPOTENCY_CONFLICT", code(reused));
+        var notShown = postWithKey("/api/v1/medical-safety/er0",
+            json.createObjectNode().put("selectionCode", "F_FLUID_LEAK").toString(), user, "er0-" + UUID.randomUUID());
+        assertEquals(422, notShown.statusCode(), notShown.body());
+        assertEquals("SAFETY_SIGNAL_NOT_APPLICABLE", code(notShown));
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        assertTrue(call.templateKey().overlayKeys().contains("adult_health_flag"), call.templateKey().overlayKeys().toString());
+        var note = json.readTree(created.body()).path("healthNote");
+        assertEquals("EMERGENCY", note.path("level").asText(), note.toString());
+        assertTrue(note.path("recommendation").isNull(), "the emergency screen has the advice; My Day does not repeat it");
+        assertFalse(note.path("disclaimer").asText().isBlank());
+    }
+
+    /**
+     * WB1 (MOMNA-1145 §9.4) over HTTP: shown once about four weeks after birth; "it's been hard lately" opens
+     * R18 with harm first; a low mood answer is a PROMPT, and My Day gets post_mood_heavy with the doctor line.
+     */
+    @Test
+    void wb1OpensR18AndReachesMyDay() throws Exception {
+        var user = user(LifecyclePeriod.POSTPARTUM, "safety-wb1");
+        var zone = java.time.ZoneId.of(userProfiles.findById(user.userId()).orElseThrow().getTimezone());
+        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", 3, java.util.Map.of(
+            "onboarding.postpartum.birth_date", java.time.LocalDate.now(zone).minusDays(30).toString()));
+        var card = json.readTree(get("/api/v1/medical-safety/wb1", user.token()).body());
+        assertTrue(card.path("show").asBoolean(), card.toString());
+        assertEquals("Как вы чувствуете себя эмоционально в последнее время?",
+            card.path("screen").path("fields").path("title").path("ru").asText());
+
+        var hard = postWithKey("/api/v1/medical-safety/wb1",
+            json.createObjectNode().put("answer", "HARD_LATELY").toString(), user, "wb1-" + UUID.randomUUID());
+        assertEquals(200, hard.statusCode(), hard.body());
+        var step = json.readTree(hard.body()).path("step");
+        assertEquals("R18", step.path("routeId").asText(), step.toString());
+        assertEquals("F_HARM_THOUGHTS", step.path("nextFactCode").asText());
+        assertFalse(json.readTree(get("/api/v1/medical-safety/wb1", user.token()).body()).path("show").asBoolean());
+
+        var harm = postWithKey("/api/v1/medical-safety/routes/R18/answers", json.createObjectNode()
+            .put("factCode", "F_HARM_THOUGHTS").put("answer", "NO").toString(), user, "r18-" + UUID.randomUUID());
+        assertEquals(200, harm.statusCode(), harm.body());
+        var next = json.readTree(harm.body()).path("step").path("nextFactCode").asText();
+        var mood = postWithKey("/api/v1/medical-safety/routes/R18/answers", json.createObjectNode()
+            .put("factCode", next).put("answer", "YES").toString(), user, "r18-" + UUID.randomUUID());
+        assertEquals(200, mood.statusCode(), mood.body());
+        var outcome = json.readTree(mood.body()).path("step");
+        assertEquals("PROMPT", outcome.path("disposition").asText(), outcome.toString());
+        assertEquals("PM1", outcome.path("screenCode").asText());
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        assertTrue(call.templateKey().overlayKeys().contains("post_mood_heavy"), call.templateKey().overlayKeys().toString());
+        var note = json.readTree(created.body()).path("healthNote");
+        assertEquals("PROMPT", note.path("level").asText(), note.toString());
+        assertEquals("Please discuss this symptom with a healthcare professional.", note.path("recommendation").asText());
+    }
+
+    /** A calendar signal (MOMNA-1145 §12) decides without daily questions and only where it applies. */
+    @Test
+    void aCalendarSignalDecidesInItsPeriodOnly() throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, "safety-calendar");
+        var signal = postWithKey("/api/v1/medical-safety/calendar/signals",
+            json.createObjectNode().put("signal", "POSTCOITAL_BLEED").toString(), user, "cal-" + UUID.randomUUID());
+        assertEquals(200, signal.statusCode(), signal.body());
+        var step = json.readTree(signal.body()).path("step");
+        assertEquals("R4", step.path("routeId").asText(), step.toString());
+        assertEquals("PROMPT", step.path("disposition").asText());
+        var wrong = postWithKey("/api/v1/medical-safety/calendar/signals",
+            json.createObjectNode().put("signal", "BLEEDING_RECORDED").toString(), user, "cal-" + UUID.randomUUID());
+        assertEquals(422, wrong.statusCode(), wrong.body());
+        var catalog = json.readTree(get("/api/v1/medical-safety/catalog", user.token()).body());
+        assertEquals("CLINICAL_RELEASE_NOT_APPROVED", catalog.path("releaseStatus").asText(), catalog.toString());
+        assertEquals(28, catalog.path("routes").size());
+        assertFalse(catalog.toString().contains("crossChecks"));
+        assertEquals(22, catalog.path("localizedContent").path("screens").size(), catalog.path("localizedContent").toString());
+    }
+
+    /**
      * The whole chain (MOMNA-1145, Product decision 25.11.2026): a Check-in safety route decides; My Day reads
      * that decision. An urgent bleeding sign answered "unsure" ends UNKNOWN and gives the day the health overlay,
      * the UNKNOWN doctor line and the disclaimer; the same route answered "no" gives neither.
@@ -695,8 +803,14 @@ class MyDayHttpE2eTest {
 
     /** A completed period onboarding with the given answers, as the flow engine stores them. */
     private void completedOnboarding(User user, String period, String definitionKey, java.util.Map<String, Object> answers) {
+        completedOnboarding(user, period, definitionKey, 1, answers);
+    }
+
+    private void completedOnboarding(User user, String period, String definitionKey, int definitionVersion,
+            java.util.Map<String, Object> answers) {
         var now = Instant.now().minusSeconds(3600);
-        var instance = new com.momna.modules.flow.infrastructure.FlowInstanceEntity(UUID.randomUUID(), definitionKey, 1,
+        var instance = new com.momna.modules.flow.infrastructure.FlowInstanceEntity(UUID.randomUUID(), definitionKey,
+            definitionVersion,
             com.momna.modules.flow.domain.FlowType.PERIOD_ONBOARDING, user.userId(), null, period, null, null,
             com.momna.modules.flow.domain.FlowInstanceStatus.COMPLETED, null, "start-" + UUID.randomUUID(), now, now);
         flowInstances.saveAndFlush(instance);

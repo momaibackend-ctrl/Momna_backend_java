@@ -29,7 +29,7 @@ class MedicalSafetyFlowServiceTest {
     private final MovingClock clock = new MovingClock(Instant.parse("2026-11-25T07:00:00Z"));
     private final InMemoryRouteStates store = new InMemoryRouteStates();
     private final MedicalSafetyFlowService flow = new MedicalSafetyFlowService(
-        CATALOG, new MedicalSafetyResolver(), store.repository, store.revisions, clock);
+        CATALOG, new MedicalSafetyResolver(), store.repository, store.revisions, store.wellbeing, clock);
 
     private List<MedicalStep> patch(String session, String period, String item, Integer value) {
         return flow.onCheckinPatch(new Trigger(USER, session, period, List.of(new ItemAnswer(item, value)),

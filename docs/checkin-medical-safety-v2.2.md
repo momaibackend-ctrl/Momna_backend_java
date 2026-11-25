@@ -68,8 +68,40 @@ The session's SafetyDecision is the strongest outcome of the routes the session 
 | ROUTINE | LOW | nothing |
 | NOT_REPORTED (nothing found) | NONE | nothing |
 
+## Global entries (§8, §9.4, §12)
+
+These run outside a Check-in session, under `/api/v1/medical-safety`. Every POST needs an `Idempotency-Key`: the
+same key and request replays the stored response. The lifecycle period is always the server's.
+
+- **ER0, "I feel very unwell now".** `GET /er0` returns the screen texts and the signs for the user's period: 10
+  common signs and up to 3 for pregnancy or postpartum. `POST /er0` handles one tap:
+  - an emergency sign goes straight to its screen (E, AG1, PM2, OB1); the other signs stay unanswered;
+  - `NONE` ("None of these") records NO for the shown signs;
+  - taps of one episode (24 h) add up, which gives screen M;
+  - ER0 is never paused;
+  - facial swelling (R25) and postpartum headache or vision changes (R17) ask their questions through
+    `/routes/{routeId}/answers` and `/blood-pressure`.
+- **WB1.** `GET /wb1` says whether to show the card and gives its texts. It is shown once, from day 28 to day 42
+  after birth. The day count comes from the onboarding birth date; without one, from the middle of the
+  approximate answer. It is never shown after an answer, nor while R18 ran in the last 14 days.
+  - `POST /wb1` with `HARD_LATELY` opens R18, with harm first.
+  - The other two answers close the card for good.
+- **Calendar.** `POST /calendar/signals` takes one signal:
+  - `POSTCOITAL_BLEED` (menarche, cycle, planning, perimenopause) → P;
+  - `BLEEDING_RECORDED` (menopause) → MB1;
+  - `PREGNANCY_VAGINAL_BLEED` → R9.
+
+  There are no daily questions, and missing history is never NO.
+- **A shared run.** A global entry on a route whose question is open in a Check-in session joins that session's
+  run, so one run and one decision. The response names `checkinSessionId`, and the session's decision is
+  updated.
+- **My Day** adds the global outcomes completed on its local day or the day before. GLOBAL routes count for every
+  period's health overlay; R18 from WB1 is `post_mood_heavy`.
+- `GET /catalog` returns the public catalog for online rendering, with no rules or editorial notes.
+
 ## Not in this change
 
-- The global surfaces of v2.2: ER0 one-tap emergency (R25, R26), the WB1 postpartum card, and calendar signals.
-  They come next. Until then, `GLOBAL_*` routes and WB1 do not reach My Day.
-- The clinical release gates listed in MOMNA-1145.
+- The clinical release gates listed in MOMNA-1145 and MOMNA-1146: thresholds, pauses, the gestational week at
+  which reduced movements count, and the PM2 intent protocol.
+- A signed offline ER0 bundle and a verified directory of regional emergency numbers (§10). Until then, the
+  client shows an instruction instead of dialling.

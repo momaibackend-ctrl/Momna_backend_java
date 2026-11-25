@@ -30,14 +30,17 @@ public class CheckinMyDayOrchestrator {
     private final CheckinAdjustmentSignalRepository signals;
     private final CheckinAnswerRepository answers;
     private final ObjectProvider<MyDayMaterializationPort> myDay;
+    private final ObjectProvider<com.momna.platform.safety.MedicalSafetyFlowService> medicalSafety;
 
     public CheckinMyDayOrchestrator(
         CheckinDayContextService contexts,
         CheckinSessionRepository sessions,
         CheckinAdjustmentSignalRepository signals,
         CheckinAnswerRepository answers,
-        ObjectProvider<MyDayMaterializationPort> myDay
+        ObjectProvider<MyDayMaterializationPort> myDay,
+        ObjectProvider<com.momna.platform.safety.MedicalSafetyFlowService> medicalSafety
     ) {
+        this.medicalSafety = medicalSafety;
         this.contexts = contexts;
         this.sessions = sessions;
         this.signals = signals;
@@ -154,11 +157,22 @@ public class CheckinMyDayOrchestrator {
                     phase.baseShare()));
             }
         }
-        var safety = sourceSessions.stream()
+        var safety = new ArrayList<>(sourceSessions.stream()
             .filter(s -> s.getSafetyRouteCode() != null)
             .map(s -> new MyDayFacts.SafetyProjection(s.getPhase().name(), s.getSafetyRouteCode(),
                 s.getSafetySeverity(), s.getSafetyDecisionVersion()))
-            .toList();
+            .toList());
+        // The global entries (ER0, WB1, calendar; MOMNA-1145) decided outside a Check-in on this local day
+        // or the one before it are part of the day too.
+        var global = medicalSafety.getIfAvailable();
+        if (global != null) {
+            var from = day.localDate().minusDays(1).atStartOfDay(day.timezone()).toInstant();
+            var to = day.localDate().plusDays(1).atStartOfDay(day.timezone()).toInstant();
+            for (var step : global.globalOutcomes(userId, from, to)) {
+                safety.add(new MyDayFacts.SafetyProjection("GLOBAL", step.routeCode(), step.severity(),
+                    step.catalogVersion() + ":" + step.ruleVersion()));
+            }
+        }
 
         var materialized = port.upsert(new MyDayMaterializationPort.Command(
             userId,

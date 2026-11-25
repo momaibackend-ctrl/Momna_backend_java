@@ -1,0 +1,140 @@
+openapi: 3.0.3
+info:
+  title: Momna Medical Safety Public API
+  version: 1.0.0
+  description: >-
+    The global surfaces of the Unified Medical Safety Catalog v2.2 (MOMNA-1145): ER0 "I feel very unwell now"
+    on My Day, Calendar and Check-in, the one-time postpartum WB1 card, explicit calendar signals and the
+    public catalog the client renders. Check-in's own routes are under /api/v1/check-in. The server owns every
+    decision; the client renders step.screenCode and step.actionCode. Not a clinical release approval.
+  x-idempotency: 'Every POST needs Idempotency-Key; the same key and request replays the stored response, another request with the key is 409 IDEMPOTENCY_CONFLICT.'
+  x-joined-session: 'A global entry joins an open Check-in question of the same route; checkinSessionId then names that session, whose safety decision is updated.'
+paths:
+  /api/v1/medical-safety/er0:
+    get:
+      operationId: getEr0Screen
+      description: ER0 texts and the signs to show in the user's period (the common signs, then up to three of the period).
+      responses:
+        '200': { description: 'catalogVersion, entry, call, title, supporting, none and options[] {code, period, routeId, label {ru, enUs}}' }
+    post:
+      operationId: tapEr0Sign
+      description: One tap on an ER0 sign (YES for it; the other signs stay ABSENT) or selectionCode NONE for "None of these" (NO for the shown signs). Taps of one episode add up (screen M). ER0 is never paused.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selectionCode]
+              properties:
+                selectionCode: { type: string, description: 'An options[].code of GET /er0, or NONE' }
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '422': { description: 'SAFETY_SIGNAL_NOT_APPLICABLE (a sign not shown in this period) or SAFETY_VALUE_INVALID' }
+  /api/v1/medical-safety/routes/{routeId}/answers:
+    post:
+      operationId: answerGlobalSafetyFact
+      description: The current question (step.nextFactCode) of a route an ER0, WB1 or calendar entry started or joined.
+      parameters:
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factCode, answer]
+              properties:
+                factCode: { type: string }
+                answer: { type: string, enum: [YES, NO, UNSURE, ABSENT] }
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '409': { description: 'SAFETY_FACT_NOT_CURRENT, SAFETY_ROUTE_NOT_CURRENT, SAFETY_ROUTE_COMPLETED or IDEMPOTENCY_CONFLICT' }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/medical-safety/routes/{routeId}/blood-pressure:
+    post:
+      operationId: recordGlobalSafetyBloodPressure
+      description: BP1 on a route a global entry started (ER0 R17), only when step.nextFactCode is BP_READING.
+      parameters:
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                systolic: { type: integer, minimum: 1, maximum: 300 }
+                diastolic: { type: integer, minimum: 1, maximum: 200, description: 'Lower than systolic' }
+                unknown: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '409': { description: 'SAFETY_FACT_NOT_CURRENT or SAFETY_ROUTE_NOT_CURRENT' }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/medical-safety/calendar/signals:
+    post:
+      operationId: recordCalendarSafetySignal
+      description: An explicit signal of a saved calendar entry. POSTCOITAL_BLEED (menarche, cycle, planning, perimenopause), BLEEDING_RECORDED (menopause), PREGNANCY_VAGINAL_BLEED (pregnancy). No daily questions; incomplete history is never NO.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signal]
+              properties:
+                signal: { type: string, enum: [POSTCOITAL_BLEED, BLEEDING_RECORDED, PREGNANCY_VAGINAL_BLEED] }
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '422': { description: 'SAFETY_SIGNAL_NOT_APPLICABLE in the user''s period' }
+  /api/v1/medical-safety/wb1:
+    get:
+      operationId: getWellbeingCard
+      description: Whether to show the postpartum WB1 card now (once, day 28 to 42 after birth, never after an answer or while R18 ran in the last 14 days) and its texts.
+      responses:
+        '200': { description: 'catalogVersion, show, alreadyAnswered, answer, screen (the WB1 screen texts)' }
+    post:
+      operationId: answerWellbeingCard
+      description: HARD_LATELY opens R18 (harm first); MOSTLY_GOOD and PREFER_NOT_TO_SAY close the card for good (step null).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                answer: { type: string, enum: [MOSTLY_GOOD, HARD_LATELY, PREFER_NOT_TO_SAY] }
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '409': { description: 'SAFETY_ROUTE_COMPLETED: WB1 was already answered differently' }
+        '422': { description: 'SAFETY_SIGNAL_NOT_APPLICABLE outside the postpartum period' }
+  /api/v1/medical-safety/catalog:
+    get:
+      operationId: getMedicalSafetyCatalog
+      description: The public v2.2 catalog for online rendering (routes, facts, question groups, localized screens) in the user's period. Not a signed offline bundle.
+      responses:
+        '200': { description: 'catalogVersion, ruleVersion, releaseStatus CLINICAL_RELEASE_NOT_APPROVED, routes, facts, questionGroups, localizedContent' }
+components:
+  parameters:
+    RouteId:
+      in: path
+      name: routeId
+      required: true
+      schema: { type: string, pattern: '^R[0-9]{1,2}$' }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 160 }
+  responses:
+    Step:
+      description: 'step (routeId, routeCode, state, disposition, screenCode, actionCode, nextFactCode, questionFactCodes, conditionStatus, versions; null when WB1 just closes) and checkinSessionId (the joined session or null)'

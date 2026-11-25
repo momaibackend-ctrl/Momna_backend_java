@@ -1234,6 +1234,246 @@
           ]
         },
         {
+          "name": "GET /api/v1/medical-safety/er0 rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36a"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/medical-safety/er0 rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36b"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/er0",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/medical-safety/routes/{routeId}/answers rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36c"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/routes/R26/answers",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/medical-safety/routes/{routeId}/blood-pressure rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36d"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/routes/R17/blood-pressure",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/medical-safety/calendar/signals rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36e"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/calendar/signals",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/medical-safety/wb1 rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36f"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/wb1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/medical-safety/wb1 rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36g"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/wb1",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/medical-safety/catalog rejects unauthenticated caller",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36h"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/catalog"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "POST /api/v1/check-in/sessions/{sessionId}/submit rejects unauthenticated caller",
           "request": {
             "method": "POST",

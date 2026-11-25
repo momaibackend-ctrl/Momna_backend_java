@@ -81,5 +81,19 @@ public final class CheckinViews {
 
     public record AnswerView(String itemCode, int value) {}
     public record WindowView(String state, Instant opensAt, Instant closesAt) {}
-    public record SafetyView(String state, String decisionVersion, String routeCode, String severity, boolean blocking, Map<String, Object> clarification, List<String> allowedActions) {}
+    /**
+     * The session's SafetyDecision (the strongest outcome of the routes it opened) and every route it shows:
+     * its own and a YES warning still inside its pause (MOMNA-1145). The client renders routes[] and never
+     * decides urgency itself.
+     */
+    public record SafetyView(
+        String state,
+        String decisionVersion,
+        String routeCode,
+        String severity,
+        boolean blocking,
+        Map<String, Object> clarification,
+        List<String> allowedActions,
+        List<com.momna.platform.safety.MedicalStep> routes
+    ) {}
 }

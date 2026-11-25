@@ -189,3 +189,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-medical-safety-routes-v35
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V35__medical_safety_routes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

@@ -3,6 +3,8 @@ package com.momna.modules.checkin.api;
 import com.momna.modules.auth.application.AuthException;
 import com.momna.modules.auth.domain.AuthenticatedActor;
 import com.momna.modules.checkin.application.CheckinApplicationService;
+import com.momna.modules.checkin.application.CheckinApplicationService.SafetyAction;
+import com.momna.modules.checkin.application.CheckinApplicationService.SafetyRequest;
 import com.momna.modules.checkin.application.CheckinViews.*;
 import com.momna.modules.checkin.domain.CheckinPhase;
 import jakarta.validation.Valid;
@@ -83,18 +85,78 @@ public class CheckinController {
         );
     }
 
-    @PostMapping("/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer")
+    /** One fact of a route the session opened: YES, NO, UNSURE or ABSENT (MOMNA-1145). */
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/answers")
     public SessionView answerSafety(
         Authentication authentication,
         @PathVariable String sessionId,
-        @PathVariable String clarificationId,
+        @PathVariable String routeId,
         @RequestHeader("Idempotency-Key") String idempotencyKey,
         @Valid @RequestBody SafetyAnswerRequest request
     ) {
-        return checkin.answerSafetyClarification(
-            actor(authentication).userId(), sessionId, clarificationId,
-            request.expectedRevision(), request.value(), idempotencyKey
-        );
+        return safety(authentication, sessionId, request.expectedRevision(), idempotencyKey,
+            new SafetyRequest(SafetyAction.ANSWER, routeId, request.factCode(), request.answer(),
+                null, null, null, null, null));
+    }
+
+    /** An explicit correction of an answered fact; the previous answer stays in the audit trail. */
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/revise")
+    public SessionView reviseSafety(
+        Authentication authentication,
+        @PathVariable String sessionId,
+        @PathVariable String routeId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @Valid @RequestBody SafetyAnswerRequest request
+    ) {
+        return safety(authentication, sessionId, request.expectedRevision(), idempotencyKey,
+            new SafetyRequest(SafetyAction.REVISE, routeId, request.factCode(), request.answer(),
+                null, null, null, null, null));
+    }
+
+    /** The QM checklist as one answer: SELECTED with the chosen facts, or NONE, UNSURE, SKIP. */
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/checklist")
+    public SessionView answerSafetyChecklist(
+        Authentication authentication,
+        @PathVariable String sessionId,
+        @PathVariable String routeId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @Valid @RequestBody SafetyChecklistRequest request
+    ) {
+        return safety(authentication, sessionId, request.expectedRevision(), idempotencyKey,
+            new SafetyRequest(SafetyAction.CHECKLIST, routeId, null, null,
+                request.mode(), request.selectedFactCodes(), null, null, null));
+    }
+
+    /** BP1: a measured blood pressure, or unknown. */
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/blood-pressure")
+    public SessionView safetyBloodPressure(
+        Authentication authentication,
+        @PathVariable String sessionId,
+        @PathVariable String routeId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @Valid @RequestBody BloodPressureRequest request
+    ) {
+        return safety(authentication, sessionId, request.expectedRevision(), idempotencyKey,
+            new SafetyRequest(SafetyAction.BLOOD_PRESSURE, routeId, null, null, null, null,
+                request.systolic(), request.diastolic(), request.unknown()));
+    }
+
+    /** Closes the remaining questions of a route as not answered (ABSENT, never NO). */
+    @PostMapping("/sessions/{sessionId}/safety/{routeId}/skip")
+    public SessionView skipSafety(
+        Authentication authentication,
+        @PathVariable String sessionId,
+        @PathVariable String routeId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey,
+        @Valid @RequestBody SubmitRequest request
+    ) {
+        return safety(authentication, sessionId, request.expectedRevision(), idempotencyKey,
+            new SafetyRequest(SafetyAction.SKIP, routeId, null, null, null, null, null, null, null));
+    }
+
+    private SessionView safety(Authentication authentication, String sessionId, long expectedRevision,
+        String idempotencyKey, SafetyRequest request) {
+        return checkin.safety(actor(authentication).userId(), sessionId, expectedRevision, request, idempotencyKey);
     }
 
     private AuthenticatedActor actor(Authentication authentication) {
@@ -125,5 +187,9 @@ public class CheckinController {
     ) {}
 
     public record SubmitRequest(@NotNull Long expectedRevision) {}
-    public record SafetyAnswerRequest(@NotNull Long expectedRevision, @NotBlank String value) {}
+    public record SafetyAnswerRequest(@NotNull Long expectedRevision, @NotBlank String factCode, @NotBlank String answer) {}
+    public record SafetyChecklistRequest(@NotNull Long expectedRevision, @NotBlank String mode,
+        List<String> selectedFactCodes) {}
+    public record BloodPressureRequest(@NotNull Long expectedRevision, Integer systolic, Integer diastolic,
+        Boolean unknown) {}
 }

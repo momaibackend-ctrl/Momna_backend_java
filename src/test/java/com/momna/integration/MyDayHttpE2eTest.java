@@ -346,6 +346,63 @@ class MyDayHttpE2eTest {
     }
 
     /**
+     * The whole chain (MOMNA-1145, Product decision 25.11.2026): a Check-in safety route decides; My Day reads
+     * that decision. An urgent bleeding sign answered "unsure" ends UNKNOWN and gives the day the health overlay,
+     * the UNKNOWN doctor line and the disclaimer; the same route answered "no" gives neither.
+     */
+    @Test
+    void aCheckinSafetyOutcomeReachesMyDayAsTheDoctorLine() throws Exception {
+        var unsure = safetyDay("myday-safety-unsure", "UNSURE");
+        assertEquals(List.of("adult_health_flag"), unsure.key().overlayKeys().stream()
+            .filter(k -> k.endsWith("_health_flag")).toList(), unsure.key().overlayKeys().toString());
+        var note = unsure.day().path("healthNote");
+        assertEquals("UNKNOWN", note.path("level").asText(), note.toString());
+        assertEquals("Your answers do not establish urgency reliably. Seek medical help if symptoms worsen or "
+            + "warning signs appear.", note.path("recommendation").asText());
+        assertEquals("Momna offers guidance, not a diagnosis, and doesn't replace your doctor.",
+            note.path("disclaimer").asText());
+
+        var no = safetyDay("myday-safety-no", "NO");
+        assertTrue(no.key().overlayKeys().stream().noneMatch(k -> k.endsWith("_health_flag")),
+            no.key().overlayKeys().toString());
+        assertTrue(no.day().path("healthNote").isNull(), "no doctor advice for a route with nothing found");
+    }
+
+    private record SafetyDay(com.momna.modules.myday.application.template.MyDayTemplateKey key,
+        com.fasterxml.jackson.databind.JsonNode day) {}
+
+    /** A CYCLE morning Check-in with C4 = 2 (R4 CYCLE_BLEEDING) whose questions get one answer, then My Day. */
+    private SafetyDay safetyDay(String label, String answer) throws Exception {
+        var user = user(LifecyclePeriod.CYCLE, label);
+        var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
+            json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
+        String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
+        var change = json.createObjectNode().put("expectedRevision", session.path("revision").asLong());
+        change.putArray("answerChanges").addObject().put("itemCode", "C4").put("value", 2);
+        var state = json.readTree(send("PATCH", endpoint, change.toString(), user, "p-" + UUID.randomUUID()).body());
+        for (int guard = 0; guard < 10 && state.path("safety").path("blocking").asBoolean(); guard++) {
+            var r4 = state.path("safety").path("routes").get(0);
+            assertEquals("R4", r4.path("routeId").asText(), state.path("safety").toString());
+            var answered = postWithKey(endpoint + "/safety/R4/answers", json.createObjectNode()
+                .put("expectedRevision", state.path("revision").asLong())
+                .put("factCode", r4.path("nextFactCode").asText()).put("answer", answer).toString(), user,
+                "a-" + UUID.randomUUID());
+            assertEquals(200, answered.statusCode(), answered.body());
+            state = json.readTree(answered.body());
+        }
+        assertEquals("CYCLE_BLEEDING", state.path("safety").path("routeCode").asText(), state.path("safety").toString());
+        assertEquals("UNSURE".equals(answer) ? "UNKNOWN" : "NONE", state.path("safety").path("severity").asText());
+        var submitted = postWithKey(endpoint + "/submit", json.createObjectNode()
+            .put("expectedRevision", state.path("revision").asLong()).toString(), user, "sub-" + UUID.randomUUID());
+        assertEquals(200, submitted.statusCode(), submitted.body());
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        return new SafetyDay(call.templateKey(), json.readTree(created.body()));
+    }
+
+    /**
      * Product decision 25.11.2026: a day with a medical overlay carries the code-owned doctor line of its
      * level and the disclaimer, in the day's language; URGENT and EMERGENCY add no line (the urgent path has it).
      */

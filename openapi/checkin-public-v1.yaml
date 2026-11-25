@@ -76,16 +76,13 @@ paths:
       responses:
         '200': { description: Updated authoritative session with recomputed completionRatio and server Safety projection }
         '409': { description: Stale revision, idempotency conflict, final/consumed state or non-editable window }
-  /api/v1/check-in/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer:
+  /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/answers:
     post:
-      operationId: answerCheckinSafetyClarification
-      description: Resolve only the current server-issued blocking clarification; frontend never resolves Safety locally.
+      operationId: answerCheckinSafetyFact
+      description: Answer the current question (nextFactCode) of a route this session opened (MOMNA-1145 v2.2). The server decides the next question or the outcome; the frontend never resolves Safety locally.
       parameters:
         - $ref: '#/components/parameters/SessionId'
-        - in: path
-          name: clarificationId
-          required: true
-          schema: { type: string }
+        - $ref: '#/components/parameters/RouteId'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -93,13 +90,106 @@ paths:
           application/json:
             schema:
               type: object
-              required: [expectedRevision, value]
+              required: [expectedRevision, factCode, answer]
               properties:
                 expectedRevision: { type: integer, format: int64, minimum: 0 }
-                value: { type: string }
+                factCode: { type: string, description: 'The nextFactCode of the route step' }
+                answer: { $ref: '#/components/schemas/SafetyAnswer' }
       responses:
-        '200': { description: Updated authoritative session and safe Safety projection; a resolved post-deadline session may become AUTO_FINALIZED }
-        '409': { description: Stale revision, idempotency conflict or clarification is no longer current }
+        '200': { description: Updated session; safety.routes[] holds each route's next question or outcome. A resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict, a route this session did not open (SAFETY_ROUTE_NOT_CURRENT), a fact that is not the current question (SAFETY_FACT_NOT_CURRENT), a completed route (SAFETY_ROUTE_COMPLETED) or a final session }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/revise:
+    post:
+      operationId: reviseCheckinSafetyFact
+      description: Explicitly correct an answered fact. The previous answer is kept in a private audit trail and the route is decided again; it may ask questions again.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, factCode, answer]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+                factCode: { type: string, description: 'The nextFactCode of the route step' }
+                answer: { $ref: '#/components/schemas/SafetyAnswer' }
+      responses:
+        '200': { description: Updated session; safety.routes[] holds each route's next question or outcome. A resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict, a route this session did not open (SAFETY_ROUTE_NOT_CURRENT), a fact that is not the current question (SAFETY_FACT_NOT_CURRENT), a completed route (SAFETY_ROUTE_COMPLETED) or a final session }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/checklist:
+    post:
+      operationId: answerCheckinSafetyChecklist
+      description: Answer a QM screen (questionFactCodes) in one call: SELECTED marks the chosen facts YES and the other shown facts NO; NONE, UNSURE and SKIP set every shown fact to NO, UNSURE or ABSENT.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, mode]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+                mode: { type: string, enum: [SELECTED, NONE, UNSURE, SKIP] }
+                selectedFactCodes: { type: array, items: { type: string }, description: 'Only with SELECTED, at least one, all from questionFactCodes' }
+      responses:
+        '200': { description: Updated session; safety.routes[] holds each route's next question or outcome. A resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict, a route this session did not open (SAFETY_ROUTE_NOT_CURRENT), a fact that is not the current question (SAFETY_FACT_NOT_CURRENT), a completed route (SAFETY_ROUTE_COMPLETED) or a final session }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/blood-pressure:
+    post:
+      operationId: recordCheckinSafetyBloodPressure
+      description: BP1: the measured blood pressure, asked only when the step's nextFactCode is BP_READING.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+                systolic: { type: integer, minimum: 1, maximum: 300 }
+                diastolic: { type: integer, minimum: 1, maximum: 200, description: 'Lower than systolic' }
+                unknown: { type: boolean, description: 'true when the reading is not known; then no numbers' }
+      responses:
+        '200': { description: Updated session; safety.routes[] holds each route's next question or outcome. A resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict, a route this session did not open (SAFETY_ROUTE_NOT_CURRENT), a fact that is not the current question (SAFETY_FACT_NOT_CURRENT), a completed route (SAFETY_ROUTE_COMPLETED) or a final session }
+        '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/skip:
+    post:
+      operationId: skipCheckinSafetyRoute
+      description: Close the remaining questions of a route as not answered (ABSENT, never NO).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision]
+              properties:
+                expectedRevision: { type: integer, format: int64, minimum: 0 }
+      responses:
+        '200': { description: Updated session; safety.routes[] holds each route's next question or outcome. A resolved post-deadline session may become AUTO_FINALIZED }
+        '409': { description: Stale revision, idempotency conflict, a route this session did not open (SAFETY_ROUTE_NOT_CURRENT), a fact that is not the current question (SAFETY_FACT_NOT_CURRENT), a completed route (SAFETY_ROUTE_COMPLETED) or a final session }
+        '422': { description: SAFETY_VALUE_INVALID }
   /api/v1/check-in/sessions/{sessionId}/submit:
     post:
       operationId: submitCheckin
@@ -126,6 +216,35 @@ components:
       name: sessionId
       required: true
       schema: { type: string }
+    RouteId:
+      in: path
+      name: routeId
+      required: true
+      schema: { type: string, pattern: '^R[0-9]{1,2}
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 160 }
+  schemas:
+    CheckinPhase:
+      type: string
+      enum: [MORNING, EVENING]
+    CheckinSessionStatus:
+      type: string
+      enum: [DRAFT, PARTIAL, SUBMITTED, AUTO_FINALIZED]
+    CheckinAllowedAction:
+      type: string
+      enum: [EDIT_ANSWERS, SUBMIT, ANSWER_SAFETY, OPEN_MY_DAY]
+    SafetyAnswer:
+      type: string
+      enum: [YES, NO, UNSURE, ABSENT]
+    AnswerValue:
+      type: integer
+      enum: [0, 1, 2]
+    NullableAnswerValue:
+      nullable: true
+      oneOf:
+        - $ref: '#/components/schemas/AnswerValue'
+, description: 'routeId of a safety.routes[] entry' }
     IdempotencyKey:
       in: header
       name: Idempotency-Key

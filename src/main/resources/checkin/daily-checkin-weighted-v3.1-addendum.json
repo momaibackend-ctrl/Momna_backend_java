@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "3.1",
+  "base": "daily_checkin_weighted_model_v3.json",
+  "catalogVersion": "medical-safety-v2.2",
+  "releaseGate": "weights-pending-product-approval;clinical-release-not-approved",
+  "items": [
+    {
+      "code": "P19",
+      "period": "PREGNANCY",
+      "phases": [
+        "MORNING",
+        "EVENING"
+      ],
+      "label_ru": "Напряжение или схватки в животе",
+      "label_en": "Tightening or contractions",
+      "states": [
+        {
+          "ru": "нет",
+          "en": "none"
+        },
+        {
+          "ru": "иногда",
+          "en": "sometimes"
+        },
+        {
+          "ru": "регулярно или усиливаются",
+          "en": "regular or getting stronger"
+        }
+      ],
+      "adj_w": null,
+      "safety_w": null,
+      "safetyRoute": "R10",
+      "directEntryState": 2
+    },
+    {
+      "code": "PP19",
+      "period": "POSTPARTUM",
+      "phases": [
+        "MORNING"
+      ],
+      "label_ru": "Головная боль, зрение или отёки",
+      "label_en": "Headache, vision or swelling",
+      "states": [
+        {
+          "ru": "нет",
+          "en": "none"
+        },
+        {
+          "ru": "лёгкие",
+          "en": "mild"
+        },
+        {
+          "ru": "заметные",
+          "en": "noticeable"
+        }
+      ],
+      "adj_w": null,
+      "safety_w": null,
+      "safetyRoute": "R17",
+      "directEntryState": 2
+    }
+  ]
+}

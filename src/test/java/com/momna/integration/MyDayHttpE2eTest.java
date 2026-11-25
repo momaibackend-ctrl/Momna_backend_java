@@ -561,9 +561,18 @@ class MyDayHttpE2eTest {
         assertEquals("How are you today?", morning.path("card").path("title").asText());
         assertEquals("A few quick questions about mood, energy, and body — I'll shape your day around the answers.",
             morning.path("card").path("body").asText());
+        assertEquals("Morning Check-in", morning.path("sheet").path("title").asText(), morning.toString());
+        assertEquals("Tell me how you feel — I'll handle today.", morning.path("sheet").path("subtitle").asText());
+        assertEquals(1, morning.path("minAnswersToApply").asInt());
 
         var session = json.readTree(postWithKey("/api/v1/check-in/sessions",
             json.createObjectNode().put("phase", "MORNING").toString(), user, "s-" + UUID.randomUUID()).body());
+        var c8 = session.path("items").get(7);
+        assertEquals("C8", c8.path("itemCode").asText(), session.path("items").toString());
+        assertEquals("Day's workload", c8.path("title").asText());
+        assertEquals("[{\"value\":0,\"text\":\"Light day\",\"tone\":\"GOOD\"},{\"value\":1,\"text\":\"Ordinary\","
+            + "\"tone\":\"NEUTRAL\"},{\"value\":2,\"text\":\"Very packed\",\"tone\":\"NOT_GOOD\"}]",
+            c8.path("options").toString());
         String endpoint = "/api/v1/check-in/sessions/" + session.path("sessionId").asText();
         var change = json.createObjectNode().put("expectedRevision", session.path("revision").asLong());
         change.putArray("answerChanges").addObject().put("itemCode", "C1").put("value", 0);
@@ -575,6 +584,18 @@ class MyDayHttpE2eTest {
         assertEquals("VIEW_FINAL_STATE", after.path("allowedEntryAction").asText());
         assertEquals("Your personal plan is ready", after.path("card").path("title").asText());
         assertEquals("Today is tailored to how you feel.", after.path("card").path("body").asText());
+        assertEquals("Completed", after.path("card").path("statusLabel").asText());
+
+        var day = json.readTree(post("/api/v1/my-day/generate", user).body()).path("myDay");
+        if (day.isMissingNode()) day = json.readTree(get("/api/v1/my-day/today", user.token()).body()).path("myDay");
+        assertEquals("TODAY'S PLAN", day.path("planHeader").asText(), day.toString());
+        var parts = new java.util.ArrayList<String>();
+        for (var group : day.path("groups")) parts.add(group.path("part").asText());
+        assertEquals(List.of("MORNING", "EVENING", "OPTIONAL"), parts);
+        assertEquals("Morning", day.path("groups").get(0).path("title").asText());
+        assertEquals(3, day.path("groups").get(0).path("cardIds").size());
+        assertEquals("There is nothing in your plan for today yet.", day.path("emptyPlanText").asText());
+        assertTrue(day.path("upgradeOffer").isNull(), "one generation per day: no upgrade offer");
     }
 
     @Test

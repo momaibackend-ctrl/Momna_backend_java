@@ -44,7 +44,11 @@ public final class CheckinViews {
          * The phase card of the Check-in tab: the invitation while START or RESUME is allowed, the
          * "completed" card once the phase is final; null when the entry is blocked or not available.
          */
-        CheckinTexts.PhaseCard card
+        CheckinTexts.PhaseCard card,
+        /** The Check-in sheet title and subtitle of this phase. */
+        CheckinTexts.Sheet sheet,
+        /** The fewest answers that let the user apply the Check-in (always 1: no item is mandatory). */
+        int minAnswersToApply
     ) {}
 
     public record SessionView(
@@ -70,13 +74,19 @@ public final class CheckinViews {
         Set<String> allowedActions
     ) {}
 
+    /**
+     * One question. title and options are in the user's language; each option carries the value to send and the
+     * tone its chip takes when selected (GOOD, NOT_GOOD, BAD, NEUTRAL).
+     */
     public record ItemView(
         String itemCode,
         int order,
         String group,
         String labelKey,
         boolean applicable,
-        Set<Integer> allowedValues
+        Set<Integer> allowedValues,
+        String title,
+        List<CheckinItemTexts.Option> options
     ) {}
 
     public record AnswerView(String itemCode, int value) {}

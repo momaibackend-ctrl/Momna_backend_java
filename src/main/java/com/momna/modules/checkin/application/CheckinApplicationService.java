@@ -413,7 +413,9 @@ public class CheckinApplicationService {
             action,
             blockedReason,
             blockedText,
-            card
+            card,
+            CheckinTexts.sheet(phase, preferredLanguage(userId)),
+            CheckinTexts.MIN_ANSWERS_TO_APPLY
         );
     }
 
@@ -423,6 +425,7 @@ public class CheckinApplicationService {
     }
 
     private SessionView view(CheckinSessionEntity session, Instant now) {
+        var language = preferredLanguage(session.getUserId());
         var period = CheckinDefinitionPeriod.valueOf(session.getPeriodAtTime());
         var definition = definitions.get(period, session.getPhase(), session.getDefinitionVersion());
         var answerList = answers.findBySessionIdOrderByItemCodeAsc(session.getSessionId()).stream()
@@ -463,7 +466,9 @@ public class CheckinApplicationService {
                 item.group(),
                 "checkin.item." + item.itemCode().toLowerCase(Locale.ROOT),
                 true,
-                Set.of(0, 1, 2)
+                Set.of(0, 1, 2),
+                CheckinItemTexts.title(item, language),
+                CheckinItemTexts.options(item, language)
             )).toList(),
             answerList,
             session.getCompletionRatio().doubleValue(),

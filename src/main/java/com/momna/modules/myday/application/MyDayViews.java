@@ -25,8 +25,22 @@ public final class MyDayViews {
         ProgressView progress,
         ProvenanceView provenance,
         /** Present only on a day with a medical overlay; null on every other day (no doctor advice then). */
-        HealthNoteView healthNote
+        HealthNoteView healthNote,
+        /** The header of the plan block ("TODAY'S PLAN"). */
+        String planHeader,
+        /** The plan by part of the day, in order AM, PM, OPTIONAL: the app's TaskGroup. Empty slots are left out. */
+        List<GroupView> groups,
+        /** Shown when no group has a card. */
+        String emptyPlanText,
+        /**
+         * The "Make it personal" offer; always null. One generation per day (MOMNA-989, 23.11.2026): once a plan
+         * exists the morning Check-in is closed until the evening, so a standard plan cannot become personal today.
+         */
+        ChoiceView upgradeOffer
     ) {}
+
+    /** One part of the day: MORNING, EVENING or OPTIONAL, its label and its cards in order. */
+    public record GroupView(String part, String title, List<String> cardIds) {}
 
     /**
      * Code-owned lines for the day's health card (Product decision 25.11.2026). level is PROMPT, URGENT,

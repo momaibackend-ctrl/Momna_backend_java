@@ -14,8 +14,37 @@ public final class CheckinTexts {
 
     private CheckinTexts() {}
 
-    /** The card of a phase on the Check-in tab; title may be null (the evening "completed" card has none). */
-    public record PhaseCard(String title, String body) {}
+    /**
+     * The fewest answers that let the user apply a Check-in (the app's minAnswersToApply): answering every item
+     * is never required, one answer is enough to submit.
+     */
+    public static final int MIN_ANSWERS_TO_APPLY = 1;
+
+    /**
+     * The card of a phase on the Check-in tab; title may be null (the evening "completed" card has none).
+     * statusLabel is the "Completed" label of a completed card, null on the invitation.
+     */
+    public record PhaseCard(String title, String body, String statusLabel) {
+        public PhaseCard(String title, String body) {
+            this(title, body, null);
+        }
+    }
+
+    /** The Check-in sheet title and subtitle of a phase ("Morning Check-in"). */
+    public record Sheet(String title, String subtitle) {}
+
+    /**
+     * The sheet of a phase. The morning texts follow the implemented design (Q, 929:79623); the evening ones and
+     * the Russian texts are backend drafts awaiting Product approval.
+     */
+    public static Sheet sheet(CheckinPhase phase, String preferredLanguage) {
+        boolean ru = ru(preferredLanguage);
+        return phase == CheckinPhase.MORNING
+            ? (ru ? new Sheet("Утренний чек-ин", "Расскажите, как вы себя чувствуете, — остальное я возьму на себя.")
+                : new Sheet("Morning Check-in", "Tell me how you feel — I'll handle today."))
+            : (ru ? new Sheet("Вечерний чек-ин", "Расскажите, как прошёл день, — я учту это завтра.")
+                : new Sheet("Evening Check-in", "Tell me how today went — I'll tune tomorrow."));
+    }
 
     public static String morningPlanAlreadySet(String preferredLanguage) {
         return ru(preferredLanguage)
@@ -44,10 +73,10 @@ public final class CheckinTexts {
     public static PhaseCard completed(CheckinPhase phase, String preferredLanguage) {
         boolean ru = ru(preferredLanguage);
         return phase == CheckinPhase.MORNING
-            ? (ru ? new PhaseCard("Ваш персональный план готов", "Сегодня всё подобрано под ваше самочувствие.")
-                : new PhaseCard("Your personal plan is ready", "Today is tailored to how you feel."))
-            : (ru ? new PhaseCard(null, "План на завтра уже готовится — увидимся утром.")
-                : new PhaseCard(null, "Your plan for tomorrow is on its way — see you in the morning."));
+            ? (ru ? new PhaseCard("Ваш персональный план готов", "Сегодня всё подобрано под ваше самочувствие.", "Пройден")
+                : new PhaseCard("Your personal plan is ready", "Today is tailored to how you feel.", "Completed"))
+            : (ru ? new PhaseCard(null, "План на завтра уже готовится — увидимся утром.", "Пройден")
+                : new PhaseCard(null, "Your plan for tomorrow is on its way — see you in the morning.", "Completed"));
     }
 
     private static boolean ru(String preferredLanguage) {

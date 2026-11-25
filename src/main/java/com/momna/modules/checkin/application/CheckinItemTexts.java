@@ -20,7 +20,7 @@ import java.util.Map;
  *       answer is a demanding day;</li>
  *   <li>postpartum "fine, hard, can't tell yet": GOOD, BAD, NEUTRAL.</li>
  * </ul>
- * Backend defaults of 25.11.2026 after D-10; Product may change any row.
+ * Written by the backend after D-10 on 25.11.2026 and approved by Product on 26.11.2026.
  */
 public final class CheckinItemTexts {
     public static final String GOOD = "GOOD";

@@ -6,12 +6,12 @@ import java.util.Map;
 /**
  * Server-owned texts of the My Day screens (app decision D-2: every text inside a card is data).
  * English follows the implemented design (Figma 4q6z6gWxqUDMgHRJjH4x8N, Adult Cycle frames A, L, P, B
- * and the "Last Night" variant of A, checked against the export of 24.11.2026). Russian is a draft
- * awaiting Product approval. Button labels stay in the app.
+ * and the "Last Night" variant of A, checked against the export of 24.11.2026). Russian and the texts of
+ * the other periods were approved by Product on 26.11.2026. Button labels stay in the app.
  *
  * <p>Some texts name the life period ("Recommendations for a regular cycle."). The design shows the Adult
  * Cycle wording; the design makes templates only and every exact text is the backend's (Product decision
- * 25.11.2026), so the other six periods follow the same pattern as backend drafts awaiting Product approval.
+ * 25.11.2026), so the other six periods follow the same pattern (approved by Product 26.11.2026).
  */
 public final class MyDayTexts {
     public static final String VERSION = "myday.texts.v3";

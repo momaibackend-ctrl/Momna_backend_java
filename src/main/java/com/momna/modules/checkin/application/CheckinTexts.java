@@ -5,9 +5,9 @@ import java.util.Locale;
 
 /**
  * Server-owned Check-in texts (app decision D-2). The Russian morning-closed text is Product's
- * wording of 23.11.2026; the English one is a draft awaiting Product approval (MOMNA-989 section 3).
+ * wording of 23.11.2026; the English one and every Russian text below were approved by Product on 26.11.2026.
  * The Check-in tab texts follow the implemented design (Figma, Adult Cycle frames C1 929:79844,
- * C2 929:79857, evening 1152:72244 and 1152:72279, export of 24.11.2026); Russian is a draft.
+ * C2 929:79857, evening 1152:72244 and 1152:72279, export of 24.11.2026).
  */
 public final class CheckinTexts {
     public static final String MORNING_PLAN_ALREADY_SET = "MY_DAY_PLAN_ALREADY_SET";
@@ -35,7 +35,7 @@ public final class CheckinTexts {
 
     /**
      * The sheet of a phase. The morning texts follow the implemented design (Q, 929:79623); the evening ones and
-     * the Russian texts are backend drafts awaiting Product approval.
+     * the Russian texts were written by the backend and approved by Product on 26.11.2026.
      */
     public static Sheet sheet(CheckinPhase phase, String preferredLanguage) {
         boolean ru = ru(preferredLanguage);

@@ -51,6 +51,9 @@ public class MedicalSafetyRouteStateEntity {
     private String ruleVersion = MedicalSafetyCatalog.RULE_VERSION;
     @Column(name = "catalog_version", nullable = false)
     private String catalogVersion = MedicalSafetyCatalog.VERSION;
+    /** The user's lifecycle period when a global entry (ER0, WB1, calendar) started the run; null in Check-in. */
+    @Column(name = "lifecycle_period")
+    private String lifecyclePeriod;
     @Version
     @Column(name = "revision", nullable = false)
     private long revision;
@@ -80,6 +83,10 @@ public class MedicalSafetyRouteStateEntity {
     public Map<String, String> getFactAnswers() { return Map.copyOf(factAnswers); }
     public boolean getResetObserved() { return resetObserved; }
     public boolean question() { return "QUESTION".equals(state); }
+    public String getLifecyclePeriod() { return lifecyclePeriod; }
+
+    /** A global entry (ER0, WB1, calendar) records the period its outcome depends on (e.g. OB1 in pregnancy). */
+    public void observedIn(String period) { this.lifecyclePeriod = period; }
     public boolean complete() { return "COMPLETE".equals(state); }
 
     public void observeRecovery(String itemCode, Instant now) {

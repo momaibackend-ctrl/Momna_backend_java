@@ -1,0 +1,27 @@
+{
+  "catalogVersion": "medical-safety-v2.2",
+  "source": "MOMNA_Unified_Medical_Safety_Catalog_v2.2_RU_EN.md §8 (MOMNA-1145)",
+  "entry": { "ru": "Мне сейчас плохо", "enUs": "I feel very unwell now" },
+  "call": { "ru": "Позвонить в экстренную службу", "enUs": "Call emergency services" },
+  "title": { "ru": "Что происходит прямо сейчас?", "enUs": "What's happening right now?" },
+  "supporting": { "ru": "Выберите то, что подходит больше всего.", "enUs": "Choose what fits best." },
+  "none": { "ru": "Ничего из этого", "enUs": "None of these" },
+  "options": [
+    { "code": "F_BREATHING_SEVERE", "period": "ALL", "routeId": "R26", "ru": "Очень трудно дышать", "enUs": "Severe trouble breathing" },
+    { "code": "F_CHEST_PAIN", "period": "ALL", "routeId": "R26", "ru": "Боль в груди", "enUs": "Chest pain" },
+    { "code": "F_FAINTED", "period": "ALL", "routeId": "R26", "ru": "Теряла сознание", "enUs": "I fainted" },
+    { "code": "F_SEIZURE", "period": "ALL", "routeId": "R26", "ru": "Судороги", "enUs": "Seizure" },
+    { "code": "F_NEURO_DEFICIT", "period": "ALL", "routeId": "R26", "ru": "Внезапная слабость руки, ноги или половины лица, или спутанность", "enUs": "Sudden weakness in an arm, leg or one side of the face, or confusion" },
+    { "code": "F_THUNDERCLAP_HEADACHE", "period": "ALL", "routeId": "R26", "ru": "Внезапная очень сильная головная боль", "enUs": "Sudden, extremely severe headache" },
+    { "code": "ALLERGY_SWELLING", "period": "ALL", "routeId": "R25", "ru": "Отёк лица, губ, языка или горла", "enUs": "Swelling of the face, lips, tongue or throat" },
+    { "code": "F_HEART_RACING", "period": "ALL", "routeId": "R26", "ru": "Сердце бьётся очень часто или неровно", "enUs": "Heart racing or beating irregularly" },
+    { "code": "F_PAD_SOAK_1H", "period": "ALL", "routeId": "R26", "ru": "Кровотечение: прокладка пропитывается за час или быстрее", "enUs": "Bleeding: soaking a pad in an hour or less" },
+    { "code": "F_HARM_THOUGHTS", "period": "ALL", "routeId": "R26", "ru": "Мысли причинить вред себе или другому", "enUs": "Thoughts of harming myself or someone else", "postpartumRu": "Мысли причинить вред себе или ребёнку", "postpartumEnUs": "Thoughts of harming myself or my baby" },
+    { "code": "F_PREG_VAGINAL_BLEED", "period": "PREGNANCY", "routeId": "R26", "ru": "Кровотечение из влагалища", "enUs": "Vaginal bleeding" },
+    { "code": "F_FLUID_LEAK", "period": "PREGNANCY", "routeId": "R26", "ru": "Излилась или подтекает жидкость", "enUs": "Fluid gushing or leaking" },
+    { "code": "F_REDUCED_MOVEMENTS", "period": "PREGNANCY", "routeId": "R26", "ru": "Ребёнок шевелится заметно меньше", "enUs": "Baby is moving noticeably less" },
+    { "code": "F_BLEED_SUDDEN_INCREASE", "period": "POSTPARTUM", "routeId": "R26", "ru": "Кровотечение внезапно усилилось", "enUs": "Bleeding suddenly got much heavier" },
+    { "code": "F_ONE_LIMB", "period": "POSTPARTUM", "routeId": "R26", "ru": "Одна рука или нога отекла или болит", "enUs": "One arm or leg is swollen or painful" },
+    { "code": "POSTPARTUM_PREECLAMPSIA", "period": "POSTPARTUM", "routeId": "R17", "ru": "Головная боль, нарушение зрения или отёки", "enUs": "Headache, vision changes or swelling" }
+  ]
+}

@@ -335,6 +335,20 @@ public class CheckinApplicationService {
     }
 
     /**
+     * A global safety entry (ER0, WB1, calendar) answered a route whose question this session holds: the
+     * session's decision is read again, and a post-deadline session finalises once nothing is open.
+     */
+    @Transactional
+    public void refreshSafety(String userId, String sessionId) {
+        var current = owned(userId, sessionId);
+        if (!isMutable(current) || current.getConsumedAt() != null) return;
+        var now = clock.instant();
+        safety.project(current, now);
+        if (!current.isSafetyBlocking() && !now.isBefore(current.getWindowClosesAt())) current.autoFinalize(now);
+        sessions.saveAndFlush(current);
+    }
+
+    /**
      * One generation per day (MOMNA-989, 23.11.2026): once today's plan exists, the morning Check-in is
      * closed until the evening, so its answers can never be lost silently. A draft left at that moment
      * still auto-finalises when its window closes, but it does not join the existing My Day.

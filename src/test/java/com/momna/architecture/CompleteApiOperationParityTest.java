@@ -31,13 +31,14 @@ class CompleteApiOperationParityTest {
         FoundationController.class, AuthController.class, BillingController.class,
         ProfileController.class, LifecycleController.class, FlowController.class,
         RouterConfirmationController.class, AccountCenterController.class,
-        CheckinController.class
+        CheckinController.class, com.momna.modules.medicalsafety.api.MedicalSafetyController.class
     );
     private static final List<String> CONTRACTS = List.of(
         "openapi.json",
         "openapi-onboarding.json",
         "openapi/onboarding-public-v1.json",
-        "openapi/checkin-public-v1.yaml"
+        "openapi/checkin-public-v1.yaml",
+        "openapi/medical-safety-public-v1.yaml"
     );
 
     @Test

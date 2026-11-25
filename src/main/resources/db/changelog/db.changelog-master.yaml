@@ -198,3 +198,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-medical-safety-global-entries-v36
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V36__medical_safety_global_entries.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

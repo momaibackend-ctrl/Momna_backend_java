@@ -101,6 +101,21 @@ public class GlobalExceptionHandler {
         }));
     }
 
+    @ExceptionHandler(com.momna.platform.safety.MedicalSafetyException.class)
+    ResponseEntity<ApiError> medicalSafety(com.momna.platform.safety.MedicalSafetyException ex) {
+        var status = switch (ex.code()) {
+            case "SAFETY_VALUE_INVALID", "SAFETY_SIGNAL_NOT_APPLICABLE" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "SAFETY_FACT_NOT_CURRENT", "SAFETY_FACT_NOT_ANSWERED", "SAFETY_ROUTE_NOT_CURRENT",
+                 "SAFETY_ROUTE_COMPLETED", "IDEMPOTENCY_CONFLICT" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        return ResponseEntity.status(status).body(ApiError.of(ex.code(), switch (status) {
+            case UNPROCESSABLE_ENTITY -> "Safety request contains an invalid or inapplicable value";
+            case CONFLICT -> "Safety request conflicts with the current route state";
+            default -> "Unexpected server error";
+        }));
+    }
+
     @ExceptionHandler(CheckinException.class)
     ResponseEntity<ApiError> checkin(CheckinException ex) {
         var status = switch (ex.code()) {

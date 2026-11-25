@@ -398,7 +398,7 @@ class MyDayHttpE2eTest {
     void wb1OpensR18AndReachesMyDay() throws Exception {
         var user = user(LifecyclePeriod.POSTPARTUM, "safety-wb1");
         var zone = java.time.ZoneId.of(userProfiles.findById(user.userId()).orElseThrow().getTimezone());
-        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", java.util.Map.of(
+        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", 3, java.util.Map.of(
             "onboarding.postpartum.birth_date", java.time.LocalDate.now(zone).minusDays(30).toString()));
         var card = json.readTree(get("/api/v1/medical-safety/wb1", user.token()).body());
         assertTrue(card.path("show").asBoolean(), card.toString());
@@ -802,8 +802,14 @@ class MyDayHttpE2eTest {
 
     /** A completed period onboarding with the given answers, as the flow engine stores them. */
     private void completedOnboarding(User user, String period, String definitionKey, java.util.Map<String, Object> answers) {
+        completedOnboarding(user, period, definitionKey, 1, answers);
+    }
+
+    private void completedOnboarding(User user, String period, String definitionKey, int definitionVersion,
+            java.util.Map<String, Object> answers) {
         var now = Instant.now().minusSeconds(3600);
-        var instance = new com.momna.modules.flow.infrastructure.FlowInstanceEntity(UUID.randomUUID(), definitionKey, 1,
+        var instance = new com.momna.modules.flow.infrastructure.FlowInstanceEntity(UUID.randomUUID(), definitionKey,
+            definitionVersion,
             com.momna.modules.flow.domain.FlowType.PERIOD_ONBOARDING, user.userId(), null, period, null, null,
             com.momna.modules.flow.domain.FlowInstanceStatus.COMPLETED, null, "start-" + UUID.randomUUID(), now, now);
         flowInstances.saveAndFlush(instance);

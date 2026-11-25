@@ -1571,7 +1571,8 @@ class AuthenticatedApiHttpE2eTest {
         } else if ("NUMBER".equals(type)) {
             value.put("kind","NUMBER").put("value",1);
         } else if ("TEXT".equals(type)) {
-            value.put("kind","TEXT").put("value","text");
+            String field=step.path("fieldId").asText();
+            value.put("kind","TEXT").put("value",field.equals("profile.country_region") ? "US" : "text");
         } else {
             value.put("kind","ENUM").put("value",choice);
         }

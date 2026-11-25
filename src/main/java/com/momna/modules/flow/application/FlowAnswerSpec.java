@@ -22,7 +22,7 @@ import java.util.Set;
  *   <li>OBJECT with allowed values per child: a map from child to an allowed value;</li>
  *   <li>DATE: an ISO date, within the field's range around today;</li>
  *   <li>NUMBER: a number within the field's range;</li>
- *   <li>TEXT: a string no longer than the field's maximum.</li>
+ *   <li>TEXT: a string no longer than the field's maximum, of the field's form when it has one.</li>
  * </ul>
  * A field without a registry entry or without listed values accepts any value of its shape.
  */
@@ -34,6 +34,7 @@ public record FlowAnswerSpec(
     Map<String, List<String>> valuesByKey,
     boolean perChild,
     Integer maxLength,
+    String pattern,
     BigDecimal minimum,
     BigDecimal maximum,
     Integer minDaysFromNow,
@@ -41,7 +42,7 @@ public record FlowAnswerSpec(
     String earliest
 ) {
     public static final FlowAnswerSpec UNKNOWN = new FlowAnswerSpec(null, null, null, null, false, null, null, null,
-        null, null, null);
+        null, null, null, null);
 
     @SuppressWarnings("unchecked")
     public static FlowAnswerSpec of(String dataType, Map<String, Object> schema) {
@@ -55,6 +56,7 @@ public record FlowAnswerSpec(
             schema.get("valuesByKey") instanceof Map<?, ?> byKey ? choices(byKey) : null,
             Boolean.TRUE.equals(schema.get("perChild")),
             schema.get("maxLength") instanceof Number n ? n.intValue() : null,
+            schema.get("pattern") instanceof String p ? p : null,
             decimal(schema.get("minimum")),
             decimal(schema.get("maximum")),
             schema.get("minDaysFromNow") instanceof Number n ? n.intValue() : null,
@@ -80,6 +82,7 @@ public record FlowAnswerSpec(
             case "TEXT" -> {
                 if (!(x instanceof String text)) throw invalid("a text is required");
                 if (maxLength != null && text.length() > maxLength) throw invalid("the text is too long");
+                if (pattern != null && !text.matches(pattern)) throw invalid("the text has the wrong form");
             }
             default -> {}
         }

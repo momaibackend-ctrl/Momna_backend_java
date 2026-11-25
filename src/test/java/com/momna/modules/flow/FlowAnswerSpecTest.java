@@ -85,6 +85,11 @@ class FlowAnswerSpecTest {
         detail.validate(answer("nurse"));
         rejected(detail, answer("teacher"));
         rejected(detail, answer(3));
+
+        var country = FlowAnswerSpec.of("TEXT", Map.of("maxLength", 2, "pattern", "^[A-Z]{2}$"));
+        country.validate(answer("PL"));
+        rejected(country, answer("pl"));
+        rejected(country, answer("POL"));
     }
 
     @Test

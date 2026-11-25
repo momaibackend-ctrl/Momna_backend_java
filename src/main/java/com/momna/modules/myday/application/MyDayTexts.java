@@ -6,15 +6,15 @@ import java.util.Map;
 /**
  * Server-owned texts of the My Day screens (app decision D-2: every text inside a card is data).
  * English follows the implemented design (Figma 4q6z6gWxqUDMgHRJjH4x8N, Adult Cycle frames A, L, P, B
- * and the "Last Night" variant of A, checked against the export of 24.11.2026). Russian is a draft
- * awaiting Product approval. Button labels stay in the app.
+ * and the "Last Night" variant of A, checked against the export of 24.11.2026). Russian and the texts of
+ * the other periods were approved by Product on 26.11.2026. Button labels stay in the app.
  *
- * <p>Some texts name the life period ("Recommendations for a regular cycle."). Only the Adult Cycle
- * wording is in the design export so far; for the other periods the period-specific texts are absent
- * (no subtitle) or the neutral wording is used, never an invented one, until their frames are exported.
+ * <p>Some texts name the life period ("Recommendations for a regular cycle."). The design shows the Adult
+ * Cycle wording; the design makes templates only and every exact text is the backend's (Product decision
+ * 25.11.2026), so the other six periods follow the same pattern (approved by Product 26.11.2026).
  */
 public final class MyDayTexts {
-    public static final String VERSION = "myday.texts.v2";
+    public static final String VERSION = "myday.texts.v3";
 
     private MyDayTexts() {}
 
@@ -33,7 +33,13 @@ public final class MyDayTexts {
         /** The My Day header subtitle per lifecycle period, e.g. CYCLE: "Recommendations for a regular cycle." */
         Map<String, String> subtitleByPeriod,
         /** The "Standard" card description per lifecycle period; {@link #general} is the neutral fallback. */
-        Map<String, String> generalByPeriod
+        Map<String, String> generalByPeriod,
+        /** The header of the plan block ("TODAY'S PLAN"). */
+        String planHeader,
+        /** The label of each slot's group: AM "Morning", PM "Evening", OPTIONAL "Optional". */
+        Map<String, String> groupTitles,
+        /** Shown when the plan has no card. */
+        String emptyPlanText
     ) {
         /** The header subtitle of this period, or null when the design has none yet. */
         public String subtitle(String lifecyclePeriod) {
@@ -56,8 +62,23 @@ public final class MyDayTexts {
         "A NOTE FROM MOMNA",
         "We couldn't prepare your plan. Please try again.",
         new Choice("Getting your plan ready", "I'm turning your answers into today's recommendations."),
-        Map.of("CYCLE", "Recommendations for a regular cycle."),
-        Map.of("CYCLE", "General recommendations for a regular cycle — no questions.")
+        Map.of("MENARCHE", "Recommendations for your first cycles.",
+            "CYCLE", "Recommendations for a regular cycle.",
+            "PLANNING", "Recommendations while you're trying to conceive.",
+            "PREGNANCY", "Recommendations for your pregnancy.",
+            "POSTPARTUM", "Recommendations for your first year after birth.",
+            "PERIMENOPAUSE", "Recommendations for perimenopause.",
+            "MENOPAUSE", "Recommendations for menopause."),
+        Map.of("MENARCHE", "General recommendations for your first cycles — no questions.",
+            "CYCLE", "General recommendations for a regular cycle — no questions.",
+            "PLANNING", "General recommendations while you're trying to conceive — no questions.",
+            "PREGNANCY", "General recommendations for your pregnancy — no questions.",
+            "POSTPARTUM", "General recommendations for your first year after birth — no questions.",
+            "PERIMENOPAUSE", "General recommendations for perimenopause — no questions.",
+            "MENOPAUSE", "General recommendations for menopause — no questions."),
+        "TODAY'S PLAN",
+        Map.of("AM", "Morning", "PM", "Evening", "OPTIONAL", "Optional"),
+        "There is nothing in your plan for today yet."
     );
 
     private static final Set RU = new Set(
@@ -69,8 +90,23 @@ public final class MyDayTexts {
         "ЗАМЕТКА ОТ MOMNA",
         "Не получилось подготовить план. Попробуйте ещё раз.",
         new Choice("Готовим ваш план", "Превращаю ваши ответы в рекомендации на сегодня."),
-        Map.of("CYCLE", "Рекомендации для регулярного цикла."),
-        Map.of("CYCLE", "Общие рекомендации для регулярного цикла — без вопросов.")
+        Map.of("MENARCHE", "Рекомендации для первых циклов.",
+            "CYCLE", "Рекомендации для регулярного цикла.",
+            "PLANNING", "Рекомендации на время планирования беременности.",
+            "PREGNANCY", "Рекомендации на время беременности.",
+            "POSTPARTUM", "Рекомендации на первый год после родов.",
+            "PERIMENOPAUSE", "Рекомендации для перименопаузы.",
+            "MENOPAUSE", "Рекомендации для менопаузы."),
+        Map.of("MENARCHE", "Общие рекомендации для первых циклов — без вопросов.",
+            "CYCLE", "Общие рекомендации для регулярного цикла — без вопросов.",
+            "PLANNING", "Общие рекомендации на время планирования беременности — без вопросов.",
+            "PREGNANCY", "Общие рекомендации на время беременности — без вопросов.",
+            "POSTPARTUM", "Общие рекомендации на первый год после родов — без вопросов.",
+            "PERIMENOPAUSE", "Общие рекомендации для перименопаузы — без вопросов.",
+            "MENOPAUSE", "Общие рекомендации для менопаузы — без вопросов."),
+        "ПЛАН НА СЕГОДНЯ",
+        Map.of("AM", "Утро", "PM", "Вечер", "OPTIONAL", "По желанию"),
+        "На сегодня в плане пока ничего нет."
     );
 
     private static final Map<String, Set> BY_LANGUAGE = Map.of("en", EN, "ru", RU);

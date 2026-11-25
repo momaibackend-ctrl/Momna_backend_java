@@ -287,8 +287,24 @@ public class MyDayApplicationService {
             cardViews,
             new ProgressView(cardViews.size(), completed, skipped, cardViews.size() - completed - skipped),
             provenance,
-            healthNote(day)
+            healthNote(day),
+            texts.planHeader(),
+            groups(cardViews, texts),
+            texts.emptyPlanText(),
+            null
         );
+    }
+
+    private static final java.util.Map<String, String> PARTS = java.util.Map.of(
+        "AM", "MORNING", "PM", "EVENING", "OPTIONAL", "OPTIONAL");
+
+    static List<GroupView> groups(List<CardView> cards, MyDayTexts.Set texts) {
+        var out = new java.util.ArrayList<GroupView>();
+        for (var slot : MyDayCards.SLOTS) {
+            var ids = cards.stream().filter(c -> slot.equals(c.slot())).map(CardView::cardId).toList();
+            if (!ids.isEmpty()) out.add(new GroupView(PARTS.get(slot), texts.groupTitles().get(slot), ids));
+        }
+        return List.copyOf(out);
     }
 
     /** The level fixed when the day was generated; the texts follow the day's language. */

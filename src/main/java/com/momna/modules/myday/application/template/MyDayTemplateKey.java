@@ -16,6 +16,10 @@ import java.util.regex.Pattern;
  * all prompt inputs (overlay keys sorted) and the versions of the prompts, the output validator, the
  * overlay adapter, the calendar facts / phase code rules and the content rules, so changing any of them
  * is a cache miss. RU and EN are distinct keys.
+ *
+ * <p>v2 (Product decision 25.11.2026): the tone the user chose in onboarding ({@code onboarding.<period>.tone},
+ * gentle / friendly / close_friend / direct) is a prompt input and part of the key, so each tone has its own
+ * template. An unanswered tone is {@code null} and the prompt uses its default voice.
  */
 public record MyDayTemplateKey(
     String lifeMode,
@@ -26,9 +30,10 @@ public record MyDayTemplateKey(
     String trimester,
     List<String> overlayKeys,
     String userLanguage,
+    String tone,
     Versions versions
 ) {
-    public static final String KEY_VERSION = "myday.template-key.v1";
+    public static final String KEY_VERSION = "myday.template-key.v2";
     public static final String PURPOSE = "MY_DAY";
     public static final Set<String> LIFE_MODES = Set.of("teen_menarche", "adult_cycle", "planning", "pregnancy",
         "postpartum", "perimenopause", "menopause");
@@ -36,13 +41,18 @@ public record MyDayTemplateKey(
         "ovulation_peak", "luteal", "uncertain", "not_applicable");
     public static final Set<String> TRIMESTERS = Set.of("trimester_1", "trimester_2", "trimester_3");
     public static final Set<String> LANGUAGES = Set.of("ru", "en");
+    /** The four tones of the onboarding question "How can Momna talk to you?" in every period. */
+    public static final Set<String> TONES = Set.of("gentle", "friendly", "close_friend", "direct");
     private static final Pattern PHASE_CODE = Pattern.compile("[a-z][a-z0-9_]{0,39}");
     private static final Pattern VERSION = Pattern.compile("[A-Za-z0-9_.:-]{1,64}");
+
+    /** v1.2 = v1.1 + the tone input + one medical rule for every period (Product decision 25.11.2026). */
+    public static final String PROMPTS_VERSION = "myday.prompts.v1.2";
 
     public record Versions(String prompts, String validator, String overlayAdapter, String calendarFacts,
                            String contentRules) {
         public static Versions current() {
-            return new Versions("myday.prompts.v1.1", "MY_DAY_CARDS_V1", MyDayOverlayAdapter.VERSION,
+            return new Versions(PROMPTS_VERSION, "MY_DAY_CARDS_V1", MyDayOverlayAdapter.VERSION,
                 MyDayCalendarFacts.VERSION + ":" + MyDayCalendarFacts.PHASE_CODE_VERSION, "myday.content-rules.v1");
         }
 
@@ -63,6 +73,7 @@ public record MyDayTemplateKey(
         require(weekNumber == null || (weekNumber >= 1 && weekNumber <= 52), "week_number");
         require(trimester == null || TRIMESTERS.contains(trimester), "trimester");
         require(LANGUAGES.contains(userLanguage), "user_language");
+        require(tone == null || TONES.contains(tone), "tone");
         require(versions != null, "versions");
         Objects.requireNonNull(overlayKeys, "overlay_keys");
         var allowed = MyDayOverlayAdapter.keys(lifeMode);
@@ -99,6 +110,7 @@ public record MyDayTemplateKey(
             "trimester=" + (trimester == null ? "null" : trimester),
             "overlay_keys=" + String.join(",", overlayKeys),
             "user_language=" + userLanguage,
+            "tone=" + (tone == null ? "null" : tone),
             "prompts=" + versions.prompts(),
             "validator=" + versions.validator(),
             "overlay_adapter=" + versions.overlayAdapter(),
@@ -106,7 +118,7 @@ public record MyDayTemplateKey(
             "content_rules=" + versions.contentRules());
     }
 
-    /** The prompt parameters exactly as the v1.1 templates name them. */
+    /** The prompt parameters exactly as the v1.2 templates name them. */
     public Map<String, Object> promptParameters() {
         var out = new LinkedHashMap<String, Object>();
         out.put("life_mode", lifeMode);
@@ -117,6 +129,7 @@ public record MyDayTemplateKey(
         out.put("trimester", trimester);
         out.put("overlay_keys", overlayKeys);
         out.put("user_language", userLanguage);
+        out.put("tone", tone);
         return Collections.unmodifiableMap(out);
     }
 

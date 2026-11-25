@@ -23,8 +23,17 @@ public final class MyDayViews {
         String badge,
         List<CardView> cards,
         ProgressView progress,
-        ProvenanceView provenance
+        ProvenanceView provenance,
+        /** Present only on a day with a medical overlay; null on every other day (no doctor advice then). */
+        HealthNoteView healthNote
     ) {}
+
+    /**
+     * Code-owned lines for the day's health card (Product decision 25.11.2026). level is PROMPT, URGENT,
+     * EMERGENCY or UNKNOWN; recommendation is null for URGENT and EMERGENCY, which the urgent safety path
+     * already shows; the disclaimer is always present.
+     */
+    public record HealthNoteView(String level, String recommendation, String disclaimer) {}
 
     public record CardView(
         String cardId,

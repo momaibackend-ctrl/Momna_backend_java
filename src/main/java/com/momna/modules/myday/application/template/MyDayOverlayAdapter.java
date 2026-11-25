@@ -13,7 +13,7 @@ import java.util.*;
 /**
  * MYDAY-SPEC-02 (MOMNA-1324): a deterministic compatibility adapter from facts that already exist
  * (weighted-v3 Check-in answers, onboarding answers, calendar facts, the authoritative SafetyDecision)
- * to the {@code overlay_keys} of the My Day prompts v1.1. It is not a second scoring engine: it never
+ * to the {@code overlay_keys} of the My Day prompts v1.2. It is not a second scoring engine: it never
  * recomputes adjustment or safety scores, it reads their results.
  *
  * <p><b>Weights, not single answers.</b> A Check-in overlay is the share of the day's weighted evidence
@@ -24,15 +24,24 @@ import java.util.*;
  * on; a strong morning does; a strong evening is outweighed by a morning that says it has passed; an
  * unanswered item is not an answer.
  *
- * <p><b>Medical keys</b> come only from the SafetyDecision of a final source session with severity
- * MEDIUM or higher for the period's own routes, never from a score or from the LLM (MOMNA-1145).
- * {@code post_ppd_screen} stays NOT_MAPPABLE until MOMNA-1146 approves a mental-health route.
+ * <p><b>Medical keys</b> (Product decision 25.11.2026: one approach for every medical and safety
+ * signal) come only from the SafetyDecision of a final source session with severity MEDIUM or higher,
+ * or an undetermined outcome, on a route of the period itself or a GLOBAL route, never from a score,
+ * a profile answer or the LLM (MOMNA-1145). Each period has one {@code <period>_health_flag}; after a
+ * birth, the mental-health route R18 {@code POSTPARTUM_MENTAL_HEALTH} is {@code post_mood_heavy}
+ * instead (never named a screening). Only a medical key adds a doctor recommendation to the day, and
+ * {@link #healthLevel} says which one. Profile facts such as a high-risk pregnancy are context keys:
+ * they shape the plan and never add a doctor line on their own.
+ *
+ * <p><b>Every key has a source.</b> The catalog has no NOT_MAPPABLE entry left: each key reads a
+ * Check-in item, an onboarding answer, a calendar fact or the SafetyDecision. "Prefer not to say"
+ * never turns a key on.
  *
  * <p><b>Few overlays a day.</b> At most {@value #MAX_STATE_KEYS} Check-in keys (strongest first) and
  * {@value #MAX_FACT_KEYS} onboarding/calendar keys (catalog priority) are passed on; medical keys always.
  */
 public final class MyDayOverlayAdapter {
-    public static final String VERSION = "myday.overlay-adapter.v2";
+    public static final String VERSION = "myday.overlay-adapter.v3";
 
     /**
      * PST_FEEDING (MOMNA-561, Product decision 24.11.2026), the seven canonical codes registered in the
@@ -56,17 +65,38 @@ public final class MyDayOverlayAdapter {
     public static final int MAX_STATE_KEYS = 3;
     public static final int MAX_FACT_KEYS = 3;
     static final BigDecimal ACTIVATION = new BigDecimal("0.600000");
-    static final Set<String> MEDICAL_SEVERITIES = Set.of("MEDIUM", "HIGH", "CRITICAL");
+    /** MEDIUM and higher, and an undetermined outcome (UNKNOWN), make a medical key; NONE and LOW never do. */
+    static final Set<String> MEDICAL_SEVERITIES = Set.of("MEDIUM", "HIGH", "CRITICAL", "UNKNOWN");
+    /** The mental-health route after a birth (v2.2 R18); it is {@code post_mood_heavy}, not the health flag. */
+    public static final String POSTPARTUM_MENTAL_HEALTH_ROUTE = "POSTPARTUM_MENTAL_HEALTH";
+    static final String GLOBAL_ROUTE_PREFIX = "GLOBAL_";
+
+    /**
+     * The doctor recommendation a medical key adds, from the strongest matching SafetyDecision:
+     * CRITICAL EMERGENCY, HIGH URGENT, MEDIUM PROMPT, an undetermined outcome UNKNOWN (MOMNA-989 section 7).
+     */
+    public enum HealthLevel { EMERGENCY, URGENT, PROMPT, UNKNOWN;
+        static Optional<HealthLevel> of(String severity) {
+            if (severity == null) return Optional.empty();
+            return switch (severity) {
+                case "CRITICAL" -> Optional.of(EMERGENCY);
+                case "HIGH" -> Optional.of(URGENT);
+                case "MEDIUM" -> Optional.of(PROMPT);
+                case "UNKNOWN" -> Optional.of(UNKNOWN);
+                default -> Optional.empty();
+            };
+        }
+    }
     private static final int SCALE = 6;
     private static final BigDecimal ONE = BigDecimal.ONE.setScale(SCALE);
 
     private MyDayOverlayAdapter() {}
 
     /** Which cap a key counts against. */
-    public enum Group { STATE, FACT, MEDICAL, NONE }
+    public enum Group { STATE, FACT, MEDICAL }
 
     /** Source types of the MOMNA-1324 table. */
-    public enum SourceType { CHECKIN_ITEM, ONBOARDING_FIELD, CALENDAR_FACT, SAFETY_PROJECTION, NOT_MAPPABLE }
+    public enum SourceType { CHECKIN_ITEM, ONBOARDING_FIELD, CALENDAR_FACT, SAFETY_PROJECTION }
 
     public record Entry(String key, String lifeMode, SourceType sourceType, Group group, Rule rule,
                         String owner, String meaning) {}
@@ -88,7 +118,8 @@ public final class MyDayOverlayAdapter {
 
     public record Activation(String key, Group group, BigDecimal strength, boolean passed) {}
 
-    public record Result(List<String> overlayKeys, List<Activation> activations) {
+    /** healthLevel is null on a day without a medical key: then the day has no doctor recommendation. */
+    public record Result(List<String> overlayKeys, List<Activation> activations, HealthLevel healthLevel) {
         public Result {
             overlayKeys = List.copyOf(overlayKeys);
             activations = List.copyOf(activations);
@@ -117,7 +148,22 @@ public final class MyDayOverlayAdapter {
             .map(a -> new Activation(a.key(), a.group(), a.strength(), passed.contains(a.key())))
             .sorted(Comparator.comparing(Activation::key))
             .toList();
-        return new Result(List.copyOf(passed), activations);
+        return new Result(List.copyOf(passed), activations, healthLevel(input, passed));
+    }
+
+    /** The strongest level among the SafetyDecisions behind the passed medical keys. */
+    static HealthLevel healthLevel(Input input, Set<String> passed) {
+        HealthLevel strongest = null;
+        for (var entry : catalog(input.lifeMode())) {
+            if (entry.group() != Group.MEDICAL || !passed.contains(entry.key())
+                || !(entry.rule() instanceof Safety safety)) continue;
+            for (var projection : input.safety()) {
+                if (!safety.matches(projection)) continue;
+                var level = HealthLevel.of(projection.severity()).orElse(null);
+                if (level != null && (strongest == null || level.ordinal() < strongest.ordinal())) strongest = level;
+            }
+        }
+        return strongest;
     }
 
     /** Candidates before the daily caps: what each key's own rule says. */
@@ -202,8 +248,9 @@ public final class MyDayOverlayAdapter {
         }
     }
 
+    /** WEEKLY: every seventh day of the period (day_number 7, 14, 21, ...). */
     public enum CalendarFact { MENSTRUAL, FERTILE_WINDOW, LUTEAL, PREGNANCY_WEEK_28_PLUS, POSTPARTUM_WEEKS_1_4,
-        POSTPARTUM_AFTER_WEEK_6, WEEKDAY }
+        POSTPARTUM_AFTER_WEEK_6, WEEKDAY, WEEKLY }
 
     public record Calendar(CalendarFact fact) implements Rule {
         @Override
@@ -218,18 +265,43 @@ public final class MyDayOverlayAdapter {
                 case POSTPARTUM_AFTER_WEEK_6 -> c.weekNumber() != null && c.weekNumber() > 6;
                 case WEEKDAY -> input.targetDate().getDayOfWeek() != DayOfWeek.SATURDAY
                     && input.targetDate().getDayOfWeek() != DayOfWeek.SUNDAY;
+                case WEEKLY -> c.dayNumber() % 7 == 0;
             };
             return holds ? Optional.of(ONE) : Optional.empty();
         }
     }
 
-    /** The authoritative SafetyDecision of a source session for one of the period's own routes. */
-    public record Safety(String routePrefix) implements Rule {
+    /**
+     * The authoritative SafetyDecision of a source session on one of these routes: a route code starting
+     * with one of {@code routePrefixes}, or equal to {@code exactRoute} when that is set, minus
+     * {@code excludedRoutes}; severity MEDIUM or higher, or UNKNOWN.
+     */
+    public record Safety(List<String> routePrefixes, String exactRoute, Set<String> excludedRoutes) implements Rule {
+        public Safety {
+            routePrefixes = List.copyOf(routePrefixes);
+            excludedRoutes = Collections.unmodifiableSortedSet(new TreeSet<>(excludedRoutes));
+        }
+
+        /** The period's own routes and the GLOBAL routes. */
+        public static Safety period(String periodPrefix, String... excluded) {
+            return new Safety(List.of(periodPrefix, GLOBAL_ROUTE_PREFIX), null, Set.of(excluded));
+        }
+
+        public static Safety route(String routeCode) {
+            return new Safety(List.of(), routeCode, Set.of());
+        }
+
+        boolean matches(SafetyProjection s) {
+            var code = s.routeCode();
+            if (code == null || s.severity() == null || !MEDICAL_SEVERITIES.contains(s.severity())) return false;
+            if (excludedRoutes.contains(code)) return false;
+            if (exactRoute != null) return exactRoute.equals(code);
+            return routePrefixes.stream().anyMatch(code::startsWith);
+        }
+
         @Override
         public Optional<BigDecimal> evaluate(Input input) {
-            return input.safety().stream().anyMatch(s -> s.routeCode() != null && s.routeCode().startsWith(routePrefix)
-                && s.severity() != null && MEDICAL_SEVERITIES.contains(s.severity()))
-                ? Optional.of(ONE) : Optional.empty();
+            return input.safety().stream().anyMatch(this::matches) ? Optional.of(ONE) : Optional.empty();
         }
     }
 
@@ -284,11 +356,6 @@ public final class MyDayOverlayAdapter {
         }
     }
 
-    public record NotMappable(String reason) implements Rule {
-        @Override
-        public Optional<BigDecimal> evaluate(Input input) { return Optional.empty(); }
-    }
-
     // ---------------------------------------------------------------- the table (order = priority)
 
     private static final String PRODUCT = "Product (vkdevpro), 23.11.2026";
@@ -302,12 +369,19 @@ public final class MyDayOverlayAdapter {
         return new Entry(key, mode, type, Group.FACT, rule, PRODUCT, meaning);
     }
 
-    private static Entry medical(String key, String mode, String routePrefix, String meaning) {
-        return new Entry(key, mode, SourceType.SAFETY_PROJECTION, Group.MEDICAL, new Safety(routePrefix), SAFETY, meaning);
+    private static Entry medical(String key, String mode, Safety rule, String meaning) {
+        return new Entry(key, mode, SourceType.SAFETY_PROJECTION, Group.MEDICAL, rule, SAFETY, meaning);
     }
 
-    private static Entry notMappable(String key, String mode, String reason) {
-        return new Entry(key, mode, SourceType.NOT_MAPPABLE, Group.NONE, new NotMappable(reason), PRODUCT, reason);
+    private static Entry healthFlag(String key, String mode, String periodPrefix, String... excluded) {
+        return medical(key, mode, Safety.period(periodPrefix, excluded),
+            "SafetyDecision MEDIUM+ or UNKNOWN on a " + periodPrefix + "* or GLOBAL_* route");
+    }
+
+    private static final String DECISION_25_11 = "Product (vkdevpro), 25.11.2026";
+
+    private static Entry fact25(String key, String mode, SourceType type, Rule rule, String meaning) {
+        return new Entry(key, mode, type, Group.FACT, rule, DECISION_25_11, meaning);
     }
 
     private static final String C = "onboarding.";
@@ -316,32 +390,35 @@ public final class MyDayOverlayAdapter {
 
     public static final List<Entry> CATALOG = List.of(
         // teen_menarche (7)
-        medical("teen_red_flag", "teen_menarche", "MENARCHE_", "SafetyDecision MEDIUM+ on a menarche route"),
+        healthFlag("teen_health_flag", "teen_menarche", "MENARCHE_"),
         state("teen_pain_high", "teen_menarche", new Checkin("M2", "M11"), "pain M2 / body discomfort M11"),
         state("teen_mood_sensitive", "teen_menarche", new Checkin("M7", "M12"), "mood M7 / anxiety M12"),
         fact("teen_bleeding_now", "teen_menarche", CAL, new Calendar(CalendarFact.MENSTRUAL),
             "cycle days 1-5 from the onboarding last period"),
         fact("teen_school_day", "teen_menarche", SourceType.CHECKIN_ITEM, new Any(
             new MorningAnswered("M6", 0),
-            new All(new Onboarding(C + "menarche.day_context", "school"), new Calendar(CalendarFact.WEEKDAY))),
-            "morning M6 answered, or school as day context on a weekday"),
+            new All(new Onboarding(C + "menarche.day_context", "school", "college"), new Calendar(CalendarFact.WEEKDAY))),
+            "morning M6 answered, or school or college as day context on a weekday"),
         fact("teen_no_trusted_adult", "teen_menarche", OB,
-            new Onboarding(C + "menarche.trusted_adult", "no_one", "dont_want_to"), "no trusted adult"),
+            new Onboarding(C + "menarche.trusted_adult", "no_one", "dont_want_to", "someone_unsure"),
+            "no trusted adult, or unsure whom to talk to"),
         fact("teen_privacy_high", "teen_menarche", OB, new Any(
-            new Onboarding(C + "menarche.notifications", "neutral_wording", "no_notifications"),
+            new Onboarding(C + "menarche.notifications", "neutral_wording", "only_important", "no_notifications"),
             new Onboarding(C + "menarche.toilet_access", "sometimes_difficult", "almost_impossible"),
             new Checkin("M8")), "neutral notifications, hard toilet access, or privacy M8"),
         // adult_cycle (7)
-        medical("adult_red_flag", "adult_cycle", "CYCLE_", "SafetyDecision MEDIUM+ on a cycle route"),
+        healthFlag("adult_health_flag", "adult_cycle", "CYCLE_"),
         state("adult_pain_high", "adult_cycle", new Checkin("C3", "C13"), "pain C3 / cycle sensations C13"),
         state("adult_heavy_flow", "adult_cycle", new Checkin("C4"), "bleeding heavier / disruptive C4"),
         state("adult_low_energy", "adult_cycle", new Checkin("C2", "C12"), "energy C2 / sleep debt C12"),
         state("adult_work_stress", "adult_cycle", new Checkin("C8", "C11"), "workload C8 / workload fatigue C11"),
         state("adult_pms", "adult_cycle", new All(new Calendar(CalendarFact.LUTEAL), new Checkin("C5", "C7", "C9")),
             "luteal cycle days and bloating C5 / mood C7 / appetite C9"),
-        notMappable("adult_relationship_tension", "adult_cycle",
-            "weighted-v3 has no relationship item; onboarding cycle.partner is a status, not tension"),
-        // planning (6)
+        fact25("adult_relationship_tension", "adult_cycle", OB,
+            new Onboarding(C + "cycle.partner_support", "relationship_tense", "little_support"),
+            "CYC_PARTNER_SUPPORT: tense relationship or little support (pressured_unsafe is a safety matter)"),
+        // planning (7)
+        healthFlag("planning_health_flag", "planning", "PLANNING_"),
         state("planning_anxiety_high", "planning", new Checkin("T1", "T8"), "emotional state T1 / anxiety T8"),
         fact("planning_fertile_window", "planning", CAL, new Calendar(CalendarFact.FERTILE_WINDOW),
             "Standard Days Method days 8-19 of a regular cycle"),
@@ -356,8 +433,16 @@ public final class MyDayOverlayAdapter {
             new Onboarding(C + "planning.partner_involvement", "tension"),
             new Onboarding(C + "planning.pressure", "relationship_tension")),
             "tension with the partner (pressured_unsafe is a safety matter, not this key)"),
-        // pregnancy (9)
-        medical("preg_high_risk", "pregnancy", "PREGNANCY_", "SafetyDecision MEDIUM+ on a pregnancy route"),
+        // pregnancy (10)
+        healthFlag("preg_health_flag", "pregnancy", "PREGNANCY_"),
+        fact25("preg_high_risk", "pregnancy", OB, new Any(
+            new Onboarding(C + "pregnancy.special_care", "need_frequent_monitoring", "advised_rest", "exercise_limits"),
+            new Onboarding(C + "pregnancy.current_context", "blood_pressure", "blood_sugar", "preterm_labor_risk",
+                "placenta_bleeding"),
+            new Onboarding(C + "pregnancy.multiples", "twins", "triplets", "more_than_three"),
+            new Onboarding(C + "pregnancy.prev_details", "preterm_birth", "high_bp_preeclampsia", "repeated_loss")),
+            "profile context: closer care advised, a named condition, more than one baby, or a past preterm birth, "
+                + "pre-eclampsia or repeated loss; it shapes the plan and adds no doctor line"),
         state("preg_nausea", "pregnancy", new Checkin("P3"), "nausea P3"),
         state("preg_fatigue", "pregnancy", new Checkin("P2", "P15"), "energy P2 / tiredness P15"),
         state("preg_anxiety", "pregnancy", new Checkin("P18"), "emotional load P18"),
@@ -368,11 +453,14 @@ public final class MyDayOverlayAdapter {
         fact("preg_partner_present", "pregnancy", OB, new Onboarding(C + "pregnancy.partner", "yes_live_together"),
             "partner lives together"),
         fact("preg_partner_absent", "pregnancy", OB,
-            new Onboarding(C + "pregnancy.partner", "yes_no_live_together", "no_partner"), "partner not near"),
+            new Onboarding(C + "pregnancy.partner", "yes_no_live_together", "casual_multiple", "no_partner"),
+            "no partner living together"),
         fact("preg_work_active", "pregnancy", OB, new Onboarding(C + "pregnancy.occupation", "work"), "works"),
-        // postpartum (9)
-        notMappable("post_ppd_screen", "postpartum",
-            "MOMNA-1146: no approved mental-health route; never from a score"),
+        // postpartum (10)
+        healthFlag("post_health_flag", "postpartum", "POSTPARTUM_", POSTPARTUM_MENTAL_HEALTH_ROUTE),
+        medical("post_mood_heavy", "postpartum", Safety.route(POSTPARTUM_MENTAL_HEALTH_ROUTE),
+            "SafetyDecision MEDIUM+ or UNKNOWN on R18 POSTPARTUM_MENTAL_HEALTH (inputs PP2, PP18, WB1); "
+                + "replaces post_ppd_screen, never a score and never called a screening"),
         fact("post_birth_week_1_4", "postpartum", CAL, new Calendar(CalendarFact.POSTPARTUM_WEEKS_1_4),
             "weeks 1-4 after the birth date"),
         fact("post_c_section", "postpartum", OB, new Onboarding(C + "postpartum.delivery",
@@ -394,7 +482,8 @@ public final class MyDayOverlayAdapter {
         fact("post_intimacy_ready", "postpartum", OB, new All(
             new Onboarding(C + "postpartum.intimacy_status", "yes_regularly", "sometimes"),
             new Calendar(CalendarFact.POSTPARTUM_AFTER_WEEK_6)), "intimacy resumed, after week 6"),
-        // perimenopause (7)
+        // perimenopause (8)
+        healthFlag("peri_health_flag", "perimenopause", "PERIMENOPAUSE_"),
         state("peri_hot_flashes", "perimenopause", new Checkin("PM2", "PM9"), "hot flashes PM2 / PM9"),
         state("peri_sleep_disrupted", "perimenopause", new Checkin("PM1"), "sleep PM1"),
         state("peri_mood_shift", "perimenopause", new Checkin("PM5", "PM10"), "mood PM5 / tension PM10"),
@@ -405,17 +494,19 @@ public final class MyDayOverlayAdapter {
             "works, packed day PM6 and a symptom key's items"),
         fact("peri_cycle_irregular", "perimenopause", OB,
             new Onboarding(C + "perimenopause.changes", "earlier", "later", "skip_some"), "cycle timing changes"),
-        fact("peri_low_libido", "perimenopause", OB, new Onboarding(C + "perimenopause.intimacy", "desire_decreased"),
-            "desire decreased"),
-        // menopause (7)
+        fact("peri_low_libido", "perimenopause", OB,
+            new Onboarding(C + "perimenopause.intimacy", "desire_decreased", "desire_unpredictable"),
+            "desire decreased or unpredictable"),
+        // menopause (8)
+        healthFlag("meno_health_flag", "menopause", "MENOPAUSE_"),
         state("meno_sleep_poor", "menopause", new Checkin("MN1"), "sleep MN1"),
         state("meno_hot_flashes", "menopause", new Checkin("MN3", "MN13"), "hot flashes MN3 / MN13"),
         state("meno_joint_pain", "menopause", new Checkin("MN4"), "joint discomfort MN4"),
         state("meno_mood_low", "menopause", new Checkin("MN7"), "mood MN7"),
         state("meno_vaginal_dryness", "menopause", new Checkin("MN8"), "urogenital discomfort MN8"),
         fact("meno_active_work", "menopause", OB, new Onboarding(C + "menopause.occupation", "work"), "works"),
-        notMappable("meno_new_chapter", "menopause",
-            "no Check-in item or onboarding field states a new project; needs a Product question")
+        fact25("meno_new_chapter", "menopause", CAL, new Calendar(CalendarFact.WEEKLY),
+            "once a week: every seventh day of the period")
     );
 
     public static List<Entry> catalog(String lifeMode) {
@@ -428,6 +519,21 @@ public final class MyDayOverlayAdapter {
         return Collections.unmodifiableSet(out);
     }
 
+    /** The onboarding tone question of each life mode ("How can Momna talk to you?"). */
+    public static final Map<String, String> TONE_FIELDS = Map.of(
+        "teen_menarche", C + "menarche.tone", "adult_cycle", C + "cycle.tone", "planning", C + "planning.tone",
+        "pregnancy", C + "pregnancy.tone", "postpartum", C + "postpartum.tone",
+        "perimenopause", C + "perimenopause.tone", "menopause", C + "menopause.tone");
+
+    /** The tone she chose, or null when unanswered or not one of the four tones. */
+    public static String tone(String lifeMode, Map<String, OnboardingFact> onboarding) {
+        var fact = onboarding.get(TONE_FIELDS.get(lifeMode));
+        if (fact == null) return null;
+        var options = fact.options();
+        return options.size() == 1 && MyDayTemplateKey.TONES.contains(options.iterator().next())
+            ? options.iterator().next() : null;
+    }
+
     /** Onboarding fields the adapter and the calendar facts may read; nothing else is requested. */
     public static final Set<String> ONBOARDING_FIELDS = onboardingFields();
 
@@ -437,6 +543,7 @@ public final class MyDayOverlayAdapter {
             "onboarding.planning.lmp", "onboarding.perimenopause.lmp", "onboarding.pregnancy.edd",
             "onboarding.pregnancy.lmp", "onboarding.pregnancy.gestational_weeks", "onboarding.postpartum.birth_date",
             FEEDING_FIELD, BREAST_MILK_NOW_FIELD));
+        out.addAll(TONE_FIELDS.values());
         for (var entry : CATALOG) collect(entry.rule(), out);
         return Collections.unmodifiableSet(out);
     }

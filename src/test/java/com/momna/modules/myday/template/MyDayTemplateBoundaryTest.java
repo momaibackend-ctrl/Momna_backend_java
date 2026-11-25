@@ -26,19 +26,21 @@ class MyDayTemplateBoundaryTest {
         var components = Arrays.stream(MyDayTemplateKey.class.getRecordComponents()).map(c -> c.getName())
             .collect(Collectors.toSet());
         assertEquals(Set.of("lifeMode", "dayNumber", "cycleState", "phaseCode", "weekNumber", "trimester",
-            "overlayKeys", "userLanguage", "versions"), components);
+            "overlayKeys", "userLanguage", "tone", "versions"), components);
         var key = new MyDayTemplateKey("adult_cycle", 12, "luteal", "adult_luteal", null, null,
-            List.of("adult_pain_high", "adult_low_energy"), "ru", MyDayTemplateKey.Versions.current());
+            List.of("adult_pain_high", "adult_low_energy"), "ru", "close_friend", MyDayTemplateKey.Versions.current());
         assertEquals(List.of("adult_low_energy", "adult_pain_high"), key.overlayKeys());
         assertTrue(key.canonical().contains("purpose=MY_DAY"));
-        assertTrue(key.canonical().contains("prompts=myday.prompts.v1.1"));
+        assertTrue(key.canonical().contains("prompts=myday.prompts.v1.2"));
+        assertTrue(key.canonical().contains("tone=close_friend"));
         assertEquals("ru", key.promptParameters().get("user_language"));
+        assertEquals("close_friend", key.promptParameters().get("tone"));
     }
 
     @Test
     void anOverlayOfAnotherLifeModeIsRejected() {
         assertThrows(IllegalArgumentException.class, () -> new MyDayTemplateKey("adult_cycle", 1, "uncertain",
-            "adult_uncertain", null, null, List.of("preg_nausea"), "en", MyDayTemplateKey.Versions.current()));
+            "adult_uncertain", null, null, List.of("preg_nausea"), "en", null, MyDayTemplateKey.Versions.current()));
     }
 
     /** The template package reads results only: no scoring, safety engine, persistence, Spring or JPA. */

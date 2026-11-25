@@ -34,12 +34,13 @@ class MyDayTemplateContractTest {
         var out = new LinkedHashMap<String, Object>();
         out.put("contract", "myday-template-key-overlays");
         out.put("tasks", List.of("MOMNA-1324", "MOMNA-1325", "MOMNA-989"));
-        out.put("approvedBy", "Product (vkdevpro), 23.11.2026; medical keys: Safety Platform (MOMNA-1145)");
+        out.put("approvedBy", "Product (vkdevpro), 23.11.2026 and 25.11.2026; medical keys: Safety Platform (MOMNA-1145)");
         var key = new LinkedHashMap<String, Object>();
         key.put("keyVersion", MyDayTemplateKey.KEY_VERSION);
         key.put("purpose", MyDayTemplateKey.PURPOSE);
         key.put("components", List.of("life_mode", "day_number", "cycle_state", "phase_code", "week_number",
-            "trimester", "overlay_keys (sorted)", "user_language", "prompts version", "validator version",
+            "trimester", "overlay_keys (sorted)", "user_language", "tone (gentle | friendly | close_friend | direct | null)",
+            "prompts version", "validator version",
             "overlay-adapter version", "calendar-facts and phase-code version", "content-rules version"));
         var v = MyDayTemplateKey.Versions.current();
         var versions = new LinkedHashMap<String, Object>();
@@ -77,8 +78,14 @@ class MyDayTemplateContractTest {
             + "(strongest state: 0, 0.5 middle, 1 strongest) x phase base share, divided by the sum of those shares; "
             + "on at >= " + MyDayOverlayAdapter.ACTIVATION_PERCENT + "%");
         adapter.put("phaseShares", "Morning(D) 0.7 + Evening(D-1) 0.3 when both are final sources; 1.0 for the only one");
-        adapter.put("medical", "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL, "
-            + "on the period's own routes; never from a score or the LLM");
+        adapter.put("medical", "only from the SafetyDecision of a final source session, severity MEDIUM/HIGH/CRITICAL "
+            + "or UNKNOWN, on the period's own routes or a GLOBAL route; one <period>_health_flag per period, R18 "
+            + "POSTPARTUM_MENTAL_HEALTH is post_mood_heavy; never from a score, a profile answer or the LLM");
+        adapter.put("healthNote", "only a day with a passed medical key gets a doctor line: the strongest decision "
+            + "behind it gives the level (CRITICAL EMERGENCY, HIGH URGENT, MEDIUM PROMPT, UNKNOWN); PROMPT and UNKNOWN "
+            + "add the code-owned recommendation, URGENT and EMERGENCY none (the urgent path shows them); every such "
+            + "day adds the disclaimer; texts " + com.momna.modules.myday.application.MyDayHealthTexts.VERSION);
+        adapter.put("tone", "onboarding.<period>.tone, one of the four tones, else null");
         var caps = new LinkedHashMap<String, Object>();
         caps.put("checkinKeys", MyDayOverlayAdapter.MAX_STATE_KEYS);
         caps.put("factKeys", MyDayOverlayAdapter.MAX_FACT_KEYS);

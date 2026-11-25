@@ -24,32 +24,34 @@ class MyDayOverlayAdapterTest {
     static final BigDecimal MORNING_SHARE = new BigDecimal("0.700000");
     static final BigDecimal EVENING_SHARE = new BigDecimal("0.300000");
 
-    /** The 51 + 1 keys named by the prompts v1.1 (postpartum has 9: the canon's "51" miscounts it as 8). */
+    /**
+     * The keys of the prompts v1.2: the 52 keys of v1.1 with one health flag per period (Product decision
+     * 25.11.2026: teen/adult_red_flag become *_health_flag, post_ppd_screen becomes post_mood_heavy, and
+     * preg_high_risk is profile context).
+     */
     static final Map<String, List<String>> SPEC_KEYS = Map.of(
         "teen_menarche", List.of("teen_bleeding_now", "teen_pain_high", "teen_school_day", "teen_no_trusted_adult",
-            "teen_privacy_high", "teen_red_flag", "teen_mood_sensitive"),
+            "teen_privacy_high", "teen_health_flag", "teen_mood_sensitive"),
         "adult_cycle", List.of("adult_heavy_flow", "adult_pain_high", "adult_pms", "adult_work_stress",
-            "adult_relationship_tension", "adult_low_energy", "adult_red_flag"),
+            "adult_relationship_tension", "adult_low_energy", "adult_health_flag"),
         "planning", List.of("planning_fertile_window", "planning_cycle_irregular", "planning_partner_stress",
-            "planning_anxiety_high", "planning_long_wait", "planning_health_check"),
+            "planning_anxiety_high", "planning_long_wait", "planning_health_check", "planning_health_flag"),
         "pregnancy", List.of("preg_nausea", "preg_fatigue", "preg_anxiety", "preg_high_risk", "preg_partner_present",
-            "preg_partner_absent", "preg_work_active", "preg_third_trimester", "preg_first_pregnancy"),
+            "preg_partner_absent", "preg_work_active", "preg_third_trimester", "preg_first_pregnancy", "preg_health_flag"),
         "postpartum", List.of("post_birth_week_1_4", "post_breastfeeding", "post_no_partner", "post_partner_present",
-            "post_c_section", "post_ppd_screen", "post_returning_work", "post_intimacy_ready", "post_low_milk"),
+            "post_c_section", "post_mood_heavy", "post_returning_work", "post_intimacy_ready", "post_low_milk",
+            "post_health_flag"),
         "perimenopause", List.of("peri_hot_flashes", "peri_sleep_disrupted", "peri_mood_shift",
-            "peri_cycle_irregular", "peri_brain_fog", "peri_low_libido", "peri_work_challenge"),
+            "peri_cycle_irregular", "peri_brain_fog", "peri_low_libido", "peri_work_challenge", "peri_health_flag"),
         "menopause", List.of("meno_sleep_poor", "meno_hot_flashes", "meno_joint_pain", "meno_vaginal_dryness",
-            "meno_mood_low", "meno_active_work", "meno_new_chapter"));
+            "meno_mood_low", "meno_active_work", "meno_new_chapter", "meno_health_flag"));
 
     @Test
-    void theTableCoversExactlyTheKeysOfThePromptsAndEveryKeyHasASourceOrAReason() {
+    void theTableCoversExactlyTheKeysOfThePromptsAndEveryKeyHasASource() {
         for (var mode : SPEC_KEYS.keySet()) {
             assertEquals(new TreeSet<>(SPEC_KEYS.get(mode)), MyDayOverlayAdapter.keys(mode), mode);
         }
-        assertEquals(52, MyDayOverlayAdapter.CATALOG.size());
-        var notMappable = MyDayOverlayAdapter.CATALOG.stream()
-            .filter(e -> e.sourceType() == SourceType.NOT_MAPPABLE).map(e -> e.key()).collect(Collectors.toSet());
-        assertEquals(Set.of("adult_relationship_tension", "post_ppd_screen", "meno_new_chapter"), notMappable);
+        assertEquals(57, MyDayOverlayAdapter.CATALOG.size());
         for (var entry : MyDayOverlayAdapter.CATALOG) {
             assertFalse(entry.meaning().isBlank(), entry.key());
             assertFalse(entry.owner().isBlank(), entry.key());
@@ -60,7 +62,13 @@ class MyDayOverlayAdapterTest {
     void medicalKeysComeOnlyFromTheSafetyDecision() {
         var medical = MyDayOverlayAdapter.CATALOG.stream().filter(e -> e.group() == Group.MEDICAL)
             .map(e -> e.key()).collect(Collectors.toSet());
-        assertEquals(Set.of("teen_red_flag", "adult_red_flag", "preg_high_risk"), medical);
+        assertEquals(Set.of("teen_health_flag", "adult_health_flag", "planning_health_flag", "preg_health_flag",
+            "post_health_flag", "post_mood_heavy", "peri_health_flag", "meno_health_flag"), medical);
+        // every period has exactly one health flag
+        for (var mode : SPEC_KEYS.keySet()) {
+            assertEquals(1, MyDayOverlayAdapter.catalog(mode).stream()
+                .filter(e -> e.key().endsWith("_health_flag") && e.group() == Group.MEDICAL).count(), mode);
+        }
         MyDayOverlayAdapter.CATALOG.stream().filter(e -> e.group() == Group.MEDICAL).forEach(e -> {
             assertEquals(SourceType.SAFETY_PROJECTION, e.sourceType(), e.key());
             assertInstanceOf(MyDayOverlayAdapter.Safety.class, e.rule(), e.key());
@@ -101,26 +109,81 @@ class MyDayOverlayAdapterTest {
     // ---------------------------------------------------------------- safety
 
     @Test
-    void aRedFlagNeedsAMediumOrHigherDecisionOnThePeriodsOwnRoute() {
-        assertOn("adult_red_flag", safety("adult_cycle", "CYCLE_BLEEDING", "MEDIUM"));
-        assertOn("adult_red_flag", safety("adult_cycle", "CYCLE_BLEEDING", "CRITICAL"));
-        assertOff("adult_red_flag", safety("adult_cycle", "CYCLE_BLEEDING", "LOW"));
-        assertOff("adult_red_flag", safety("adult_cycle", "PREGNANCY_HEADACHE", "HIGH"));
+    void aHealthFlagNeedsAMediumOrHigherOrUndeterminedDecisionOnThePeriodsOwnOrAGlobalRoute() {
+        assertOn("adult_health_flag", safety("adult_cycle", "CYCLE_BLEEDING", "MEDIUM"));
+        assertOn("adult_health_flag", safety("adult_cycle", "CYCLE_BLEEDING", "CRITICAL"));
+        assertOn("adult_health_flag", safety("adult_cycle", "CYCLE_BLEEDING", "UNKNOWN"));
+        assertOn("adult_health_flag", safety("adult_cycle", "GLOBAL_EMERGENCY_QUICK_CHECK", "HIGH"));
+        assertOff("adult_health_flag", safety("adult_cycle", "CYCLE_BLEEDING", "LOW"));
+        assertOff("adult_health_flag", safety("adult_cycle", "CYCLE_BLEEDING", "NONE"));
+        assertOff("adult_health_flag", safety("adult_cycle", "PREGNANCY_HEADACHE", "HIGH"));
         // Strong answers alone never make a medical key.
-        assertOff("adult_red_flag", cycle(m("C3", 2), m("C4", 2), m("C6", 2)));
-        assertOn("teen_red_flag", safety("teen_menarche", "MENARCHE_DIZZINESS", "HIGH"));
-        assertOff("teen_red_flag", input("teen_menarche", MONDAY, List.of(m("M4", 2), m("M5", 2)), List.of(), Map.of()));
-        assertOn("preg_high_risk", safety("pregnancy", "PREGNANCY_SWELLING", "HIGH"));
-        assertOff("preg_high_risk", input("pregnancy", MONDAY, List.of(m("P6", 2), m("P8", 2)), List.of(), Map.of()));
+        assertOff("adult_health_flag", cycle(m("C3", 2), m("C4", 2), m("C6", 2)));
+        assertOn("teen_health_flag", safety("teen_menarche", "MENARCHE_DIZZINESS", "HIGH"));
+        assertOff("teen_health_flag", input("teen_menarche", MONDAY, List.of(m("M4", 2), m("M5", 2)), List.of(), Map.of()));
+        assertOn("planning_health_flag", safety("planning", "PLANNING_BODY_CHANGE", "MEDIUM"));
+        assertOn("preg_health_flag", safety("pregnancy", "PREGNANCY_SWELLING", "HIGH"));
+        assertOff("preg_health_flag", input("pregnancy", MONDAY, List.of(m("P6", 2), m("P8", 2)), List.of(), Map.of()));
+        assertOn("peri_health_flag", safety("perimenopause", "PERIMENOPAUSE_UNUSUAL_CHANGE", "MEDIUM"));
+        assertOn("meno_health_flag", safety("menopause", "MENOPAUSE_UROGENITAL", "MEDIUM"));
+        // MENOPAUSE_ is not a prefix of PERIMENOPAUSE_ routes and the other way round
+        assertOff("meno_health_flag", safety("menopause", "PERIMENOPAUSE_HOT_FLASHES", "HIGH"));
     }
 
     @Test
-    void emotionalHeavinessAfterBirthIsNeverAnOverlay() {
+    void aHighRiskPregnancyIsProfileContextAndAddsNoDoctorLine() {
+        var profile = Map.of("onboarding.pregnancy.special_care", fact(Map.of("need_frequent_monitoring", true)));
+        var result = MyDayOverlayAdapter.compute(input("pregnancy", MONDAY, List.of(), List.of(), profile));
+        assertTrue(result.overlayKeys().contains("preg_high_risk"));
+        assertNull(result.healthLevel(), "a profile fact never adds a doctor recommendation");
+        assertFalse(result.overlayKeys().contains("preg_health_flag"));
+    }
+
+    @Test
+    void emotionalHeavinessAfterBirthComesOnlyFromTheMentalHealthRouteNeverFromAnswers() {
         var all = new ArrayList<Observation>();
-        for (int i = 1; i <= 18; i++) all.add(m("PP" + i, 2));
-        var result = MyDayOverlayAdapter.compute(input("postpartum", MONDAY, all,
+        for (int i = 1; i <= 19; i++) all.add(m("PP" + i, 2));
+        var bleeding = MyDayOverlayAdapter.compute(input("postpartum", MONDAY, all,
             List.of(new SafetyProjection("MORNING", "POSTPARTUM_BLEEDING", "CRITICAL", "v")), Map.of()));
-        assertFalse(result.overlayKeys().contains("post_ppd_screen"));
+        assertFalse(bleeding.overlayKeys().contains("post_mood_heavy"));
+        assertTrue(bleeding.overlayKeys().contains("post_health_flag"));
+
+        var mood = MyDayOverlayAdapter.compute(input("postpartum", MONDAY, List.of(),
+            List.of(new SafetyProjection("MORNING", "POSTPARTUM_MENTAL_HEALTH", "MEDIUM", "v")), Map.of()));
+        assertEquals(List.of("post_mood_heavy"), mood.overlayKeys(), "R18 is post_mood_heavy, not the health flag");
+        assertEquals(MyDayOverlayAdapter.HealthLevel.PROMPT, mood.healthLevel());
+    }
+
+    @Test
+    void theDoctorLineFollowsTheStrongestDecisionBehindAPassedMedicalKey() {
+        assertNull(MyDayOverlayAdapter.compute(cycle(m("C3", 2), m("C4", 2))).healthLevel(), "an ordinary day");
+        assertEquals(MyDayOverlayAdapter.HealthLevel.PROMPT,
+            MyDayOverlayAdapter.compute(safety("adult_cycle", "CYCLE_BLEEDING", "MEDIUM")).healthLevel());
+        assertEquals(MyDayOverlayAdapter.HealthLevel.UNKNOWN,
+            MyDayOverlayAdapter.compute(safety("adult_cycle", "CYCLE_BLEEDING", "UNKNOWN")).healthLevel());
+        assertEquals(MyDayOverlayAdapter.HealthLevel.URGENT,
+            MyDayOverlayAdapter.compute(safety("adult_cycle", "CYCLE_BLEEDING", "HIGH")).healthLevel());
+        var both = input("adult_cycle", MONDAY, List.of(), List.of(
+            new SafetyProjection("EVENING", "CYCLE_BLEEDING", "MEDIUM", "v"),
+            new SafetyProjection("MORNING", "GLOBAL_ALLERGIC_EMERGENCY", "CRITICAL", "v"),
+            new SafetyProjection("MORNING", "PREGNANCY_HEADACHE", "CRITICAL", "v")), Map.of());
+        assertEquals(MyDayOverlayAdapter.HealthLevel.EMERGENCY, MyDayOverlayAdapter.compute(both).healthLevel());
+        // a decision on another period's route says nothing about this day
+        assertNull(MyDayOverlayAdapter.compute(safety("adult_cycle", "PREGNANCY_HEADACHE", "CRITICAL")).healthLevel());
+        assertNull(MyDayOverlayAdapter.compute(safety("adult_cycle", "CYCLE_BLEEDING", "LOW")).healthLevel());
+    }
+
+    @Test
+    void theToneIsOneOfTheFourOnboardingTonesOrNone() {
+        for (var mode : SPEC_KEYS.keySet()) {
+            var field = MyDayOverlayAdapter.TONE_FIELDS.get(mode);
+            assertTrue(MyDayOverlayAdapter.ONBOARDING_FIELDS.contains(field), mode);
+            for (var tone : List.of("gentle", "friendly", "close_friend", "direct")) {
+                assertEquals(tone, MyDayOverlayAdapter.tone(mode, Map.of(field, fact(tone))));
+            }
+            assertNull(MyDayOverlayAdapter.tone(mode, Map.of()));
+            assertNull(MyDayOverlayAdapter.tone(mode, Map.of(field, fact("prefer_not_to_say"))));
+        }
     }
 
     /** PST_FEEDING (MOMNA-561, Product decision 24.11.2026): all seven codes, the clarification, several babies. */
@@ -187,7 +250,7 @@ class MyDayOverlayAdapterTest {
         var result = MyDayOverlayAdapter.compute(input("adult_cycle", MONDAY, observations,
             List.of(new SafetyProjection("MORNING", "CYCLE_BLEEDING", "HIGH", "v")), Map.of()));
         // pain 1.0, heavy flow 1.0, low energy 1.0 beat work stress 0.65.
-        assertEquals(List.of("adult_heavy_flow", "adult_low_energy", "adult_pain_high", "adult_red_flag"),
+        assertEquals(List.of("adult_health_flag", "adult_heavy_flow", "adult_low_energy", "adult_pain_high"),
             result.overlayKeys());
         var workStress = result.activations().stream().filter(a -> a.key().equals("adult_work_stress")).findFirst().orElseThrow();
         assertFalse(workStress.passed(), "a candidate beyond the cap is recorded, not passed on");
@@ -212,8 +275,7 @@ class MyDayOverlayAdapterTest {
             assertOff(c.key(), c.off());
             covered.add(c.key());
         }
-        var mappable = MyDayOverlayAdapter.CATALOG.stream()
-            .filter(e -> e.sourceType() != SourceType.NOT_MAPPABLE).map(e -> e.key()).collect(Collectors.toCollection(TreeSet::new));
+        var mappable = MyDayOverlayAdapter.CATALOG.stream().map(e -> e.key()).collect(Collectors.toCollection(TreeSet::new));
         assertEquals(mappable, covered);
     }
 
@@ -229,8 +291,9 @@ class MyDayOverlayAdapterTest {
                     input(entry.lifeMode(), MONDAY, List.of(m(item, 1)), List.of(), Map.of())));
             }
             if (entry.rule() instanceof MyDayOverlayAdapter.Safety safety) {
-                out.add(new Case(entry.key(), safety(entry.lifeMode(), safety.routePrefix() + "X", "HIGH"),
-                    safety(entry.lifeMode(), safety.routePrefix() + "X", "LOW")));
+                var route = safety.exactRoute() != null ? safety.exactRoute() : safety.routePrefixes().getFirst() + "X";
+                out.add(new Case(entry.key(), safety(entry.lifeMode(), route, "HIGH"),
+                    safety(entry.lifeMode(), route, "LOW")));
             }
         }
         // teen_menarche
@@ -240,12 +303,17 @@ class MyDayOverlayAdapterTest {
             input("teen_menarche", MONDAY, List.of(), List.of(), Map.of("onboarding.menarche.day_context", fact("school"))),
             input("teen_menarche", SATURDAY, List.of(), List.of(), Map.of("onboarding.menarche.day_context", fact("school")))));
         out.add(new Case("teen_school_day",
+            input("teen_menarche", MONDAY, List.of(), List.of(), Map.of("onboarding.menarche.day_context", fact("college"))),
+            input("teen_menarche", MONDAY, List.of(), List.of(), Map.of("onboarding.menarche.day_context", fact("mostly_home")))));
+        out.add(new Case("teen_school_day",
             input("teen_menarche", SATURDAY, List.of(m("M6", 0)), List.of(), Map.of()),
             input("teen_menarche", SATURDAY, List.of(e("M6", 2)), List.of(), Map.of())));
         out.add(onboardingCase("teen_no_trusted_adult", "teen_menarche", "onboarding.menarche.trusted_adult",
-            "no_one", "someone_unsure"));
+            "someone_unsure", "a_bit_awkward"));
         out.add(onboardingCase("teen_privacy_high", "teen_menarche", "onboarding.menarche.notifications",
             "neutral_wording", "direct_ok"));
+        out.add(onboardingCase("teen_privacy_high", "teen_menarche", "onboarding.menarche.notifications",
+            "only_important", "direct_ok"));
         out.add(new Case("teen_privacy_high",
             input("teen_menarche", MONDAY, List.of(m("M8", 2)), List.of(), Map.of()),
             input("teen_menarche", MONDAY, List.of(m("M8", 1)), List.of(), Map.of())));
@@ -256,6 +324,12 @@ class MyDayOverlayAdapterTest {
             "onboarding.cycle.regularity", fact("around_expected"));
         out.add(new Case("adult_pms", input("adult_cycle", MONDAY, List.of(m("C7", 2)), List.of(), luteal),
             input("adult_cycle", MONDAY, List.of(m("C7", 2)), List.of(), follicular)));
+        out.add(onboardingCase("adult_relationship_tension", "adult_cycle", "onboarding.cycle.partner_support",
+            "relationship_tense", "understands_supports"));
+        out.add(onboardingCase("adult_relationship_tension", "adult_cycle", "onboarding.cycle.partner_support",
+            "little_support", "prefer_not_to_say"));
+        out.add(onboardingCase("adult_relationship_tension", "adult_cycle", "onboarding.cycle.partner_support",
+            "relationship_tense", "pressured_unsafe"));
         // planning
         out.add(new Case("planning_fertile_window",
             input("planning", MONDAY, List.of(), List.of(), Map.of("onboarding.planning.lmp", fact(MONDAY.minusDays(10).toString()),
@@ -277,6 +351,15 @@ class MyDayOverlayAdapterTest {
             "yes_live_together", "casual_multiple"));
         out.add(onboardingCase("preg_partner_absent", "pregnancy", "onboarding.pregnancy.partner",
             "no_partner", "yes_live_together"));
+        out.add(onboardingCase("preg_partner_absent", "pregnancy", "onboarding.pregnancy.partner",
+            "casual_multiple", "prefer_not_to_say"));
+        out.add(onboardingCase("preg_high_risk", "pregnancy", "onboarding.pregnancy.special_care",
+            Map.of("advised_rest", true), Map.of("routine_so_far", true)));
+        out.add(onboardingCase("preg_high_risk", "pregnancy", "onboarding.pregnancy.current_context",
+            Map.of("blood_pressure", true), Map.of("anemia_iron", true)));
+        out.add(onboardingCase("preg_high_risk", "pregnancy", "onboarding.pregnancy.multiples", "twins", "one_baby"));
+        out.add(onboardingCase("preg_high_risk", "pregnancy", "onboarding.pregnancy.prev_details",
+            Map.of("high_bp_preeclampsia", true), Map.of("prefer_not_to_say", true)));
         out.add(onboardingCase("preg_work_active", "pregnancy", "onboarding.pregnancy.occupation",
             "work", "on_leave_not_working"));
         out.add(onboardingCase("preg_third_trimester", "pregnancy", "onboarding.pregnancy.edd",
@@ -311,12 +394,17 @@ class MyDayOverlayAdapterTest {
             "skip_some", "much_heavier"));
         out.add(onboardingCase("peri_low_libido", "perimenopause", "onboarding.perimenopause.intimacy",
             "desire_decreased", "comfortable"));
+        out.add(onboardingCase("peri_low_libido", "perimenopause", "onboarding.perimenopause.intimacy",
+            "desire_unpredictable", "not_important_now"));
         var works = Map.of("onboarding.perimenopause.occupation", fact("work"));
         out.add(new Case("peri_work_challenge",
             input("perimenopause", MONDAY, List.of(m("PM6", 2), m("PM2", 2)), List.of(), works),
             input("perimenopause", MONDAY, List.of(m("PM6", 2), m("PM2", 1)), List.of(), works)));
         // menopause
         out.add(onboardingCase("meno_active_work", "menopause", "onboarding.menopause.occupation", "work", "retired"));
+        // once a week: the period started 27 days before day 28, 28 days before day 29
+        out.add(new Case("meno_new_chapter", inputFrom("menopause", MONDAY, MONDAY.minusDays(27)),
+            inputFrom("menopause", MONDAY, MONDAY.minusDays(28))));
         return out;
     }
 
@@ -347,6 +435,11 @@ class MyDayOverlayAdapterTest {
                                            List<SafetyProjection> safety, Map<String, OnboardingFact> onboarding) {
         var calendar = MyDayCalendarFacts.derive(mode, onboarding, day, day.minusDays(30), java.time.ZoneOffset.UTC);
         return new MyDayOverlayAdapter.Input(mode, day, observations, safety, onboarding, calendar);
+    }
+
+    static MyDayOverlayAdapter.Input inputFrom(String mode, LocalDate day, LocalDate periodStart) {
+        var calendar = MyDayCalendarFacts.derive(mode, Map.of(), day, periodStart, java.time.ZoneOffset.UTC);
+        return new MyDayOverlayAdapter.Input(mode, day, List.of(), List.of(), Map.of(), calendar);
     }
 
     static OnboardingFact fact(Object value) {

@@ -70,7 +70,8 @@ public class CheckinApplicationService {
             List.of(
                 phaseSummary(userId, day, CheckinPhase.MORNING, now),
                 phaseSummary(userId, day, CheckinPhase.EVENING, now)
-            )
+            ),
+            CheckinTexts.subtitle(preferredLanguage(userId))
         );
     }
 
@@ -346,8 +347,15 @@ public class CheckinApplicationService {
             && planExists(userId, day.localDate())) {
             action = "NONE";
             blockedReason = CheckinTexts.MORNING_PLAN_ALREADY_SET;
-            var profile = profiles.get(userId);
-            blockedText = CheckinTexts.morningPlanAlreadySet(profile == null ? null : profile.getPreferredLanguage());
+            blockedText = CheckinTexts.morningPlanAlreadySet(preferredLanguage(userId));
+        }
+        CheckinTexts.PhaseCard card = null;
+        if (blockedReason == null) {
+            if ("START".equals(action) || "RESUME".equals(action)) {
+                card = CheckinTexts.invite(phase, preferredLanguage(userId));
+            } else if ("VIEW_FINAL_STATE".equals(action)) {
+                card = CheckinTexts.completed(phase, preferredLanguage(userId));
+            }
         }
 
         return new PhaseSummary(
@@ -361,8 +369,14 @@ public class CheckinApplicationService {
             stored == null ? null : stored.getConsumedByRef(),
             action,
             blockedReason,
-            blockedText
+            blockedText,
+            card
         );
+    }
+
+    private String preferredLanguage(String userId) {
+        var profile = profiles.get(userId);
+        return profile == null ? null : profile.getPreferredLanguage();
     }
 
     private SessionView view(CheckinSessionEntity session, Instant now) {

@@ -116,10 +116,15 @@ public class MyDayApplicationService {
             }
             found = days.findByUserIdAndLocalDate(userId, day.localDate()).orElse(null);
         }
+        var texts = MyDayTexts.of(language(userId));
+        var period = day.period().name();
+        var generating = new ChoiceView(texts.generating().title(), texts.generating().description());
         if (found != null) {
-            return new TodayView(found.getStatus(), date, zone, view(found), null, null);
+            return new TodayView(found.getStatus(), date, zone, view(found), null, null, texts.subtitle(period),
+                generating);
         }
-        return new TodayView("NOT_GENERATED", date, zone, null, planChoice(userId, now), failure);
+        return new TodayView("NOT_GENERATED", date, zone, null, planChoice(userId, now, period), failure,
+            texts.subtitle(period), generating);
     }
 
     @Transactional(readOnly = true)
@@ -199,10 +204,11 @@ public class MyDayApplicationService {
         return result;
     }
 
-    private PlanChoiceView planChoice(String userId, Instant at) {
+    private PlanChoiceView planChoice(String userId, Instant at, String lifecyclePeriod) {
         var texts = MyDayTexts.of(language(userId));
         var secondary = MyDayPlanRules.secondaryChoice(orchestrator.eveningContributes(userId, at));
-        var standard = MyDayPlanRules.SECONDARY_FROM_EVENING.equals(secondary) ? texts.fromEvening() : texts.general();
+        var standard = MyDayPlanRules.SECONDARY_FROM_EVENING.equals(secondary)
+            ? texts.fromEvening() : texts.general(lifecyclePeriod);
         return new PlanChoiceView(secondary,
             new ChoiceView(texts.personal().title(), texts.personal().description()),
             new ChoiceView(standard.title(), standard.description()));

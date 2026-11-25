@@ -17,6 +17,7 @@ public class UniversalFlowService {
     private final FlowAnswerRepository answers;
     private final FlowOperationResultRepository operations;
     private final CanonicalFieldValueRepository transitionValues;
+    private final com.momna.core.fields.infrastructure.CanonicalFieldDefinitionRepository fields;
     private final Clock clock = Clock.systemUTC();
 
     public UniversalFlowService(
@@ -24,8 +25,10 @@ public class UniversalFlowService {
         FlowInstanceRepository instances,
         FlowAnswerRepository answers,
         FlowOperationResultRepository operations,
-        CanonicalFieldValueRepository transitionValues
+        CanonicalFieldValueRepository transitionValues,
+        com.momna.core.fields.infrastructure.CanonicalFieldDefinitionRepository fields
     ) {
+        this.fields = fields;
         this.definitions = definitions;
         this.instances = instances;
         this.answers = answers;
@@ -116,6 +119,8 @@ public class UniversalFlowService {
             .filter(x -> x.fieldId().equals(fieldId))
             .findFirst()
             .orElseThrow(() -> new FlowException("INVALID_TRANSITION", "Field is not active in flow state"));
+        // The state checks come first: a final flow is a conflict whatever the value.
+        spec(fieldId).validate(payload);
 
         var active = answers.findByInstanceIdAndActiveTrueOrderByAnsweredAtAscAnswerIdAsc(instanceId);
         var existing = active.stream().filter(x -> x.getFieldId().equals(fieldId)).findFirst().orElse(null);
@@ -390,6 +395,40 @@ public class UniversalFlowService {
         }
     }
 
+    /** The answer contract of a field from its current canonical registry entry (ONB-API-01). */
+    FlowAnswerSpec spec(String fieldId) {
+        var now = clock.instant();
+        return fields.findByFieldIdOrderByDefinitionVersionDesc(fieldId).stream()
+            .filter(x -> x.getDeprecatedAt() == null || x.getDeprecatedAt().isAfter(now))
+            .findFirst()
+            .map(x -> FlowAnswerSpec.of(x.getDataType(), x.getValidationSchema()))
+            .orElse(FlowAnswerSpec.UNKNOWN);
+    }
+
+    private StepView view(FlowDefinitionModel.Step step) {
+        if (step == null) return null;
+        var spec = spec(step.fieldId());
+        return new StepView(step.stepId(), step.fieldId(), step.required(), step.skippable(), spec.dataType(),
+            spec.options(), spec.requiredKeys(), spec.valuesByKey(), spec.perChild(), spec.maxLength());
+    }
+
+    /**
+     * The current question: its field, and what an answer may be. options are machine values (allowedValues of
+     * an ENUM, allowedKeys of an OBJECT); null means any value of the type. The client maps them to its texts.
+     */
+    public record StepView(
+        String stepId,
+        String fieldId,
+        boolean required,
+        boolean skippable,
+        String dataType,
+        List<String> options,
+        List<String> requiredKeys,
+        Map<String, List<String>> valuesByKey,
+        boolean perChild,
+        Integer maxLength
+    ) {}
+
     private FlowState state(FlowInstanceEntity instance, boolean replayed, Set<String> invalidated) {
         var definition = FlowDefinitionModel.from(loadDefinition(instance.getDefinitionKey(), instance.getDefinitionVersion()));
         var current = activeSteps(definition, instance.getInstanceId()).stream()
@@ -404,7 +443,7 @@ public class UniversalFlowService {
             instance.getPeriod(),
             instance.getRowVersion(),
             instance.getStatus().name(),
-            current,
+            view(current),
             Set.copyOf(invalidated),
             replayed
         );
@@ -436,7 +475,7 @@ public class UniversalFlowService {
         String period,
         long revision,
         String status,
-        FlowDefinitionModel.Step currentStep,
+        StepView currentStep,
         Set<String> invalidatedFieldIds,
         boolean idempotentReplay
     ) {
@@ -457,26 +496,46 @@ public class UniversalFlowService {
             map.put("revision", revision);
             map.put("status", status);
             if (currentStep != null) {
-                map.put("currentStep", Map.of(
-                    "stepId", currentStep.stepId(),
-                    "fieldId", currentStep.fieldId(),
-                    "required", currentStep.required(),
-                    "skippable", currentStep.skippable()
-                ));
+                var step = new LinkedHashMap<String, Object>();
+                step.put("stepId", currentStep.stepId());
+                step.put("fieldId", currentStep.fieldId());
+                step.put("required", currentStep.required());
+                step.put("skippable", currentStep.skippable());
+                if (currentStep.dataType() != null) step.put("dataType", currentStep.dataType());
+                if (currentStep.options() != null) step.put("options", currentStep.options());
+                if (currentStep.requiredKeys() != null) step.put("requiredKeys", currentStep.requiredKeys());
+                if (currentStep.valuesByKey() != null) step.put("valuesByKey", currentStep.valuesByKey());
+                step.put("perChild", currentStep.perChild());
+                if (currentStep.maxLength() != null) step.put("maxLength", currentStep.maxLength());
+                map.put("currentStep", step);
             }
             map.put("invalidatedFieldIds", invalidatedFieldIds);
             map.put("idempotentReplay", idempotentReplay);
             return map;
         }
 
+        private static Map<String, List<String>> valuesByKey(Map<?, ?> byKey) {
+            var out = new LinkedHashMap<String, List<String>>();
+            byKey.forEach((key, values) -> {
+                if (values instanceof Collection<?> c) out.put(String.valueOf(key), c.stream().map(String::valueOf).toList());
+            });
+            return out;
+        }
+
         @SuppressWarnings("unchecked")
         public static FlowState fromMap(Map<String, Object> map) {
             var step = (Map<String, Object>) map.get("currentStep");
-            FlowDefinitionModel.Step current = step == null ? null : new FlowDefinitionModel.Step(
+            StepView current = step == null ? null : new StepView(
                 String.valueOf(step.get("stepId")),
                 String.valueOf(step.get("fieldId")),
                 Boolean.TRUE.equals(step.get("required")),
-                Boolean.TRUE.equals(step.get("skippable"))
+                Boolean.TRUE.equals(step.get("skippable")),
+                step.get("dataType") == null ? null : String.valueOf(step.get("dataType")),
+                step.get("options") instanceof Collection<?> o ? o.stream().map(String::valueOf).toList() : null,
+                step.get("requiredKeys") instanceof Collection<?> r ? r.stream().map(String::valueOf).toList() : null,
+                step.get("valuesByKey") instanceof Map<?, ?> byKey ? valuesByKey(byKey) : null,
+                Boolean.TRUE.equals(step.get("perChild")),
+                step.get("maxLength") instanceof Number n ? n.intValue() : null
             );
             var invalidated = map.get("invalidatedFieldIds") instanceof Collection<?> c
                 ? c.stream().map(String::valueOf).collect(java.util.stream.Collectors.toSet())

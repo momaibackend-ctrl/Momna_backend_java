@@ -45,7 +45,7 @@ public class MedicalSafetyApplicationService {
 
     /** The WB1 card: whether to show it now, and its texts. */
     public record Wb1View(String catalogVersion, boolean show, boolean alreadyAnswered, String answer,
-        com.fasterxml.jackson.databind.JsonNode screen) {}
+        Map<String, Object> screen) {}
 
     private final MedicalSafetyFlowService flow;
     private final MedicalSafetyCatalog catalog;
@@ -132,7 +132,14 @@ public class MedicalSafetyApplicationService {
         for (var s : catalog.publicScreens(period).path("screens")) {
             if ("WB1".equals(s.path("code").asText())) screen = s;
         }
-        return new Wb1View(status.catalogVersion(), status.show(), status.alreadyAnswered(), status.answer(), screen);
+        return new Wb1View(status.catalogVersion(), status.show(), status.alreadyAnswered(), status.answer(),
+            plain(screen));
+    }
+
+    /** A catalog node as plain maps and lists, so any JSON writer renders it. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> plain(com.fasterxml.jackson.databind.JsonNode node) {
+        return node == null ? null : json.convertValue(node, Map.class);
     }
 
     @Transactional

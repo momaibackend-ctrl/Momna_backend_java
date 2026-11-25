@@ -450,6 +450,7 @@ class MyDayHttpE2eTest {
         assertEquals("CLINICAL_RELEASE_NOT_APPROVED", catalog.path("releaseStatus").asText(), catalog.toString());
         assertEquals(28, catalog.path("routes").size());
         assertFalse(catalog.toString().contains("crossChecks"));
+        assertEquals(22, catalog.path("localizedContent").path("screens").size(), catalog.path("localizedContent").toString());
     }
 
     /**

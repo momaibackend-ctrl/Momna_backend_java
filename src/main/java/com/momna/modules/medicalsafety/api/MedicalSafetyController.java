@@ -81,7 +81,7 @@ public class MedicalSafetyController {
         var period = safety.lifecyclePeriod(actor(auth).userId());
         return new CatalogView(MedicalSafetyCatalog.VERSION, MedicalSafetyCatalog.RULE_VERSION,
             "CLINICAL_RELEASE_NOT_APPROVED", catalog.publicRoutes(), catalog.publicFacts(period),
-            catalog.questionGroups(), catalog.publicScreens(period));
+            catalog.questionGroups(), safety.plain(catalog.publicScreens(period)));
     }
 
     private AuthenticatedActor actor(Authentication auth) {
@@ -99,5 +99,5 @@ public class MedicalSafetyController {
     public record CatalogView(String catalogVersion, String ruleVersion, String releaseStatus,
         Collection<MedicalSafetyCatalog.PublicRoute> routes, Collection<MedicalSafetyCatalog.PublicFact> facts,
         Collection<MedicalSafetyCatalog.QuestionGroup> questionGroups,
-        com.fasterxml.jackson.databind.JsonNode localizedContent) {}
+        java.util.Map<String, Object> localizedContent) {}
 }

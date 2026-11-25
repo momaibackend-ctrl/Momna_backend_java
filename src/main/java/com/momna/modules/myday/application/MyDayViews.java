@@ -85,6 +85,10 @@ public final class MyDayViews {
         String timezone,
         MyDayView myDay,
         PlanChoiceView planChoice,
-        String generationFailure
+        String generationFailure,
+        /** The My Day header subtitle of the period ("Recommendations for a regular cycle."); null when not designed yet. */
+        String subtitle,
+        /** Screen L texts while the plan is being made ("Getting your plan ready"). */
+        ChoiceView generating
     ) {}
 }

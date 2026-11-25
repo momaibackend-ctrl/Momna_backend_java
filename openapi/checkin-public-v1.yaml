@@ -15,7 +15,7 @@ paths:
   /api/v1/check-in/today:
     get:
       operationId: getCheckinToday
-      description: Read both Morning and Evening phase summaries without creating a session. Each summary carries entryBlockedReason and entryBlockedText (null unless MY_DAY_PLAN_ALREADY_SET).
+      description: Read both Morning and Evening phase summaries without creating a session. Each summary carries entryBlockedReason and entryBlockedText (null unless MY_DAY_PLAN_ALREADY_SET) and card {title, body} - the Check-in tab invitation while START/RESUME is allowed, the completed card for VIEW_FINAL_STATE, otherwise null. The view carries the localized tab subtitle. Texts follow the implemented design (MOMNA-989 section 8).
       responses:
         '200': { description: Authoritative current local-day phase state, exact windows and existing final/consumed projections }
         '401': { description: Authentication required }

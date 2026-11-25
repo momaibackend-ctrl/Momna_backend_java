@@ -1508,146 +1508,202 @@ class AuthenticatedApiHttpE2eTest {
         return json.readTree(answered.body());
     }
 
-    private HttpResponse<String> answerSafety(MorningCheckin checkin, String clarificationId,
-            long revision, String value, String key) throws Exception {
-        return postWithKey(checkin.root()+"/safety/clarifications/"+clarificationId+"/answer",
-            json.createObjectNode().put("expectedRevision",revision).put("value",value).toString(),
-            checkin.token(),key);
+    private HttpResponse<String> safetyAction(MorningCheckin checkin, String routeId, String action,
+            com.fasterxml.jackson.databind.node.ObjectNode body, String key) throws Exception {
+        return postWithKey(checkin.root()+"/safety/"+routeId+"/"+action,body.toString(),checkin.token(),key);
     }
 
+    private HttpResponse<String> answerFact(MorningCheckin checkin, long revision, String routeId, String factCode,
+            String answer, String key) throws Exception {
+        return safetyAction(checkin,routeId,"answers",json.createObjectNode().put("expectedRevision",revision)
+            .put("factCode",factCode).put("answer",answer),key);
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode route(com.fasterxml.jackson.databind.JsonNode session,
+            String routeId) {
+        for (var route : session.path("safety").path("routes")) {
+            if (routeId.equals(route.path("routeId").asText())) return route;
+        }
+        return null;
+    }
+
+    private static java.util.Set<String> routeIds(com.fasterxml.jackson.databind.JsonNode session) {
+        var ids=new java.util.TreeSet<String>();
+        for (var route : session.path("safety").path("routes")) ids.add(route.path("routeId").asText());
+        return ids;
+    }
+
+    /** Answers every open question of every route the same way (QM as one checklist, BP1 as 110/70). */
+    private com.fasterxml.jackson.databind.JsonNode answerOpenRoutes(MorningCheckin checkin,
+            com.fasterxml.jackson.databind.JsonNode session, String answer) throws Exception {
+        for (int guard=0; guard<80; guard++) {
+            com.fasterxml.jackson.databind.JsonNode open=null;
+            for (var route : session.path("safety").path("routes")) {
+                if ("QUESTION".equals(route.path("state").asText())) { open=route; break; }
+            }
+            if (open==null) return session;
+            long revision=session.path("revision").asLong();
+            String routeId=open.path("routeId").asText();
+            HttpResponse<String> response;
+            if ("QM".equals(open.path("screenCode").asText())) {
+                response=safetyAction(checkin,routeId,"checklist",json.createObjectNode()
+                    .put("expectedRevision",revision).put("mode","NO".equals(answer) ? "NONE" : "UNSURE"),
+                    "qm-"+UUID.randomUUID());
+            } else if ("BP_READING".equals(open.path("nextFactCode").asText())) {
+                response=safetyAction(checkin,routeId,"blood-pressure",json.createObjectNode()
+                    .put("expectedRevision",revision).put("systolic",110).put("diastolic",70),
+                    "bp-"+UUID.randomUUID());
+            } else {
+                response=answerFact(checkin,revision,routeId,open.path("nextFactCode").asText(),answer,
+                    "fact-"+UUID.randomUUID());
+            }
+            assertEquals(200,response.statusCode(),routeId+" "+response.body());
+            session=json.readTree(response.body());
+        }
+        throw new AssertionError("safety routes never completed: "+session.path("safety"));
+    }
+
+    /** The v2.2 routes (MOMNA-1145 D12) every item at state 2 opens; PP2 opens R18 only at 1. */
+    private static final java.util.Map<String,String> ROUTE_OF_ITEM=java.util.Map.ofEntries(
+        java.util.Map.entry("M2","R24"),java.util.Map.entry("M3","R1"),java.util.Map.entry("M4","R2"),
+        java.util.Map.entry("M5","R3"),java.util.Map.entry("C4","R4"),java.util.Map.entry("T5","R28"),
+        java.util.Map.entry("P3","R27"),java.util.Map.entry("P5","R10"),java.util.Map.entry("P19","R10"),
+        java.util.Map.entry("P6","R5"),java.util.Map.entry("P7","R6"),java.util.Map.entry("P8","R7"),
+        java.util.Map.entry("P9","R8"),java.util.Map.entry("P16","R9"),java.util.Map.entry("PP4","R11"),
+        java.util.Map.entry("PP5","R12"),java.util.Map.entry("PP6","R13"),java.util.Map.entry("PP7","R14"),
+        java.util.Map.entry("PP8","R15"),java.util.Map.entry("PP14","R16"),java.util.Map.entry("PP19","R17"),
+        java.util.Map.entry("PP18","R18"),java.util.Map.entry("PM2","R19"),java.util.Map.entry("PM9","R19"),
+        java.util.Map.entry("PM3","R20"),java.util.Map.entry("PM12","R21"),java.util.Map.entry("MN3","R22"),
+        java.util.Map.entry("MN13","R22"),java.util.Map.entry("MN8","R23"));
+
+    private static java.util.Set<String> expectedRoutes(com.fasterxml.jackson.databind.JsonNode session) {
+        var ids=new java.util.TreeSet<String>();
+        for (var item : session.path("items")) {
+            var route=ROUTE_OF_ITEM.get(item.path("itemCode").asText());
+            if (route!=null) ids.add(route);
+        }
+        return ids;
+    }
+
+    /**
+     * MOMNA-1145 v2.2 over HTTP: every bound item at state 2 opens its route; questions are answered fact by
+     * fact, only the current one, under the session revision; an open question blocks submit.
+     */
     @Test
-    void checkinSafetyLockKeepsAnswersEditableAndBlocksSubmitOverHttp() throws Exception {
+    void checkinSafetyAsksFactByFactAndBlocksSubmitOverHttp() throws Exception {
         var checkin=startMorningCheckin(LifecyclePeriod.MENARCHE,"safety-lock");
         var blocked=answerAll(checkin,2);
         var safety=blocked.path("safety");
         assertTrue(safety.path("blocking").asBoolean(),blocked.toString());
         assertEquals("CLARIFICATION_REQUIRED",safety.path("state").asText());
-        // M4 dizziness (safety_w 7) outweighs M5 bleeding (6) and M3 headache (2).
-        assertEquals("MENARCHE_DIZZINESS",safety.path("routeCode").asText());
-        assertEquals("MEDIUM",safety.path("severity").asText());
-        assertEquals("checkin.safety.routes.v3:checkin.safety.rules.v3",
-            safety.path("decisionVersion").asText());
-        assertEquals("[\"OPEN_SAFETY_CLARIFICATION\"]",safety.path("allowedActions").toString());
-        var clarification=safety.path("clarification");
-        String cid=clarification.path("clarificationId").asText();
-        assertTrue(cid.matches("[0-9a-f]{64}"),clarification.toString());
-        assertEquals("checkin.safety.route.menarche_dizziness.v3",
-            clarification.path("presentationKey").asText());
-        assertEquals(2,clarification.path("options").size());
-        assertEquals("safe",clarification.path("options").get(0).path("value").asText());
-        assertEquals("urgent",clarification.path("options").get(1).path("value").asText());
+        assertEquals("UNKNOWN",safety.path("severity").asText(),"an open question is not yet a decision");
+        assertEquals("medical-safety-v2.2:medical-safety-rules-v2.2",safety.path("decisionVersion").asText());
+        assertEquals("[\"ANSWER_SAFETY\"]",safety.path("allowedActions").toString());
+        assertEquals(expectedRoutes(blocked),routeIds(blocked));
+        var r1=route(blocked,"R1");
+        assertEquals("MENARCHE_HEADACHE",r1.path("routeCode").asText());
+        assertEquals("QUESTION",r1.path("state").asText());
+        assertEquals("F_THUNDERCLAP_HEADACHE",r1.path("nextFactCode").asText());
+        assertEquals("medical-safety-v2.2",r1.path("catalogVersion").asText());
         var actions=blocked.path("allowedActions").toString();
         assertTrue(actions.contains("ANSWER_SAFETY"),actions);
         assertTrue(actions.contains("EDIT_ANSWERS"),actions);
         assertFalse(actions.contains("SUBMIT"),actions);
-
-        // An answer change is accepted, but cannot clear the open lock.
-        var change=json.createObjectNode().put("expectedRevision",blocked.path("revision").asLong());
-        change.putArray("answerChanges").addObject().put("itemCode","M4").put("value",0);
-        var edited=patchWithKey(checkin.root(),change.toString(),checkin.token(),
-            "lock-edit-"+UUID.randomUUID());
-        assertEquals(200,edited.statusCode(),edited.body());
-        var editedJson=json.readTree(edited.body());
-        assertTrue(editedJson.path("safety").path("blocking").asBoolean());
-        assertEquals(cid,editedJson.path("safety").path("clarification").path("clarificationId").asText());
-        long revision=editedJson.path("revision").asLong();
+        long revision=blocked.path("revision").asLong();
 
         var submit=postWithKey(checkin.root()+"/submit",json.createObjectNode()
             .put("expectedRevision",revision).toString(),checkin.token(),"lock-submit-"+UUID.randomUUID());
         assertEquals(409,submit.statusCode(),submit.body());
         assertEquals("SAFETY_CLARIFICATION_REQUIRED",json.readTree(submit.body()).path("code").asText());
 
-        var notCurrent=answerSafety(checkin,"not-current",revision,"safe","lock-nc-"+UUID.randomUUID());
+        var notCurrent=answerFact(checkin,revision,"R1","F_VISION_CHANGE","NO","lock-nc-"+UUID.randomUUID());
         assertEquals(409,notCurrent.statusCode(),notCurrent.body());
-        assertEquals("SAFETY_CLARIFICATION_NOT_CURRENT",json.readTree(notCurrent.body()).path("code").asText());
-        var stale=answerSafety(checkin,cid,revision+1,"safe","lock-stale-"+UUID.randomUUID());
+        assertEquals("SAFETY_FACT_NOT_CURRENT",json.readTree(notCurrent.body()).path("code").asText());
+        var notOpened=answerFact(checkin,revision,"R10","F_FLUID_LEAK","NO","lock-no-"+UUID.randomUUID());
+        assertEquals(409,notOpened.statusCode(),notOpened.body());
+        assertEquals("SAFETY_ROUTE_NOT_CURRENT",json.readTree(notOpened.body()).path("code").asText());
+        var stale=answerFact(checkin,revision+1,"R1","F_THUNDERCLAP_HEADACHE","NO","lock-stale-"+UUID.randomUUID());
         assertEquals(409,stale.statusCode(),stale.body());
         assertEquals("STALE_REVISION",json.readTree(stale.body()).path("code").asText());
-        var invalid=answerSafety(checkin,cid,revision,"skip","lock-invalid-"+UUID.randomUUID());
+        var invalid=answerFact(checkin,revision,"R1","F_THUNDERCLAP_HEADACHE","MAYBE","lock-invalid-"+UUID.randomUUID());
         assertEquals(422,invalid.statusCode(),invalid.body());
         assertEquals("SAFETY_VALUE_INVALID",json.readTree(invalid.body()).path("code").asText());
         assertEquals(revision,json.readTree(get(checkin.root(),checkin.token()).body()).path("revision").asLong());
 
-        var resolved=answerSafety(checkin,cid,revision,"safe","lock-safe-"+UUID.randomUUID());
-        assertEquals(200,resolved.statusCode(),resolved.body());
-        var resolvedJson=json.readTree(resolved.body());
-        var resolvedSafety=resolvedJson.path("safety");
+        var resolved=answerOpenRoutes(checkin,blocked,"NO");
+        var resolvedSafety=resolved.path("safety");
         assertEquals("RESOLVED",resolvedSafety.path("state").asText());
-        assertEquals("GENERAL_CONTINUE",resolvedSafety.path("routeCode").asText());
-        assertEquals("NONE",resolvedSafety.path("severity").asText());
-        assertEquals("checkin.safety.routes.v3:safety.baseline.v1",
-            resolvedSafety.path("decisionVersion").asText());
+        assertEquals("NONE",resolvedSafety.path("severity").asText(),"nothing found is no medical decision");
         assertFalse(resolvedSafety.path("blocking").asBoolean());
-        assertTrue(resolvedSafety.path("clarification").isNull(),resolvedSafety.toString());
-        assertEquals("[\"CONTINUE\"]",resolvedSafety.path("allowedActions").toString());
-        assertTrue(resolvedJson.path("allowedActions").toString().contains("SUBMIT"));
+        for (var route : resolvedSafety.path("routes")) {
+            assertEquals("NOT_REPORTED",route.path("disposition").asText(),route.toString());
+        }
+        assertTrue(resolved.path("allowedActions").toString().contains("SUBMIT"));
 
         var submitted=postWithKey(checkin.root()+"/submit",json.createObjectNode()
-            .put("expectedRevision",resolvedJson.path("revision").asLong()).toString(),
+            .put("expectedRevision",resolved.path("revision").asLong()).toString(),
             checkin.token(),"lock-submit-ok-"+UUID.randomUUID());
         assertEquals(200,submitted.statusCode(),submitted.body());
         assertEquals("SUBMITTED",json.readTree(submitted.body()).path("session").path("status").asText());
     }
 
+    /** D13 P19 opens R10 without any score; an urgent YES ends the route; the answer replays idempotently. */
     @Test
-    void checkinSafetyUrgentAnswerEscalatesToClinicianAndReplaysOverHttp() throws Exception {
-        var checkin=startMorningCheckin(LifecyclePeriod.MENARCHE,"safety-urgent");
-        var blocked=answerAll(checkin,2);
-        String cid=blocked.path("safety").path("clarification").path("clarificationId").asText();
-        long revision=blocked.path("revision").asLong();
+    void anUrgentFactEndsTheRouteAndReplaysOverHttp() throws Exception {
+        var checkin=startMorningCheckin(LifecyclePeriod.PREGNANCY,"safety-urgent");
+        var change=json.createObjectNode().put("expectedRevision",checkin.initial().path("revision").asLong());
+        change.putArray("answerChanges").addObject().put("itemCode","P19").put("value",2);
+        var opened=json.readTree(patchWithKey(checkin.root(),change.toString(),checkin.token(),
+            "p19-"+UUID.randomUUID()).body());
+        assertEquals(java.util.Set.of("R10"),routeIds(opened),opened.path("safety").toString());
+        assertEquals("F_FLUID_LEAK",route(opened,"R10").path("nextFactCode").asText());
+        long revision=opened.path("revision").asLong();
+
         String key="safety-urgent-"+UUID.randomUUID();
-        var resolved=answerSafety(checkin,cid,revision,"urgent",key);
-        assertEquals(200,resolved.statusCode(),resolved.body());
-        var finalState=json.readTree(resolved.body());
+        var answered=answerFact(checkin,revision,"R10","F_FLUID_LEAK","YES",key);
+        assertEquals(200,answered.statusCode(),answered.body());
+        var finalState=json.readTree(answered.body());
         var safety=finalState.path("safety");
         assertEquals("RESOLVED",safety.path("state").asText());
-        assertEquals("CLINICAL_ESCALATION",safety.path("routeCode").asText());
+        assertEquals("PREGNANCY_PRETERM_LABOR",safety.path("routeCode").asText());
         assertEquals("HIGH",safety.path("severity").asText());
-        assertEquals("checkin.safety.routes.v3:safety.clinical.v1",safety.path("decisionVersion").asText());
+        assertEquals("[\"CONTACT_MATERNITY\"]",safety.path("allowedActions").toString());
+        assertEquals("OB1",route(finalState,"R10").path("screenCode").asText());
         assertFalse(safety.path("blocking").asBoolean());
-        assertEquals("[\"CONTACT_CLINICIAN\",\"DEFER_AI\"]",safety.path("allowedActions").toString());
-        var replay=answerSafety(checkin,cid,revision,"urgent",key);
+
+        var replay=answerFact(checkin,revision,"R10","F_FLUID_LEAK","YES",key);
         assertEquals(200,replay.statusCode(),replay.body());
         assertEquals(finalState.path("revision").asLong(),json.readTree(replay.body()).path("revision").asLong());
-        var conflict=answerSafety(checkin,cid,revision,"safe",key);
+        var conflict=answerFact(checkin,revision,"R10","F_FLUID_LEAK","NO",key);
         assertEquals(409,conflict.statusCode(),conflict.body());
-        var again=answerSafety(checkin,cid,finalState.path("revision").asLong(),"safe",
+        assertEquals("IDEMPOTENCY_CONFLICT",json.readTree(conflict.body()).path("code").asText());
+        var changed=answerFact(checkin,finalState.path("revision").asLong(),"R10","F_FLUID_LEAK","NO",
             "safety-after-"+UUID.randomUUID());
-        assertEquals(409,again.statusCode(),again.body());
-        assertEquals("SAFETY_CLARIFICATION_NOT_CURRENT",json.readTree(again.body()).path("code").asText());
+        assertEquals(409,changed.statusCode(),changed.body());
+        assertEquals("SAFETY_ROUTE_COMPLETED",json.readTree(changed.body()).path("code").asText());
+
+        var revised=safetyAction(checkin,"R10","revise",json.createObjectNode()
+            .put("expectedRevision",finalState.path("revision").asLong()).put("factCode","F_FLUID_LEAK")
+            .put("answer","NO"),"safety-revise-"+UUID.randomUUID());
+        assertEquals(200,revised.statusCode(),revised.body());
+        assertEquals("QUESTION",route(json.readTree(revised.body()),"R10").path("state").asText(),
+            "a correction asks the questions the YES had made unnecessary");
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM momna.medical_safety_fact_revisions "
+            +"WHERE session_id = ? AND fact_code = 'F_FLUID_LEAK'",Integer.class,
+            checkin.initial().path("sessionId").asText()));
     }
 
     @Test
-    void everyLifecyclePeriodRoutesSafetyFromTheGovernedModelOverHttp() throws Exception {
-        // All-"bad" morning answers: safety_score = 2 * sum(safety_w) against threshold 12.
-        var expected=new java.util.LinkedHashMap<LifecyclePeriod,String>();
-        expected.put(LifecyclePeriod.MENARCHE,"MENARCHE_DIZZINESS");        // 30, M4 = 14
-        expected.put(LifecyclePeriod.CYCLE,null);                           // 6
-        expected.put(LifecyclePeriod.PLANNING,null);                        // 0
-        expected.put(LifecyclePeriod.PREGNANCY,"PREGNANCY_BREATHLESSNESS"); // 60, P7 = P8 = 16, P7 first
-        expected.put(LifecyclePeriod.POSTPARTUM,"POSTPARTUM_BLEEDING");     // 50, PP5 = 16
-        expected.put(LifecyclePeriod.PERIMENOPAUSE,"PERIMENOPAUSE_UNUSUAL_CHANGE"); // 14, PM3 = 8
-        expected.put(LifecyclePeriod.MENOPAUSE,null);                       // 10
-        for (var entry : expected.entrySet()) {
-            var period=entry.getKey();
+    void everyLifecyclePeriodOpensTheRoutesOfItsItemsOverHttp() throws Exception {
+        for (var period : LifecyclePeriod.values()) {
             var checkin=startMorningCheckin(period,"safety-"+period.name().toLowerCase());
             var answered=answerAll(checkin,2);
-            var safety=answered.path("safety");
-            long revision=answered.path("revision").asLong();
-            if (entry.getValue()==null) {
-                assertEquals("CLEAR",safety.path("state").asText(),period+" "+safety);
-                assertFalse(safety.path("blocking").asBoolean(),period.name());
-            } else {
-                assertEquals(entry.getValue(),safety.path("routeCode").asText(),period+" "+safety);
-                assertTrue(safety.path("blocking").asBoolean(),period.name());
-                var resolved=answerSafety(checkin,
-                    safety.path("clarification").path("clarificationId").asText(),revision,"safe",
-                    "period-safe-"+UUID.randomUUID());
-                assertEquals(200,resolved.statusCode(),period+" "+resolved.body());
-                revision=json.readTree(resolved.body()).path("revision").asLong();
-            }
+            var expected=expectedRoutes(answered);
+            assertEquals(expected,routeIds(answered),period+" "+answered.path("safety"));
+            assertEquals(!expected.isEmpty(),answered.path("safety").path("blocking").asBoolean(),period.name());
+            var resolved=answerOpenRoutes(checkin,answered,"NO");
             var submitted=postWithKey(checkin.root()+"/submit",json.createObjectNode()
-                .put("expectedRevision",revision).toString(),checkin.token(),
+                .put("expectedRevision",resolved.path("revision").asLong()).toString(),checkin.token(),
                 "period-submit-"+UUID.randomUUID());
             assertEquals(200,submitted.statusCode(),period+" "+submitted.body());
         }
@@ -1657,7 +1713,7 @@ class AuthenticatedApiHttpE2eTest {
     void checkinSafetyResolutionAfterWindowCloseAutoFinalizesOverHttp() throws Exception {
         var checkin=startMorningCheckin(LifecyclePeriod.POSTPARTUM,"safety-expired");
         var blocked=answerAll(checkin,2);
-        String cid=blocked.path("safety").path("clarification").path("clarificationId").asText();
+        assertNotNull(route(blocked,"R12"),blocked.path("safety").toString());
         jdbc.update("UPDATE momna.checkin_sessions SET window_closes_at = ? WHERE session_id = ?",
             java.sql.Timestamp.from(Instant.now().minusSeconds(30)),
             checkin.initial().path("sessionId").asText());
@@ -1667,14 +1723,27 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals("PARTIAL",heldJson.path("status").asText());
         assertTrue(heldJson.path("safety").path("blocking").asBoolean());
         assertEquals("[\"ANSWER_SAFETY\"]",heldJson.path("allowedActions").toString());
-        var resolved=answerSafety(checkin,cid,heldJson.path("revision").asLong(),"urgent",
+
+        // R12 asks fainting first; a YES is an emergency. Every other route is skipped (ABSENT, never NO).
+        var fainted=answerFact(checkin,heldJson.path("revision").asLong(),"R12","F_FAINTED","YES",
             "deadline-answer-"+UUID.randomUUID());
-        assertEquals(200,resolved.statusCode(),resolved.body());
-        var data=json.readTree(resolved.body());
+        assertEquals(200,fainted.statusCode(),fainted.body());
+        var data=json.readTree(fainted.body());
+        for (var routeId : routeIds(data)) {
+            if (!"QUESTION".equals(route(data,routeId).path("state").asText())) continue;
+            var skipped=safetyAction(checkin,routeId,"skip",json.createObjectNode()
+                .put("expectedRevision",data.path("revision").asLong()),"deadline-skip-"+UUID.randomUUID());
+            assertEquals(200,skipped.statusCode(),skipped.body());
+            data=json.readTree(skipped.body());
+        }
         assertEquals("AUTO_FINALIZED",data.path("status").asText());
         assertEquals("WINDOW_CLOSED",data.path("finalizationReason").asText());
         assertFalse(data.path("safety").path("blocking").asBoolean());
-        assertEquals("HIGH",data.path("safety").path("severity").asText());
+        // Fainting is known to the whole session, so every route that weighs it ends EMERGENCY; the first wins.
+        assertEquals("EMERGENCY",route(data,"R12").path("disposition").asText());
+        assertTrue(data.path("safety").path("routeCode").asText().startsWith("POSTPARTUM_"),data.path("safety").toString());
+        assertEquals("CRITICAL",data.path("safety").path("severity").asText());
+        assertEquals("[\"CALL_EMERGENCY\"]",data.path("safety").path("allowedActions").toString());
         var again=get(checkin.root(),checkin.token());
         assertEquals(200,again.statusCode(),again.body());
         assertEquals(data.path("revision").asLong(),json.readTree(again.body()).path("revision").asLong());

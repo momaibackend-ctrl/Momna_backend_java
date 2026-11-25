@@ -1069,20 +1069,152 @@
           ]
         },
         {
-          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/clarifications/{clarificationId}/answer rejects unauthenticated caller",
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/answers rejects unauthenticated caller",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "X-Request-Id",
-                "value": "java-security-35"
+                "value": "java-security-35a"
               },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/clarifications/00000000-0000-4000-8000-000000000001/answer",
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/R10/answers",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/revise rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-35b"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/R10/revise",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/checklist rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-35c"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/R10/checklist",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/blood-pressure rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-35d"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/R10/blood-pressure",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/check-in/sessions/{sessionId}/safety/{routeId}/skip rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-35e"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/check-in/sessions/00000000-0000-4000-8000-000000000001/safety/R10/skip",
             "body": {
               "mode": "raw",
               "raw": "{}"

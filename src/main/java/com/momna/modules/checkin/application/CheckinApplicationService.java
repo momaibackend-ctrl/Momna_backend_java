@@ -6,7 +6,7 @@ import com.momna.modules.checkin.definition.WeightedCheckinDefinitionCatalog;
 import com.momna.modules.checkin.domain.*;
 import com.momna.modules.checkin.infrastructure.*;
 import com.momna.modules.checkin.scoring.WeightedCheckinScoringEngine;
-import com.momna.modules.checkin.safety.CheckinSafetyEvaluator;
+import com.momna.modules.checkin.safety.CheckinMedicalSafety;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -28,7 +28,7 @@ public class CheckinApplicationService {
     private final CheckinAdjustmentSignalRepository adjustmentSignals;
     private final WeightedCheckinDefinitionCatalog definitions;
     private final WeightedCheckinScoringEngine scoring;
-    private final CheckinSafetyEvaluator safety;
+    private final CheckinMedicalSafety safety;
     private final CheckinDayContextService contexts;
     private final ObjectProvider<MyDayMaterializationPort> myDay;
     private final ProfileService profiles;
@@ -42,7 +42,7 @@ public class CheckinApplicationService {
         WeightedCheckinDefinitionCatalog definitions,
         WeightedCheckinScoringEngine scoring,
         CheckinDayContextService contexts,
-        CheckinSafetyEvaluator safety,
+        CheckinMedicalSafety safety,
         ObjectProvider<MyDayMaterializationPort> myDay,
         ProfileService profiles
     ) {
@@ -186,8 +186,8 @@ public class CheckinApplicationService {
         if (current.getRevision() != expectedRevision) {
             throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
         }
-        // Answers stay editable while a safety clarification is open; the evaluator keeps the
-        // lock, so only the clarification answer can resolve it.
+        // Answers stay editable while a safety question is open. Lowering the answer that opened it closes it
+        // without a YES (MOMNA-1145 L13); any other open question keeps the lock until it is answered.
 
         var applicable = new HashSet<>(current.getApplicableItemCodes());
         for (var change : changes) {
@@ -226,7 +226,7 @@ public class CheckinApplicationService {
             Map.of()
         );
         persistAdjustmentSignals(current, score, now);
-        safety.evaluate(current, score, now);
+        safety.onPatch(current, changes, answerMap, score, now);
 
         try {
             current = sessions.saveAndFlush(current);
@@ -269,19 +269,40 @@ public class CheckinApplicationService {
         return new FinalizeResult(view(current, now), downstreamNone());
     }
 
+    /** The safety actions on a route the session opened (MOMNA-1145): one fact, a correction, QM, BP1, skip. */
+    public enum SafetyAction { ANSWER, REVISE, CHECKLIST, BLOOD_PRESSURE, SKIP }
+
+    /** The request of one safety action; fields that an action does not use are null. */
+    public record SafetyRequest(
+        SafetyAction action,
+        String routeId,
+        String factCode,
+        String answer,
+        String mode,
+        List<String> selectedFactCodes,
+        Integer systolic,
+        Integer diastolic,
+        Boolean unknown
+    ) {
+        String fingerprint() {
+            var selected = selectedFactCodes == null ? List.<String>of()
+                : selectedFactCodes.stream().sorted().toList();
+            return action + "|" + routeId + "|" + factCode + "|" + answer + "|" + mode + "|" + selected
+                + "|" + systolic + "|" + diastolic + "|" + Boolean.TRUE.equals(unknown);
+        }
+    }
+
     @Transactional
-    public SessionView answerSafetyClarification(
-        String userId, String sessionId, String clarificationId,
-        long expectedRevision, String value, String idempotencyKey
+    public SessionView safety(
+        String userId, String sessionId, long expectedRevision, SafetyRequest request, String idempotencyKey
     ) {
         requireIdempotencyKey(idempotencyKey);
-        if (clarificationId == null || clarificationId.isBlank()
-            || value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Clarification id and value are required");
+        if (request == null || request.action() == null || request.routeId() == null || request.routeId().isBlank()) {
+            throw new IllegalArgumentException("A safety action and route are required");
         }
-        var fingerprint = sha("safety-answer|" + sessionId + "|" + expectedRevision
-            + "|" + clarificationId + "|" + value);
-        var replay = replay(userId, "safety-answer", idempotencyKey, fingerprint);
+        var operation = "safety-" + request.action().name().toLowerCase(Locale.ROOT);
+        var fingerprint = sha(operation + "|" + sessionId + "|" + expectedRevision + "|" + request.fingerprint());
+        var replay = replay(userId, operation, idempotencyKey, fingerprint);
         if (replay != null) return view(replay, clock.instant());
 
         var current = owned(userId, sessionId);
@@ -292,7 +313,15 @@ public class CheckinApplicationService {
             throw new CheckinException("CHECKIN_SESSION_FINALIZED", "Session is immutable");
         }
         var now = clock.instant();
-        safety.answer(current, clarificationId, value, now);
+        switch (request.action()) {
+            case ANSWER -> safety.answer(current, request.routeId(), request.factCode(), request.answer(), now);
+            case REVISE -> safety.revise(current, request.routeId(), request.factCode(), request.answer(), now);
+            case CHECKLIST -> safety.checklist(current, request.routeId(), request.mode(),
+                request.selectedFactCodes(), now);
+            case BLOOD_PRESSURE -> safety.bloodPressure(current, request.routeId(), request.systolic(),
+                request.diastolic(), Boolean.TRUE.equals(request.unknown()), now);
+            case SKIP -> safety.skip(current, request.routeId(), now);
+        }
         if (!current.isSafetyBlocking() && !now.isBefore(current.getWindowClosesAt())) {
             current.autoFinalize(now);
         }
@@ -301,7 +330,7 @@ public class CheckinApplicationService {
         } catch (OptimisticLockingFailureException conflict) {
             throw new CheckinException("STALE_REVISION", "Check-in revision conflict");
         }
-        remember(userId, "safety-answer", idempotencyKey, fingerprint, current);
+        remember(userId, operation, idempotencyKey, fingerprint, current);
         return view(current, now);
     }
 
@@ -437,7 +466,8 @@ public class CheckinApplicationService {
                 session.getSafetySeverity(),
                 session.isSafetyBlocking(),
                 session.getSafetyClarification(),
-                session.getSafetyAllowedActions().stream().sorted().toList()
+                session.getSafetyAllowedActions().stream().sorted().toList(),
+                safety.steps(session)
             ),
             session.getFinalizedAt(),
             session.getFinalizationReason() == null ? null : session.getFinalizationReason().name(),

@@ -1,0 +1,519 @@
+{
+  "catalogVersion": "medical-safety-v2.2",
+  "screens": [
+    {
+      "code": "Q",
+      "fields": {
+        "title": {
+          "ru": "Уточним важный признак",
+          "enUs": "Let's check an important sign"
+        },
+        "supporting": {
+          "ru": "Ответьте только о том, что вы действительно замечаете.",
+          "enUs": "Answer based on what you actually notice."
+        },
+        "answers": {
+          "ru": "Да · Нет · Не уверена",
+          "enUs": "Yes · No · Not sure"
+        },
+        "back": {
+          "ru": "Назад",
+          "enUs": "Back"
+        },
+        "secondary": {
+          "ru": "Не сейчас",
+          "enUs": "Not now"
+        },
+        "footnote": {
+          "ru": "Можно изменить ответ позже.",
+          "enUs": "You can change your answer later."
+        }
+      }
+    },
+    {
+      "code": "Q-MH",
+      "fields": {
+        "supporting": {
+          "ru": "Мы задаём этот вопрос всем, кто отмечает тяжёлое состояние. Ответ видите только вы.",
+          "enUs": "We ask everyone who reports a hard time. Only you can see your answer."
+        }
+      }
+    },
+    {
+      "code": "QM",
+      "fields": {
+        "title": {
+          "ru": "Уточним важные признаки",
+          "enUs": "Let's check a few important signs"
+        },
+        "supporting": {
+          "ru": "Отметьте всё, что есть сейчас.",
+          "enUs": "Select everything you have right now."
+        },
+        "primary": {
+          "ru": "Продолжить",
+          "enUs": "Continue"
+        },
+        "actions": {
+          "ru": "Ничего из этого · Не уверена",
+          "enUs": "None of these · Not sure"
+        },
+        "secondary": {
+          "ru": "Не сейчас",
+          "enUs": "Not now"
+        }
+      }
+    },
+    {
+      "code": "H1",
+      "fields": {
+        "body": {
+          "ru": "Если станет хуже, нажмите «Мне сейчас плохо».",
+          "enUs": "If things get worse, tap “I feel very unwell now.”"
+        }
+      }
+    },
+    {
+      "code": "N",
+      "fields": {
+        "title": {
+          "ru": "Пока недостаточно информации",
+          "enUs": "We don't have enough information yet"
+        },
+        "body": {
+          "ru": "Мы не можем оценить этот признак по вашему ответу. Если симптомы выраженные, быстро усиливаются или вызывают опасения, обратитесь за медицинской помощью.",
+          "enUs": "We can't assess this sign from your answer. If symptoms are severe, rapidly worsening, or concerning, seek medical care."
+        },
+        "primary": {
+          "ru": "Уточнить ответ",
+          "enUs": "Review my answer"
+        },
+        "secondary": {
+          "ru": "Продолжить",
+          "enUs": "Continue"
+        }
+      }
+    },
+    {
+      "code": "E",
+      "fields": {
+        "label": {
+          "ru": "Экстренная ситуация",
+          "enUs": "Emergency"
+        },
+        "title": {
+          "ru": "Обратитесь за экстренной помощью сейчас",
+          "enUs": "Seek emergency medical care now"
+        },
+        "body": {
+          "ru": "Ваш ответ указывает на симптом, который может требовать немедленной помощи. Позвоните в местную экстренную службу или обратитесь в ближайшее отделение экстренной помощи. Не ждите рекомендаций в приложении.",
+          "enUs": "Your answer describes a symptom that may need immediate care. Call your local emergency number or go to the nearest emergency department. Do not wait for advice in the app."
+        },
+        "primary": {
+          "ru": "Позвонить в экстренную службу",
+          "enUs": "Call emergency services"
+        },
+        "secondary": {
+          "ru": "Я поняла",
+          "enUs": "I understand"
+        }
+      }
+    },
+    {
+      "code": "U",
+      "fields": {
+        "label": {
+          "ru": "Нужна срочная оценка",
+          "enUs": "Urgent assessment needed"
+        },
+        "title": {
+          "ru": "Свяжитесь с медицинской службой без промедления",
+          "enUs": "Contact a medical professional without delay"
+        },
+        "body": {
+          "ru": "Ваш ответ заслуживает срочной медицинской оценки. Свяжитесь с лечащим врачом или подходящей медицинской службой сейчас. Если появятся признаки экстренной ситуации, обратитесь за экстренной помощью.",
+          "enUs": "Your answer calls for urgent medical assessment. Contact your clinician or an appropriate medical service now. If emergency warning signs appear, seek emergency care."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть признаки экстренности",
+          "enUs": "View emergency warning signs"
+        }
+      }
+    },
+    {
+      "code": "P",
+      "fields": {
+        "label": {
+          "ru": "Стоит обсудить с врачом",
+          "enUs": "Worth discussing with a clinician"
+        },
+        "title": {
+          "ru": "Запланируйте медицинскую оценку",
+          "enUs": "Arrange a medical assessment"
+        },
+        "body": {
+          "ru": "Этот симптом стоит обсудить с медицинским специалистом. Он не означает определённый диагноз. Если самочувствие резко ухудшается, не ждите планового приёма.",
+          "enUs": "This symptom is worth discussing with a clinician. It does not establish a diagnosis. If your condition worsens suddenly, do not wait for a routine appointment."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть симптомы",
+          "enUs": "Review symptoms"
+        }
+      }
+    },
+    {
+      "code": "R",
+      "fields": {
+        "title": {
+          "ru": "Ваши симптомы заслуживают внимания",
+          "enUs": "Your symptoms deserve attention"
+        },
+        "body": {
+          "ru": "Вы можете обсудить их с медицинским специалистом на плановом приёме.",
+          "enUs": "You can discuss them with a clinician at a routine appointment."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        }
+      }
+    },
+    {
+      "code": "M",
+      "fields": {
+        "title": {
+          "ru": "Есть несколько важных признаков",
+          "enUs": "There are several important signs"
+        },
+        "body": {
+          "ru": "Сначала показано самое срочное предупреждение. Другие отмеченные симптомы сохранены и не игнорируются.",
+          "enUs": "The most urgent notice is shown first. Your other reported symptoms are still recorded and have not been ignored."
+        },
+        "secondary": {
+          "ru": "Посмотреть остальные признаки",
+          "enUs": "See other signs"
+        }
+      }
+    },
+    {
+      "code": "ERR",
+      "fields": {
+        "title": {
+          "ru": "Не удалось обновить проверку",
+          "enUs": "We couldn't update your safety check"
+        },
+        "body": {
+          "ru": "Сейчас нельзя подтвердить результат. Ранее показанное срочное предупреждение остаётся актуальным до получения новых данных. При серьёзных симптомах обращайтесь за медицинской помощью без ожидания приложения.",
+          "enUs": "We can't confirm an updated result right now. A previously displayed urgent warning remains visible until new data is available. If you have serious symptoms, seek medical care without waiting for the app."
+        },
+        "primary": {
+          "ru": "Повторить",
+          "enUs": "Try again"
+        },
+        "secondary": {
+          "ru": "Закрыть",
+          "enUs": "Close"
+        }
+      }
+    },
+    {
+      "code": "EP1",
+      "fields": {
+        "label": {
+          "ru": "Нужна срочная оценка",
+          "enUs": "Urgent assessment needed"
+        },
+        "title": {
+          "ru": "Свяжитесь с врачом сейчас",
+          "enUs": "Contact a medical professional now"
+        },
+        "body": {
+          "ru": "Сильная боль в животе или тазу при возможной беременности требует срочной медицинской оценки, особенно вместе с кровотечением. Обратитесь к врачу или в приёмное отделение сейчас и сообщите, что беременность возможна. Если появятся сильная слабость, головокружение или обморок, вызовите экстренную помощь.",
+          "enUs": "Severe abdominal or pelvic pain when pregnancy is possible needs urgent medical assessment, especially with bleeding. Contact a clinician or go to an emergency department now and tell them you could be pregnant. If you feel very weak, dizzy or faint, call emergency services."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть признаки экстренности",
+          "enUs": "View emergency warning signs"
+        }
+      }
+    },
+    {
+      "code": "BP1",
+      "fields": {
+        "title": {
+          "ru": "Укажите последнее измерение давления",
+          "enUs": "Enter your most recent blood pressure reading"
+        },
+        "supporting": {
+          "ru": "Введите оба числа с прибора. Если вы не уверены в значениях, не придумывайте их.",
+          "enUs": "Enter both numbers from your monitor. If you're unsure, don't guess."
+        },
+        "systolicLabel": {
+          "ru": "Верхнее (систолическое), мм рт. ст.",
+          "enUs": "Systolic (top number), mmHg"
+        },
+        "diastolicLabel": {
+          "ru": "Нижнее (диастолическое), мм рт. ст.",
+          "enUs": "Diastolic (bottom number), mmHg"
+        },
+        "primary": {
+          "ru": "Сохранить измерение",
+          "enUs": "Save reading"
+        },
+        "secondary": {
+          "ru": "Не помню значения",
+          "enUs": "I don't remember"
+        }
+      }
+    },
+    {
+      "code": "PM1",
+      "fields": {
+        "overline": {
+          "ru": "Эмоциональное здоровье",
+          "enUs": "Emotional wellbeing"
+        },
+        "title": {
+          "ru": "Не нужно оставаться с этим одной",
+          "enUs": "You don't have to manage this alone"
+        },
+        "body": {
+          "ru": "Подавленность, тревога и трудности после родов заслуживают поддержки. Можно обратиться за помощью уже сейчас — не обязательно ждать две недели.",
+          "enUs": "Low mood, anxiety and difficulties after birth deserve support. You can ask for help now — you don't have to wait two weeks."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Что обсудить с врачом",
+          "enUs": "What to discuss with a clinician"
+        },
+        "footnote": {
+          "ru": "MOMNA не проводит скрининг депрессии и не заменяет оценку специалиста.",
+          "enUs": "MOMNA does not screen for depression and does not replace assessment by a professional."
+        }
+      }
+    },
+    {
+      "code": "PM2",
+      "fields": {
+        "label": {
+          "ru": "Важное предупреждение",
+          "enUs": "Important safety notice"
+        },
+        "title": {
+          "ru": "Сейчас важна ваша безопасность",
+          "enUs": "Your safety matters right now"
+        },
+        "body": {
+          "ru": "Мы рекомендуем немедленно связаться с медицинским специалистом или кризисной службой для оценки ситуации. Если есть опасность, что вы можете причинить вред себе или другому человеку прямо сейчас, вызовите экстренную помощь.",
+          "enUs": "Please contact a clinician or crisis service immediately for an assessment. If you might harm yourself or someone else right now, call emergency services."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Как получить срочную помощь",
+          "enUs": "How to get urgent help"
+        },
+        "postpartumBody": {
+          "ru": "Мы рекомендуем немедленно связаться с медицинским специалистом или кризисной службой для оценки ситуации. Если есть опасность, что вы можете причинить вред себе или ребёнку прямо сейчас, вызовите экстренную помощь.",
+          "enUs": "Please contact a clinician or crisis service immediately for an assessment. If you might harm yourself or your baby right now, call emergency services."
+        }
+      }
+    },
+    {
+      "code": "OB1",
+      "fields": {
+        "label": {
+          "ru": "Нужна срочная оценка",
+          "enUs": "Urgent pregnancy assessment"
+        },
+        "title": {
+          "ru": "Обратитесь в акушерскую службу сейчас",
+          "enUs": "Contact your maternity care team now"
+        },
+        "body": {
+          "ru": "Эти признаки могут требовать срочного осмотра во время беременности. Немедленно свяжитесь с акушерской службой или обратитесь в родильное отделение.",
+          "enUs": "These symptoms may need urgent pregnancy assessment. Contact your maternity care team immediately or go to your maternity assessment unit."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть тревожные признаки",
+          "enUs": "View warning signs"
+        }
+      }
+    },
+    {
+      "code": "MB1",
+      "fields": {
+        "label": {
+          "ru": "Нужен осмотр гинеколога",
+          "enUs": "Gynecological assessment needed"
+        },
+        "title": {
+          "ru": "Кровотечение после менопаузы требует оценки",
+          "enUs": "Bleeding after menopause needs evaluation"
+        },
+        "body": {
+          "ru": "Даже небольшие кровянистые выделения после менопаузы требуют своевременной оценки гинеколога. Свяжитесь с врачом в ближайшие дни. При сильном кровотечении, обмороке или выраженной слабости обратитесь за экстренной помощью.",
+          "enUs": "Even light bleeding or spotting after menopause needs prompt gynecological evaluation. Contact your clinician within the next few days. Seek emergency care for heavy bleeding, fainting or marked weakness."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть тревожные признаки",
+          "enUs": "View warning signs"
+        },
+        "hormoneTherapyNote": {
+          "ru": "Если вы принимаете гормональную терапию, неожиданное кровотечение тоже стоит обсудить с врачом.",
+          "enUs": "If you use hormone therapy, unexpected bleeding is still worth discussing with your clinician."
+        },
+        "hysterectomyNote": {
+          "ru": "Кровянистые выделения после удаления матки тоже требуют осмотра.",
+          "enUs": "Bleeding after a hysterectomy also needs to be checked."
+        }
+      }
+    },
+    {
+      "code": "MP1",
+      "fields": {
+        "title": {
+          "ru": "Сильную менструальную боль не нужно терпеть",
+          "enUs": "Severe period pain deserves attention"
+        },
+        "body": {
+          "ru": "Сильную боль при месячных, которая мешает школе или обычной жизни, не нужно просто терпеть. Стоит обсудить её с врачом.",
+          "enUs": "Severe period pain that keeps you from school or daily activities is worth a medical check. You don't have to just put up with it."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Вернуться к симптомам",
+          "enUs": "Back to symptoms"
+        }
+      }
+    },
+    {
+      "code": "AG1",
+      "fields": {
+        "label": {
+          "ru": "Экстренная ситуация",
+          "enUs": "Emergency"
+        },
+        "title": {
+          "ru": "Вызовите экстренную помощь сейчас",
+          "enUs": "Call emergency services now"
+        },
+        "body": {
+          "ru": "Внезапный отёк горла или языка с затруднением дыхания может угрожать жизни. Немедленно вызовите экстренную помощь.",
+          "enUs": "Sudden throat or tongue swelling with breathing difficulty can be life-threatening. Call emergency services now."
+        },
+        "primary": {
+          "ru": "Позвонить в экстренную службу",
+          "enUs": "Call emergency services"
+        },
+        "secondary": {
+          "ru": "Я поняла",
+          "enUs": "I understand"
+        }
+      }
+    },
+    {
+      "code": "PR1",
+      "fields": {
+        "label": {
+          "ru": "Стоит обсудить с гинекологом",
+          "enUs": "Worth discussing with a gynecologist"
+        },
+        "title": {
+          "ru": "Обратите внимание на изменения цикла",
+          "enUs": "Review changes in your cycle"
+        },
+        "body": {
+          "ru": "В вашем возрасте длительные изменения цикла стоит обсудить с гинекологом. Для выяснения причины могут потребоваться анализы и оценка других факторов.",
+          "enUs": "Long changes in your cycle at your age are worth discussing with a gynecologist. Tests and assessment of other causes may be needed."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть историю цикла",
+          "enUs": "View cycle history"
+        }
+      }
+    },
+    {
+      "code": "GS1",
+      "fields": {
+        "title": {
+          "ru": "Есть способы облегчить эти симптомы",
+          "enUs": "There are ways to relieve these symptoms"
+        },
+        "body": {
+          "ru": "Сухость и болезненность после менопаузы распространены, и существуют способы облегчения. Обсудите симптомы с медицинским специалистом.",
+          "enUs": "Vaginal dryness and pain after menopause are common, and treatments are available. Discuss your symptoms with a clinician."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Посмотреть симптомы",
+          "enUs": "Review symptoms"
+        }
+      }
+    },
+    {
+      "code": "WB1",
+      "fields": {
+        "overline": {
+          "ru": "MOMNA · Эмоциональное здоровье",
+          "enUs": "MOMNA · Emotional wellbeing"
+        },
+        "title": {
+          "ru": "Как вы чувствуете себя эмоционально в последнее время?",
+          "enUs": "How have you been feeling emotionally lately?"
+        },
+        "body": {
+          "ru": "После родов бывает непросто. Если вам нужна поддержка, мы поможем понять, куда обратиться.",
+          "enUs": "Things can be hard after birth. If you'd like support, we'll help you find where to turn."
+        },
+        "mostlyGood": {
+          "ru": "В целом хорошо",
+          "enUs": "Mostly good"
+        },
+        "hardLately": {
+          "ru": "Последнее время тяжело",
+          "enUs": "It's been hard lately"
+        },
+        "preferNotToSay": {
+          "ru": "Не хочу отвечать",
+          "enUs": "I'd rather not say"
+        }
+      }
+    }
+  ]
+}

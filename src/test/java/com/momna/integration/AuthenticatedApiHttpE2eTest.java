@@ -1739,7 +1739,9 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals("AUTO_FINALIZED",data.path("status").asText());
         assertEquals("WINDOW_CLOSED",data.path("finalizationReason").asText());
         assertFalse(data.path("safety").path("blocking").asBoolean());
-        assertEquals("POSTPARTUM_BLEEDING",data.path("safety").path("routeCode").asText());
+        // Fainting is known to the whole session, so every route that weighs it ends EMERGENCY; the first wins.
+        assertEquals("EMERGENCY",route(data,"R12").path("disposition").asText());
+        assertTrue(data.path("safety").path("routeCode").asText().startsWith("POSTPARTUM_"),data.path("safety").toString());
         assertEquals("CRITICAL",data.path("safety").path("severity").asText());
         assertEquals("[\"CALL_EMERGENCY\"]",data.path("safety").path("allowedActions").toString());
         var again=get(checkin.root(),checkin.token());

@@ -3883,9 +3883,9 @@
           }
         },
         {
-          "screenId": null,
-          "screenName": null,
-          "title": "When did your most recent period start?",
+          "screenId": "222:19676",
+          "screenName": "[Onboarding - Pregnancy] Your pregnancy",
+          "title": "Do you remember when your last period started?",
           "fieldId": "onboarding.pregnancy.lmp",
           "dataType": "DATE",
           "answer": "DATE",
@@ -3894,8 +3894,7 @@
             "minDaysFromNow": -308,
             "maxDaysFromNow": -14
           },
-          "note": "After «I do not know yet» on the dating screen; skippable.",
-          "pending": "MOMNA-1331 item 9"
+          "note": "After «I do not know yet» on «What is the easiest way for you to enter how far along you are?». «I do not remember» is a skip; the app then shows «That's okay, we'll figure it out together»."
         },
         {
           "screenId": "220:15493",
@@ -5724,9 +5723,9 @@
           "note": "Once per baby; one baby sends {\"1\": code}. Not asked after a loss."
         },
         {
-          "screenId": null,
-          "screenName": null,
-          "title": "Is the baby currently receiving breast milk, including pumped?",
+          "screenId": "1254:118952",
+          "screenName": "[Onboarding - The First Year After Birth] Physical recovery and feeding",
+          "title": "Is your baby currently receiving breast milk?",
           "fieldId": "onboarding.postpartum.feeding_breast_milk_now",
           "dataType": "OBJECT",
           "answer": "OBJECT_PER_CHILD",
@@ -5741,7 +5740,7 @@
               "code": "no"
             },
             {
-              "label": "Not sure",
+              "label": "I'm not sure",
               "code": "not_sure"
             },
             {
@@ -5750,8 +5749,7 @@
             }
           ],
           "perChild": true,
-          "note": "Per baby, only after «Tube feeding or another medically supported method» or «The feeding plan is changing»; skippable (UNKNOWN).",
-          "pending": "MOMNA-1331 item 10"
+          "note": "Per baby (one section per living baby), only after «Tube feeding or another medically supported method» or «The feeding plan is changing»; skippable."
         },
         {
           "screenId": "270:12797",
@@ -6463,8 +6461,8 @@
           ]
         },
         {
-          "screenId": null,
-          "screenName": null,
+          "screenId": "270:15455",
+          "screenName": "[Onboarding - The First Year After Birth] Partner, relationship, and intimacy",
           "title": "Should Momna include information about preventing another pregnancy right now?",
           "fieldId": "onboarding.postpartum.next_pregnancy",
           "dataType": "ENUM",
@@ -6495,8 +6493,7 @@
               "label": "Prefer not to answer",
               "code": "prefer_not_to_say"
             }
-          ],
-          "pending": "MOMNA-1331 item 3"
+          ]
         },
         {
           "screenId": "270:15677",

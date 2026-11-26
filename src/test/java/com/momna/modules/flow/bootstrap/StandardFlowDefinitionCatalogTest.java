@@ -29,13 +29,13 @@ class StandardFlowDefinitionCatalogTest {
     }
 
     @Test
-    void postpartumVersionThreeKeepsTheMandatoryFallbackTimeAnchor() {
+    void postpartumVersionFourKeepsTheMandatoryFallbackTimeAnchor() {
         var postpartum = StandardFlowDefinitionCatalog.all().stream()
             .filter(x -> x.key().equals("period-onboarding-postpartum"))
             .findFirst()
             .orElseThrow();
 
-        assertEquals(3, postpartum.version());
+        assertEquals(4, postpartum.version());
 
         var steps = (java.util.List<?>) postpartum.definitionJson().get("steps");
         var fallback = steps.stream()
@@ -79,5 +79,47 @@ class StandardFlowDefinitionCatalogTest {
         var twins = java.util.Map.<String, java.util.Map<String, Object>>of("onboarding.postpartum.feeding",
             java.util.Map.of("value", java.util.Map.of("1", "infant_formula", "2", "feeding_plan_changing")));
         assertTrue(com.momna.modules.flow.application.FlowConditionEvaluator.matches(condition, twins));
+    }
+
+    /** MOMNA-1331 (26.11.2026): question 27 is never asked after the loss of a baby, including one of several. */
+    @Test
+    void theNextPregnancyQuestionIsNotAskedAfterALoss() {
+        var spec = StandardFlowDefinitionCatalog.all().stream()
+            .filter(x -> x.key().equals("period-onboarding-postpartum")).findFirst().orElseThrow();
+        var model = com.momna.modules.flow.application.FlowDefinitionModel.from(
+            new com.momna.modules.flow.infrastructure.FlowDefinitionEntity(spec.key(), spec.version(), spec.type(), null,
+                spec.period(), null, spec.definitionJson(), 1, java.time.Instant.parse("2026-11-26T00:00:00Z")));
+        var condition = model.conditions().get("onboarding.postpartum.next_pregnancy");
+        java.util.function.Function<java.util.Map<String, java.util.Map<String, Object>>, Boolean> asked =
+            values -> com.momna.modules.flow.application.FlowConditionEvaluator.matches(condition, values);
+        assertTrue(asked.apply(java.util.Map.of("onboarding.postpartum.child_status",
+            java.util.Map.of("kind", "ENUM", "value", "all_home"))));
+        assertFalse(asked.apply(java.util.Map.of("onboarding.postpartum.child_status",
+            java.util.Map.of("kind", "ENUM", "value", "loss"))));
+        assertFalse(asked.apply(java.util.Map.of(
+            "onboarding.postpartum.child_status", java.util.Map.of("kind", "ENUM", "value", "complicated"),
+            "onboarding.postpartum.child_status_by_child",
+            java.util.Map.of("kind", "OBJECT", "value", java.util.Map.of("1", "home", "2", "deceased")))),
+            "a mixed outcome of twins");
+        assertTrue(asked.apply(java.util.Map.of(
+            "onboarding.postpartum.child_status", java.util.Map.of("kind", "ENUM", "value", "split_time"),
+            "onboarding.postpartum.child_status_by_child",
+            java.util.Map.of("kind", "OBJECT", "value", java.util.Map.of("1", "home", "2", "hospital")))));
+    }
+
+    /** MOMNA-842 over MOMNA-990: more than a year after birth, recovery is a context of the cycle period. */
+    @Test
+    void recoveryMoreThanAYearAfterBirthIsACycleWithARecoveryContext() {
+        var decision = com.momna.modules.flow.application.RouterRoutingTable.route(java.util.Map.of(
+            "onboarding.router.current_situation", "recent_birth",
+            "onboarding.router.postpartum_time_range", "more_than_year",
+            "onboarding.router.postpartum_main_need", "recovery"));
+        assertEquals(com.momna.modules.lifecycle.domain.LifecyclePeriod.CYCLE, decision.period());
+        assertTrue(decision.additionalContexts().contains(
+            com.momna.modules.flow.application.RouterRoutingTable.POSTPARTUM_RECOVERY));
+        var firstYear = com.momna.modules.flow.application.RouterRoutingTable.route(java.util.Map.of(
+            "onboarding.router.current_situation", "recent_birth",
+            "onboarding.router.postpartum_time_range", "m10_12"));
+        assertEquals(com.momna.modules.lifecycle.domain.LifecyclePeriod.POSTPARTUM, firstYear.period());
     }
 }

@@ -398,7 +398,7 @@ class MyDayHttpE2eTest {
     void wb1OpensR18AndReachesMyDay() throws Exception {
         var user = user(LifecyclePeriod.POSTPARTUM, "safety-wb1");
         var zone = java.time.ZoneId.of(userProfiles.findById(user.userId()).orElseThrow().getTimezone());
-        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", 3, java.util.Map.of(
+        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", 4, java.util.Map.of(
             "onboarding.postpartum.birth_date", java.time.LocalDate.now(zone).minusDays(30).toString()));
         var card = json.readTree(get("/api/v1/medical-safety/wb1", user.token()).body());
         assertTrue(card.path("show").asBoolean(), card.toString());

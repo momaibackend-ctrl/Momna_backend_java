@@ -59,6 +59,9 @@ public final class RouterRoutingTable {
         );
     }
 
+    /** The context kept when recovery after birth continues past the first year. */
+    public static final String POSTPARTUM_RECOVERY = "POSTPARTUM_RECOVERY";
+
     private static final List<Rule> RULES = List.of(
         rule(10, "onboarding.router.pregnancy_status", Set.of("confirmed_by_doctor"), LifecyclePeriod.PREGNANCY, "CONFIRMED", Confidence.HIGH),
         rule(11, "onboarding.router.pregnancy_status", Set.of("test_positive"), LifecyclePeriod.PREGNANCY, "TEST_POSITIVE", Confidence.HIGH),
@@ -72,7 +75,9 @@ public final class RouterRoutingTable {
         rule(22, "onboarding.router.postpartum_time_range", Set.of("m4_6"), LifecyclePeriod.POSTPARTUM, "M4_6", Confidence.HIGH),
         rule(23, "onboarding.router.postpartum_time_range", Set.of("m7_9"), LifecyclePeriod.POSTPARTUM, "M7_9", Confidence.HIGH),
         rule(24, "onboarding.router.postpartum_time_range", Set.of("m10_12"), LifecyclePeriod.POSTPARTUM, "M10_12", Confidence.HIGH),
-        rule(25, "onboarding.router.postpartum_main_need", Set.of("recovery"), LifecyclePeriod.POSTPARTUM, "EXTENDED_RECOVERY", Confidence.MEDIUM),
+        // MOMNA-842 over MOMNA-990 (Product decision 26.11.2026): POSTPARTUM is the first 12 months only. More than a
+        // year after birth, recovery is a context of the current period, not a longer POSTPARTUM.
+        rule(25, "onboarding.router.postpartum_main_need", Set.of("recovery"), LifecyclePeriod.CYCLE, "STANDARD_CYCLE", Confidence.MEDIUM, Set.of(POSTPARTUM_RECOVERY)),
         rule(26, "onboarding.router.unsure_recent_birth", Set.of("yes"), LifecyclePeriod.POSTPARTUM, "UNSPECIFIED", Confidence.MEDIUM),
         rule(27, "onboarding.router.cycle_change_known_cause", Set.of("recent_birth_or_breastfeeding"), LifecyclePeriod.POSTPARTUM, "UNSPECIFIED", Confidence.MEDIUM),
         rule(28, "onboarding.router.amenorrhea_known_cause", Set.of("recent_birth_or_breastfeeding"), LifecyclePeriod.POSTPARTUM, "UNSPECIFIED", Confidence.MEDIUM),

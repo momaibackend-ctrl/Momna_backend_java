@@ -153,7 +153,7 @@ public final class StandardFlowDefinitionCatalog {
     }
 
     private static Spec postpartum() {
-        return spec("period-onboarding-postpartum", 3, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
+        return spec("period-onboarding-postpartum", 4, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
             step("birth_date", "onboarding.postpartum.birth_date", true, true),
             step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, false,
                 absent("onboarding.postpartum.birth_date")),
@@ -220,7 +220,12 @@ public final class StandardFlowDefinitionCatalog {
             step("intimacy_status", "onboarding.postpartum.intimacy_status", false, true),
             step("intimacy_comfort", "onboarding.postpartum.intimacy_comfort", false, true,
                 in("onboarding.postpartum.intimacy_status", "yes_regularly", "sometimes", "not_yet_worried")),
-            step("next_pregnancy", "onboarding.postpartum.next_pregnancy", false, true),
+            // v4 (MOMNA-1331, 26.11.2026): not asked after the loss of a baby, including one of several.
+            step("next_pregnancy", "onboarding.postpartum.next_pregnancy", false, true,
+                all(
+                    notIn("onboarding.postpartum.child_status", "loss"),
+                    not(anyMatchIn("onboarding.postpartum.child_status_by_child", "deceased"))
+                )),
             step("rest", "onboarding.postpartum.rest", true, true),
             step("behavior", "onboarding.postpartum.behavior", true, true),
             step("tone", "onboarding.postpartum.tone", true, true)

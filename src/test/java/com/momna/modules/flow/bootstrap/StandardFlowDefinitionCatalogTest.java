@@ -29,13 +29,13 @@ class StandardFlowDefinitionCatalogTest {
     }
 
     @Test
-    void postpartumVersionFiveKeepsTheMandatoryFallbackTimeAnchor() {
+    void postpartumVersionSixAsksTheMonthsSinceBirthAndAllowsASkip() {
         var postpartum = StandardFlowDefinitionCatalog.all().stream()
             .filter(x -> x.key().equals("period-onboarding-postpartum"))
             .findFirst()
             .orElseThrow();
 
-        assertEquals(5, postpartum.version());
+        assertEquals(6, postpartum.version());
 
         var steps = (java.util.List<?>) postpartum.definitionJson().get("steps");
         var fallback = steps.stream()
@@ -45,7 +45,7 @@ class StandardFlowDefinitionCatalogTest {
             .orElseThrow();
 
         assertEquals(Boolean.TRUE, fallback.get("required"));
-        assertEquals(Boolean.FALSE, fallback.get("skippable"));
+        assertEquals(Boolean.TRUE, fallback.get("skippable"), "the design's wheel may be skipped");
         assertNotNull(fallback.get("condition"));
     }
 
@@ -107,7 +107,22 @@ class StandardFlowDefinitionCatalogTest {
             java.util.Map.of("kind", "OBJECT", "value", java.util.Map.of("1", "home", "2", "hospital")))));
     }
 
-    /** MOMNA-842 over MOMNA-990: more than a year after birth, recovery is a context of the cycle period. */
+    /** Router v2 (design): "I recently gave birth" routes to postpartum without asking a time range. */
+    @Test
+    void routerVersionTwoSendsARecentBirthStraightToPostpartum() {
+        var router = StandardFlowDefinitionCatalog.all().stream()
+            .filter(x -> x.key().equals("lifecycle-router")).findFirst().orElseThrow();
+        assertEquals(2, router.version());
+        var fields = ((java.util.List<?>) router.definitionJson().get("steps")).stream()
+            .map(x -> String.valueOf(((java.util.Map<?, ?>) x).get("fieldId"))).toList();
+        assertFalse(fields.contains("onboarding.router.postpartum_time_range"));
+        assertFalse(fields.contains("onboarding.router.postpartum_main_need"));
+        var decision = com.momna.modules.flow.application.RouterRoutingTable.route(java.util.Map.of(
+            "onboarding.router.current_situation", "recent_birth"));
+        assertEquals(com.momna.modules.lifecycle.domain.LifecyclePeriod.POSTPARTUM, decision.period());
+    }
+
+    /** Router v1 only. MOMNA-842 over MOMNA-990: more than a year after birth, recovery is a context of the cycle period. */
     @Test
     void recoveryMoreThanAYearAfterBirthIsACycleWithARecoveryContext() {
         var decision = com.momna.modules.flow.application.RouterRoutingTable.route(java.util.Map.of(
@@ -123,7 +138,7 @@ class StandardFlowDefinitionCatalogTest {
         assertEquals(com.momna.modules.lifecycle.domain.LifecyclePeriod.POSTPARTUM, firstYear.period());
     }
 
-    /** MOMNA-1331 item 8: the time-since-birth range is asked only without a birth date and a router answer. */
+    /** The months since birth are asked only without a birth date. */
     @Test
     void theTimeSinceBirthIsAskedOnlyWhenNothingElseTellsIt() {
         var spec = StandardFlowDefinitionCatalog.all().stream()
@@ -134,10 +149,8 @@ class StandardFlowDefinitionCatalogTest {
         var condition = model.conditions().get("onboarding.postpartum.time_since_birth_approx");
         java.util.function.Function<java.util.Map<String, java.util.Map<String, Object>>, Boolean> asked =
             values -> com.momna.modules.flow.application.FlowConditionEvaluator.matches(condition, values);
-        assertTrue(asked.apply(java.util.Map.of()), "no birth date, no router answer");
+        assertTrue(asked.apply(java.util.Map.of()), "no birth date");
         assertFalse(asked.apply(java.util.Map.of("onboarding.postpartum.birth_date",
             java.util.Map.of("kind", "DATE", "value", "2026-10-01"))));
-        assertFalse(asked.apply(java.util.Map.of("transition:onboarding.router.postpartum_time_range",
-            java.util.Map.of("kind", "ENUM", "value", "m1_3"))), "the router already has it");
     }
 }

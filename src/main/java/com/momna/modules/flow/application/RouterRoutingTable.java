@@ -70,6 +70,7 @@ public final class RouterRoutingTable {
         rule(14, "onboarding.router.cycle_change_known_cause", Set.of("pregnancy"), LifecyclePeriod.PREGNANCY, "UNCONFIRMED", Confidence.MEDIUM),
         rule(15, "onboarding.router.amenorrhea_known_cause", Set.of("pregnancy"), LifecyclePeriod.PREGNANCY, "UNCONFIRMED", Confidence.MEDIUM),
 
+        // Router v1 only (flows started before v2): the time range and the need after the first year.
         rule(20, "onboarding.router.postpartum_time_range", Set.of("lt_1m"), LifecyclePeriod.POSTPARTUM, "LT_1M", Confidence.HIGH),
         rule(21, "onboarding.router.postpartum_time_range", Set.of("m1_3"), LifecyclePeriod.POSTPARTUM, "M1_3", Confidence.HIGH),
         rule(22, "onboarding.router.postpartum_time_range", Set.of("m4_6"), LifecyclePeriod.POSTPARTUM, "M4_6", Confidence.HIGH),
@@ -110,7 +111,10 @@ public final class RouterRoutingTable {
         rule(72, "onboarding.router.cycle_change_known_cause", Set.of("hormonal", "surgery_or_treatment", "stress_weight_illness"), LifecyclePeriod.CYCLE, "OBSERVATION_CONTEXT", Confidence.MEDIUM),
         rule(73, "onboarding.router.amenorrhea_known_cause", Set.of("hormonal", "hysterectomy_or_other_treatment"), LifecyclePeriod.CYCLE, "OBSERVATION_CONTEXT", Confidence.MEDIUM),
         rule(74, "onboarding.router.postpartum_main_need", Set.of("cycle"), LifecyclePeriod.CYCLE, "STANDARD_CYCLE", Confidence.HIGH),
-        rule(75, "onboarding.router.current_situation", Set.of("cycle_tracking"), LifecyclePeriod.CYCLE, "STANDARD_CYCLE", Confidence.HIGH)
+        rule(75, "onboarding.router.current_situation", Set.of("cycle_tracking"), LifecyclePeriod.CYCLE, "STANDARD_CYCLE", Confidence.HIGH),
+        // Router v2 (design): "I recently gave birth" is the postpartum period; the onboarding asks when. Last, so a
+        // v1 flow's time range and need (rules 20-25, 42, 74) still decide first.
+        rule(76, "onboarding.router.current_situation", Set.of("recent_birth"), LifecyclePeriod.POSTPARTUM, "UNSPECIFIED", Confidence.HIGH)
     );
 
     public static Decision route(Map<String, String> answers) {

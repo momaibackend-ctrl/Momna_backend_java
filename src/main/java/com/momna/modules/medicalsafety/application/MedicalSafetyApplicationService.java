@@ -150,8 +150,8 @@ public class MedicalSafetyApplicationService {
 
     /**
      * Days since birth on the user's local date: the onboarding birth date, or, without it, the middle of the
-     * approximate range counted from when it was given ("less than 1 month ago" as two weeks, "1–3 months ago" as
-     * two months, and so on).
+     * approximate answer counted from when it was given ("less than a month" as two weeks, "month k" as k months
+     * and two weeks; V41 codes, as on the design's wheel).
      */
     Optional<Long> daysSinceBirth(String userId) {
         var port = onboarding.getIfAvailable();
@@ -170,16 +170,11 @@ public class MedicalSafetyApplicationService {
         return birth.map(b -> ChronoUnit.DAYS.between(b, day.localDate()));
     }
 
-    /** The middle of a time-since-birth range (V39 codes, as in the router), in days; null when not a range. */
+    /** The middle of a time-since-birth answer (V41 codes), in days; null for anything else. */
     static Integer rangeMiddleDays(String code) {
-        return switch (code) {
-            case "lt_1m" -> 14;
-            case "m1_3" -> 60;
-            case "m4_6" -> 150;
-            case "m7_9" -> 240;
-            case "m10_12" -> 330;
-            default -> null;
-        };
+        if (code.equals("less_than_month")) return 14;
+        if (code.matches("month_([1-9]|1[01])")) return Integer.parseInt(code.substring(6)) * 30 + 15;
+        return null;
     }
 
     private static Optional<LocalDate> date(String value) {

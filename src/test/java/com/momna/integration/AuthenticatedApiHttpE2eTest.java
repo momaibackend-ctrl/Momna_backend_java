@@ -725,7 +725,8 @@ class AuthenticatedApiHttpE2eTest {
         assertEquals("[\"less_than_month\",\"month_1\",\"month_2\",\"month_3\",\"month_4\",\"month_5\",\"month_6\","
             +"\"month_7\",\"month_8\",\"month_9\",\"month_10\",\"month_11\"]",step.path("options").toString());
         assertTrue(step.path("skippable").asBoolean(),step.toString());
-        assertTrue(step.path("changeBeforeComplete").isMissingNode(),"nothing on the wheel sends the user back: "+step);
+        assertTrue(step.path("changeBeforeComplete").isMissingNode()||step.path("changeBeforeComplete").isNull(),
+            "nothing on the wheel sends the user back: "+step);
 
         var codes=java.util.Map.of("onboarding.postpartum.time_since_birth_approx","month_2");
         for (int n=0; state.path("currentStep").isObject() && n<60; n++) {

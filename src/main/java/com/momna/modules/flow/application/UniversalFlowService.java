@@ -243,10 +243,16 @@ public class UniversalFlowService {
             .filter(x -> x.getAnswerStatus() == FlowAnswerStatus.ANSWERED)
             .map(FlowAnswerEntity::getFieldId)
             .collect(java.util.stream.Collectors.toSet());
+        // A required step the user may skip is resolved by its skip ("I do not remember" for the birth date).
+        var skipped = active.stream()
+            .filter(x -> x.getAnswerStatus() == FlowAnswerStatus.SKIPPED)
+            .map(FlowAnswerEntity::getFieldId)
+            .collect(java.util.stream.Collectors.toSet());
 
         var missing = activeSteps(definition, instanceId).stream()
             .filter(FlowDefinitionModel.Step::required)
             .filter(x -> !answered.contains(x.fieldId()))
+            .filter(x -> !(x.skippable() && skipped.contains(x.fieldId())))
             .map(FlowDefinitionModel.Step::fieldId)
             .toList();
         if (!missing.isEmpty()) {

@@ -32,6 +32,10 @@ public record FlowAnswerSpec(
     List<String> requiredKeys,
     /** The choice codes of each key of a one-choice-per-group answer ("How do you prefer to receive support?"). */
     Map<String, List<String>> valuesByKey,
+    /** Whole-question answers ("nothing", "none", "prefer not to say") that exclude every other option. */
+    List<String> exclusiveOptions,
+    /** Answers that must be changed before the flow can complete ("I selected this by mistake"). */
+    List<String> changeBeforeComplete,
     boolean perChild,
     Integer maxLength,
     String pattern,
@@ -41,8 +45,8 @@ public record FlowAnswerSpec(
     Integer maxDaysFromNow,
     String earliest
 ) {
-    public static final FlowAnswerSpec UNKNOWN = new FlowAnswerSpec(null, null, null, null, false, null, null, null,
-        null, null, null, null);
+    public static final FlowAnswerSpec UNKNOWN = new FlowAnswerSpec(null, null, null, null, null, null, false, null,
+        null, null, null, null, null, null);
 
     @SuppressWarnings("unchecked")
     public static FlowAnswerSpec of(String dataType, Map<String, Object> schema) {
@@ -54,6 +58,8 @@ public record FlowAnswerSpec(
             values,
             schema.get("requiredKeys") instanceof List<?> r ? strings(r) : null,
             schema.get("valuesByKey") instanceof Map<?, ?> byKey ? choices(byKey) : null,
+            schema.get("exclusiveOptions") instanceof List<?> x ? strings(x) : null,
+            schema.get("changeBeforeComplete") instanceof List<?> c ? strings(c) : null,
             Boolean.TRUE.equals(schema.get("perChild")),
             schema.get("maxLength") instanceof Number n ? n.intValue() : null,
             schema.get("pattern") instanceof String p ? p : null,
@@ -98,12 +104,18 @@ public record FlowAnswerSpec(
         if (x instanceof Collection<?> selected) {
             if (selected.isEmpty()) throw invalid("at least one option is required");
             for (var value : selected) requireOption(value);
+            requireExclusive(selected.stream().map(String::valueOf).toList());
             if (requiredKeys != null && !requiredKeys.isEmpty()) throw invalid("every required key needs an answer");
             return;
         }
         if (x instanceof Map<?, ?> keyed) {
             if (keyed.isEmpty()) throw invalid("at least one option is required");
             for (var key : keyed.keySet()) requireOption(key);
+            if (requiredKeys == null) {
+                requireExclusive(keyed.entrySet().stream()
+                    .filter(e -> !Boolean.FALSE.equals(e.getValue()) && e.getValue() != null)
+                    .map(e -> String.valueOf(e.getKey())).toList());
+            }
             if (valuesByKey != null) {
                 for (var entry : keyed.entrySet()) {
                     var allowed = valuesByKey.get(String.valueOf(entry.getKey()));
@@ -156,6 +168,21 @@ public record FlowAnswerSpec(
         }
         if (minimum != null && number.compareTo(minimum) < 0) throw invalid("number out of range");
         if (maximum != null && number.compareTo(maximum) > 0) throw invalid("number out of range");
+    }
+
+    /** A whole-question answer stands alone. */
+    private void requireExclusive(List<String> selected) {
+        if (exclusiveOptions == null || selected.size() < 2) return;
+        for (var code : selected) {
+            if (exclusiveOptions.contains(code)) throw invalid(code + " excludes the other options");
+        }
+    }
+
+    /** Whether this answer must be changed before the flow completes. */
+    public boolean blocksCompletion(Map<String, Object> payload) {
+        if (changeBeforeComplete == null) return false;
+        var x = inner(payload);
+        return x instanceof String code && changeBeforeComplete.contains(code);
     }
 
     private void requireOption(Object value) {

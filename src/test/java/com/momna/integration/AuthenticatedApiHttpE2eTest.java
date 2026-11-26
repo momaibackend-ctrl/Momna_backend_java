@@ -651,6 +651,78 @@ class AuthenticatedApiHttpE2eTest {
         }
     }
 
+    /** Answers the router's current step, with the given code for the named fields. */
+    private com.fasterxml.jackson.databind.JsonNode routerAnswer(String token, String root, int version,
+            com.fasterxml.jackson.databind.JsonNode state, java.util.Map<String,String> codes, String mode)
+            throws Exception {
+        String field=state.path("currentStep").path("fieldId").asText();
+        var body=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).put("mode",mode);
+        answerValue(body,state.path("currentStep"),codes.getOrDefault(field,"no"));
+        var response=client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+root+"/answers/"+field))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","mistake-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(body.toString())).build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,response.statusCode(),field+" "+response.body());
+        return json.readTree(response.body());
+    }
+
+    /**
+     * MOMNA-990 branch A, Product decision 26.11.2026: «I selected this by mistake, I'm not pregnant» cannot end the
+     * router. The user goes back and changes the situation answer, the pregnancy answer is dropped, and the router
+     * then completes on the new choice.
+     */
+    @Test
+    void aPregnancyChosenByMistakeMustBeChangedBeforeTheRouterCompletes() throws Exception {
+        String email="router-mistake-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode().put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+        var started=postWithKey("/api/v1/flow-instances",
+            json.createObjectNode().put("flowType","LIFECYCLE_ROUTER").toString(),token,"mistake-start-"+UUID.randomUUID());
+        assertEquals(200,started.statusCode(),started.body());
+        var state=json.readTree(started.body());
+        String root="/api/v1/flow-instances/"+state.path("instanceId").asText();
+        int version=state.path("definitionVersion").asInt();
+        var codes=java.util.Map.of(
+            "onboarding.router.menarche_status","more_than_two_years",
+            "onboarding.router.current_situation","pregnant",
+            "onboarding.router.pregnancy_status","not_pregnant");
+        for (int n=0; state.path("currentStep").isObject() && n<20; n++) {
+            state=routerAnswer(token,root,version,state,codes,"SUBMIT");
+        }
+        var refused=postWithKey(root+"/complete",json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).toString(),token,"mistake-complete-"+UUID.randomUUID());
+        assertEquals(409,refused.statusCode(),refused.body());
+        assertEquals("FLOW_INVALID_TRANSITION",json.readTree(refused.body()).path("code").asText());
+
+        // Back to the situation question: the app changes it, and the pregnancy answer no longer applies.
+        for (int n=0; n<10 && !"onboarding.router.current_situation".equals(state.path("currentStep").path("fieldId").asText()); n++) {
+            var back=postWithKey(root+"/actions/BACK",json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",state.path("revision").asLong()).toString(),token,"mistake-back-"+UUID.randomUUID());
+            assertEquals(200,back.statusCode(),back.body());
+            state=json.readTree(back.body());
+        }
+        assertEquals("onboarding.router.current_situation",state.path("currentStep").path("fieldId").asText(),state.toString());
+        state=routerAnswer(token,root,version,state,java.util.Map.of("onboarding.router.current_situation","cycle_tracking"),"CHANGE");
+        assertTrue(state.path("invalidatedFieldIds").toString().contains("onboarding.router.pregnancy_status"),state.toString());
+        for (int n=0; state.path("currentStep").isObject() && n<20; n++) {
+            state=routerAnswer(token,root,version,state,codes,"SUBMIT");
+        }
+        var completed=postWithKey(root+"/complete",json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).toString(),token,"mistake-done-"+UUID.randomUUID());
+        assertEquals(200,completed.statusCode(),completed.body());
+        var confirmed=postWithKey(root+"/router/confirm","{}",token,"mistake-confirm-"+UUID.randomUUID());
+        assertEquals(200,confirmed.statusCode(),confirmed.body());
+        assertEquals("CYCLE",json.readTree(confirmed.body()).path("selectedPeriod").asText());
+    }
+
     /**
      * Stateful Menarche journey: sign-in -> lifecycle router -> automatic
      * MENARCHE selection -> period onboarding -> persisted result -> check-in.

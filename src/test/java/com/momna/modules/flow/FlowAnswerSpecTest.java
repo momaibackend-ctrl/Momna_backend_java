@@ -99,4 +99,28 @@ class FlowAnswerSpecTest {
         FlowAnswerSpec.of("OBJECT", Map.of()).validate(answer(Map.of("1", "home")));
         assertNull(FlowAnswerSpec.of("ENUM", Map.of()).options());
     }
+
+    @Test
+    void aWholeQuestionAnswerStandsAlone() {
+        var symptoms = FlowAnswerSpec.of("OBJECT", Map.of(
+            "allowedKeys", List.of("hot_flashes", "something_else", "nothing_much", "prefer_not_to_say"),
+            "exclusiveOptions", List.of("nothing_much", "prefer_not_to_say")));
+        symptoms.validate(answer(List.of("hot_flashes", "something_else")));
+        symptoms.validate(answer(List.of("nothing_much")));
+        symptoms.validate(answer(Map.of("hot_flashes", true, "nothing_much", false)));
+        rejected(symptoms, answer(List.of("nothing_much", "hot_flashes")));
+        rejected(symptoms, answer(List.of("prefer_not_to_say", "something_else")));
+        rejected(symptoms, answer(Map.of("hot_flashes", true, "nothing_much", true)));
+        assertEquals(List.of("nothing_much", "prefer_not_to_say"), symptoms.exclusiveOptions());
+    }
+
+    @Test
+    void anAnswerGivenByMistakeBlocksCompletion() {
+        var status = FlowAnswerSpec.of("ENUM", Map.of(
+            "allowedValues", List.of("confirmed_by_doctor", "not_pregnant"), "changeBeforeComplete", List.of("not_pregnant")));
+        status.validate(answer("not_pregnant"));
+        assertTrue(status.blocksCompletion(answer("not_pregnant")));
+        assertFalse(status.blocksCompletion(answer("confirmed_by_doctor")));
+        assertFalse(PARTNER.blocksCompletion(answer("one_steady")));
+    }
 }

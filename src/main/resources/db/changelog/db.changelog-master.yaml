@@ -216,3 +216,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-onboarding-exclusive-options-v38
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V38__onboarding_exclusive_options.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

@@ -77,8 +77,8 @@ public class MyDayMaterializationService implements MyDayMaterializationPort {
         var lifeMode = MyDayCards.LIFE_MODES.get(periodCode);
         var language = language(command.userId());
         // An unavailable source or an invalid answer is never shown: 503 "not ready yet", retry.
-        // There is no cross-user fallback: a generated day may carry personal context, and only an
-        // anonymous template (no user, no Check-in details) could ever be shared. See CORE-BE-13.
+        // There is no cross-user fallback of stored days. Only the anonymous template cache (V40, keyed by
+        // MyDayTemplateKey: no user, no Check-in details) is shared, inside the card source. See MOMNA-849.
         MyDayCards.GeneratedDay generated;
         Template template;
         try {

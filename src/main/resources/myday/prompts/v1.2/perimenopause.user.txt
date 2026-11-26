@@ -1,0 +1,93 @@
+Generate 9 Мой день cards (3 morning / 3 evening / 3 optional) for:
+
+life_mode: {{life_mode}}
+day_number: {{day_number}}
+cycle_state: {{cycle_state}}
+phase_code: {{phase_code}}
+week_number: {{week_number}}
+trimester: {{trimester_or_null}}
+overlay_keys: {{overlay_keys | join(', ') | default('none')}}
+user_language: {{user_language}}
+tone: {{tone | default('none')}}
+
+TONE (her choice in onboarding; the period's voice above stays the base, the tone shifts it):
+- gentle → softer and slower: more reassurance, fewer jokes, never blunt
+- friendly → the period's voice exactly as described
+- close_friend → closer and more playful: more light irony and warmth, like a friend who knows her well
+- direct → shorter and straight to the point: plain words, no cushioning, still kind
+- none → the period's voice exactly as described
+
+CARD RULES:
+- title: max 7 words, specific and concrete
+- microcopy: 1–2 sentences — one real fact, action, or observation
+- morning (3): practical, sets up the day with energy not pressure
+- evening (3): closes the day honestly — body check + one real-life moment
+- optional (3): deeper, lighter, or fun — only if she has energy
+- tone mix across 9 cards: calm/factual · light irony · warm+direct
+- somewhere in the 9 cards there can be a light joke if it fits the day
+- cycle context: 1 phrase max, only when it genuinely adds something
+- never start two cards in the same day with the same word or phrase
+- no moralizing, no 'love yourself', no wellness clichés
+- make her want to open the app tomorrow
+- symptoms are context, not the whole story: hot flashes, sleep, mood, cycle changes
+- her work, relationships, identity, desires are equally important
+- she may be discovering what she actually wants now that roles are shifting
+- sexuality and desire: present, honest, without assuming decline
+- practical health: bone density, heart, sleep — framed as smart maintenance, not fear
+- cognitive symptoms (brain fog, memory) — acknowledge without alarming
+
+OVERLAY RULES (apply only if overlay_keys is not empty):
+- peri_hot_flashes → 1 practical card about managing heat today (work, sleep, clothing)
+- peri_sleep_disrupted → evening card prioritises sleep hygiene specifically
+- peri_mood_shift → 1 card acknowledges mood changes without blaming hormones entirely
+- peri_cycle_irregular → 1 card about tracking or making sense of irregular cycle
+- peri_brain_fog → 1 morning card with a concrete cognitive support action
+- peri_low_libido → optional card about desire and intimacy — warm, non-prescriptive
+- peri_work_challenge → 1 card about managing perimenopausal symptoms at work
+- peri_health_flag → lower the intensity of other cards; add 1 health card in optional per HEALTH CARD RULES (calm, specific, with when to see a doctor)
+
+HEALTH CARD RULES (apply whenever a card talks about symptoms, the body or health):
+- you may suggest possible everyday explanations — always as possibilities, never as conclusions:
+  'this can happen when…', 'one common reason is…', 'sometimes it's linked to…'
+- recommend talking to a doctor (or midwife / gynecologist where natural) ONLY when a medical overlay is active:
+  any *_health_flag or post_mood_heavy; in that one health card say when ('if it keeps happening',
+  'at your next visit', 'today if it gets worse') and add one short line naming 1–2 clear warning signs
+  that mean getting medical help right away
+- on every other day do NOT add a doctor line, whatever the symptom — give practical help only;
+  a doctor line on every card makes people ignore it
+- the app adds its own doctor recommendation and disclaimer under the health card:
+  do not write a disclaimer and do not repeat them
+- never diagnose and never say she has a condition ('you have…', 'this is…')
+- never say she was screened or tested, and never present an app signal as a medical result
+- no medication names with doses; never suggest stopping or changing prescribed treatment
+- never reassure that it is 'nothing' or 'definitely normal'
+- the app may show its own safety notice: never contradict it, soften its urgency or repeat it
+- calm tone: no statistics, no worst-case scenarios, no fear
+- for teen_menarche: when a doctor line is needed, also suggest telling a trusted adult;
+  if teen_no_trusted_adult, suggest a school nurse or a doctor instead
+
+DETAIL RULES (generate for every card — shown only when tapped):
+- what_to_do: 2–4 concrete sentences, step-by-step
+- why_today: why this matters specifically today, 1–2 sentences
+- how_to_do: practical tip not obvious from the title, 1–2 sentences
+- if_skipped: realistic fallback if she couldn't do it, 1 sentence
+- support: warm closing line — honest, not preachy, 1 sentence
+
+Return valid JSON only — no markdown, no explanation:
+{
+  "morning": [
+    {
+      "title": "",
+      "microcopy": "",
+      "what_to_do": "",
+      "why_today": "",
+      "how_to_do": "",
+      "if_skipped": "",
+      "support": ""
+    },
+    { ...2nd card... },
+    { ...3rd card... }
+  ],
+  "evening": [ ...3 cards... ],
+  "optional": [ ...3 cards... ]
+}

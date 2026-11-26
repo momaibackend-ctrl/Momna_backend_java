@@ -1,0 +1,98 @@
+Generate 9 Мой день cards (3 morning / 3 evening / 3 optional) for:
+
+life_mode: {{life_mode}}
+day_number: {{day_number}}
+cycle_state: {{cycle_state}}
+phase_code: {{phase_code}}
+week_number: {{week_number}}
+trimester: {{trimester_or_null}}
+overlay_keys: {{overlay_keys | join(', ') | default('none')}}
+user_language: {{user_language}}
+tone: {{tone | default('none')}}
+
+TONE (her choice in onboarding; the period's voice above stays the base, the tone shifts it):
+- gentle → softer and slower: more reassurance, fewer jokes, never blunt
+- friendly → the period's voice exactly as described
+- close_friend → closer and more playful: more light irony and warmth, like a friend who knows her well
+- direct → shorter and straight to the point: plain words, no cushioning, still kind
+- none → the period's voice exactly as described
+
+CARD RULES:
+- title: max 7 words, specific and concrete
+- microcopy: 1–2 sentences — one real fact, action, or observation
+- morning (3): practical, sets up the day with energy not pressure
+- evening (3): closes the day honestly — body check + one real-life moment
+- optional (3): deeper, lighter, or fun — only if she has energy
+- tone mix across 9 cards: calm/factual · light irony · warm+direct
+- somewhere in the 9 cards there can be a light joke if it fits the day
+- cycle context: 1 phrase max, only when it genuinely adds something
+- never start two cards in the same day with the same word or phrase
+- no moralizing, no 'love yourself', no wellness clichés
+- make her want to open the app tomorrow
+- use week_number (postpartum) to calibrate: week 1–2 is survival, week 6 is first check-in,
+  week 12 is return to sex/work considerations, week 24+ is identity return
+- four areas per day (not all in every card): baby, her body, partner, herself
+- partner: practical help distribution, connection, first sex after birth (when relevant), communication
+- her body: recovery, breastfeeding without pressure, sleep, food, healing
+- herself: identity, interests, friendships, small pleasures, not disappearing
+- baby: bonding, milestones, overwhelm — honest, not instagram-perfect
+- do not assume breastfeeding — keep feeding references neutral
+- do not assume partner is present — adapt when partner overlay absent
+
+OVERLAY RULES (apply only if overlay_keys is not empty):
+- post_birth_week_1_4 → survival mode: cards are minimal, rest-focused, very gentle
+- post_breastfeeding → 1 card about feeding support (no pressure, practical)
+- post_no_partner → partner cards become self-support or asking for help from others
+- post_partner_present → 1 card with concrete partner involvement today
+- post_c_section → physical recovery cards account for longer healing
+- post_mood_heavy → 1 optional card per HEALTH CARD RULES gently names emotional heaviness as something many women feel after birth, says it can be more than tiredness and is worth talking about with a doctor or someone she trusts; never call it depression and never mention a screening or test result
+- post_returning_work → 1 card about the transition, practical and emotional
+- post_intimacy_ready → 1 card about returning to intimacy (warm, not prescriptive)
+- post_low_milk → feeding card is extra gentle, validates formula without judgment
+- post_health_flag → lower the intensity of other cards; add 1 health card in optional per HEALTH CARD RULES (calm, specific, with when to see a doctor or midwife)
+
+HEALTH CARD RULES (apply whenever a card talks about symptoms, the body or health):
+- you may suggest possible everyday explanations — always as possibilities, never as conclusions:
+  'this can happen when…', 'one common reason is…', 'sometimes it's linked to…'
+- recommend talking to a doctor (or midwife / gynecologist where natural) ONLY when a medical overlay is active:
+  any *_health_flag or post_mood_heavy; in that one health card say when ('if it keeps happening',
+  'at your next visit', 'today if it gets worse') and add one short line naming 1–2 clear warning signs
+  that mean getting medical help right away
+- on every other day do NOT add a doctor line, whatever the symptom — give practical help only;
+  a doctor line on every card makes people ignore it
+- the app adds its own doctor recommendation and disclaimer under the health card:
+  do not write a disclaimer and do not repeat them
+- never diagnose and never say she has a condition ('you have…', 'this is…')
+- never say she was screened or tested, and never present an app signal as a medical result
+- no medication names with doses; never suggest stopping or changing prescribed treatment
+- never reassure that it is 'nothing' or 'definitely normal'
+- the app may show its own safety notice: never contradict it, soften its urgency or repeat it
+- calm tone: no statistics, no worst-case scenarios, no fear
+- for teen_menarche: when a doctor line is needed, also suggest telling a trusted adult;
+  if teen_no_trusted_adult, suggest a school nurse or a doctor instead
+
+DETAIL RULES (generate for every card — shown only when tapped):
+- what_to_do: 2–4 concrete sentences, step-by-step
+- why_today: why this matters specifically today, 1–2 sentences
+- how_to_do: practical tip not obvious from the title, 1–2 sentences
+- if_skipped: realistic fallback if she couldn't do it, 1 sentence
+- support: warm closing line — honest, not preachy, 1 sentence
+
+Return valid JSON only — no markdown, no explanation:
+{
+  "morning": [
+    {
+      "title": "",
+      "microcopy": "",
+      "what_to_do": "",
+      "why_today": "",
+      "how_to_do": "",
+      "if_skipped": "",
+      "support": ""
+    },
+    { ...2nd card... },
+    { ...3rd card... }
+  ],
+  "evening": [ ...3 cards... ],
+  "optional": [ ...3 cards... ]
+}

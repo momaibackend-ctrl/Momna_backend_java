@@ -153,10 +153,15 @@ public final class StandardFlowDefinitionCatalog {
     }
 
     private static Spec postpartum() {
-        return spec("period-onboarding-postpartum", 4, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
+        return spec("period-onboarding-postpartum", 5, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
             step("birth_date", "onboarding.postpartum.birth_date", true, true),
+            // v5 (MOMNA-1331 item 8, original PST_MONTHS_SINCE_BIRTH_RANGE): only without a birth date, and never
+            // again when the router already has the time since birth.
             step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, false,
-                absent("onboarding.postpartum.birth_date")),
+                all(
+                    absent("onboarding.postpartum.birth_date"),
+                    absent("transition:onboarding.router.postpartum_time_range")
+                )),
             step("multiples", "onboarding.postpartum.multiples", true, true),
             step("child_status", "onboarding.postpartum.child_status", true, true),
             step("child_count_exact", "onboarding.postpartum.child_count_exact", false, true,

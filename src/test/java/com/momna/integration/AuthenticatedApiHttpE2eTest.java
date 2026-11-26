@@ -651,6 +651,45 @@ class AuthenticatedApiHttpE2eTest {
         }
     }
 
+    /**
+     * ONB-API-01 / MOMNA-1332: every code in contracts/onboarding-mobile-mapping.json is a value the field
+     * registry accepts, with the registry's data type, exclusive options and group choices. A code the server
+     * changes fails here instead of in the app.
+     */
+    @Test
+    void theAppMappingCodesAreTheRegistryCodes() throws Exception {
+        var mapping=json.readTree(java.nio.file.Files.readString(
+            java.nio.file.Path.of("contracts/onboarding-mobile-mapping.json")));
+        int checked=0;
+        for (var flow : mapping.path("flows")) {
+            for (var entry : flow.path("screens")) {
+                String field=entry.path("fieldId").asText();
+                var row=jdbc.queryForMap("SELECT data_type, validation_schema::text AS schema "
+                    +"FROM momna.canonical_field_definitions WHERE field_id = ?",field);
+                assertEquals(row.get("data_type"),entry.path("dataType").asText(),field);
+                var schema=json.readTree(String.valueOf(row.get("schema")));
+                var allowed=new java.util.HashSet<String>();
+                schema.path("allowedValues").forEach(v->allowed.add(v.asText()));
+                schema.path("allowedKeys").forEach(v->allowed.add(v.asText()));
+                for (var option : entry.path("options")) {
+                    assertTrue(allowed.isEmpty() || allowed.contains(option.path("code").asText()),
+                        field+" has no code "+option);
+                    checked++;
+                }
+                if (entry.has("exclusiveOptions")) {
+                    assertEquals(schema.path("exclusiveOptions"),entry.path("exclusiveOptions"),field);
+                }
+                for (var group : entry.path("groups")) {
+                    var choices=schema.path("valuesByKey").path(group.path("key").asText());
+                    for (var choice : group.path("choices")) {
+                        assertTrue(choices.toString().contains("\""+choice.path("code").asText()+"\""),field+" "+group);
+                    }
+                }
+            }
+        }
+        assertTrue(checked>1500,"options checked: "+checked);
+    }
+
     /** Answers the router's current step, with the given code for the named fields. */
     private com.fasterxml.jackson.databind.JsonNode routerAnswer(String token, String root, int version,
             com.fasterxml.jackson.databind.JsonNode state, java.util.Map<String,String> codes, String mode)

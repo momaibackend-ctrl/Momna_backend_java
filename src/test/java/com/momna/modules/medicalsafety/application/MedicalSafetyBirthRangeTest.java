@@ -4,17 +4,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-/** WB1 (day 28 to 42 after birth) estimates the birth from the middle of a time-since-birth range (V39). */
+/** WB1 (day 28 to 42 after birth) estimates the birth from the middle of the month on the design's wheel (V41). */
 class MedicalSafetyBirthRangeTest {
     @Test
-    void eachRangeHasItsMiddleAndTheOthersNone() {
-        assertEquals(14, MedicalSafetyApplicationService.rangeMiddleDays("lt_1m"));
-        assertEquals(60, MedicalSafetyApplicationService.rangeMiddleDays("m1_3"));
-        assertEquals(150, MedicalSafetyApplicationService.rangeMiddleDays("m4_6"));
-        assertEquals(240, MedicalSafetyApplicationService.rangeMiddleDays("m7_9"));
-        assertEquals(330, MedicalSafetyApplicationService.rangeMiddleDays("m10_12"));
+    void eachMonthHasItsMiddleAndTheOthersNone() {
+        assertEquals(14, MedicalSafetyApplicationService.rangeMiddleDays("less_than_month"));
+        for (int month = 1; month <= 11; month++) {
+            assertEquals(month * 30 + 15, MedicalSafetyApplicationService.rangeMiddleDays("month_" + month));
+        }
+        assertNull(MedicalSafetyApplicationService.rangeMiddleDays("month_12"));
+        assertNull(MedicalSafetyApplicationService.rangeMiddleDays("m1_3"), "the V39 ranges are gone");
         assertNull(MedicalSafetyApplicationService.rangeMiddleDays("more_than_year"));
-        assertNull(MedicalSafetyApplicationService.rangeMiddleDays("prefer_not_to_say"));
-        assertNull(MedicalSafetyApplicationService.rangeMiddleDays("month_3"), "the old monthly codes are gone");
     }
 }

@@ -163,7 +163,7 @@ Any other value is refused with 422 `INVALID_FIELD_VALUE`. Option codes follow t
 | # | App screen | fieldId | Answer | Options (app label → code) |
 |---|---|---|---|---|
 | 1 | When did you give birth? | `onboarding.postpartum.birth_date` | `{"kind":"DATE","value":"YYYY-MM-DD"}` |  |
-| 2 | How long has it been since you gave birth? (MOMNA-1331 item 8) | `onboarding.postpartum.time_since_birth_approx` (conditional: no birth date, not asked in the router) | `{"kind":"ENUM","value":code}` | Less than 1 month ago → `lt_1m`; 1–3 months ago → `m1_3`; 4–6 months ago → `m4_6`; 7–9 months ago → `m7_9`; 10–12 months ago → `m10_12`; More than 1 year ago → `more_than_year` (back to the router, see below); Prefer not to answer → `prefer_not_to_say` |
+| 2 | How long has it been since the birth? (wheel, Figma 270:8891) | `onboarding.postpartum.time_since_birth_approx` (conditional: no birth date; skippable) | `{"kind":"ENUM","value":code}` | Less than a month → `less_than_month`; 1 month → `month_1`; 2 months → `month_2`; … 11 months → `month_11` |
 | 3 | How many babies were born? | `onboarding.postpartum.multiples` | `{"kind":"ENUM","value":code}` | One baby → `one_baby`; Twins → `twins`; Triplets → `triplets`; More than three → `more_than_three`; Prefer not to answer → `prefer_not_to_say` |
 | 4 | Which option best describes your situation right now? | `onboarding.postpartum.child_status` | `{"kind":"ENUM","value":code}` | My baby or all of my babies are home with me → `all_home`; One or more babies are still in the hospital or NICU → `some_hospital`; I split my time between home and the hospital → `split_time`; My baby or babies are not with me for another reason → `not_with_me`; The birth ended in the loss of my baby or babies → `loss`; My situation is complicated and I would rather not describe it → `complicated`; Prefer not to answer → `prefer_not_to_say` |
 | 5 | How many babies exactly were born? | `onboarding.postpartum.child_count_exact` (conditional) | `{"kind":"NUMBER","value":n}` |  |
@@ -284,8 +284,6 @@ The router's codes are in the field registry (V17) and are checked like any othe
 | Have you gotten your first period yet? | `onboarding.router.menarche_status` | No, not yet → `not_started`; Yes, very recently → `very_recent`; Yes, within the past two years → `within_two_years`; Yes, more than two years ago → `more_than_two_years`; I think so, but I'm not sure → `unsure`; *server only:* `prefer_not_to_say` |
 | Which option fits you best right now? | `onboarding.router.current_situation` | I'm pregnant → `pregnant`; I might be pregnant… → `possible_pregnancy`; I gave birth less than a year ago → `recent_birth`; I'm preparing for pregnancy… → `planning`; I track my cycle… → `cycle_tracking`; My periods have changed… → `cycle_changing`; I have not had a period for 12 months… → `no_periods_12m`; I'm not sure which option fits me → `unsure`; *server only:* `prefer_not_to_say` |
 | What do you currently know about the pregnancy? | `onboarding.router.pregnancy_status` | A healthcare professional has confirmed it → `confirmed_by_doctor`; I had a positive pregnancy test… → `test_positive`; Pregnancy is possible… → `only_possible`; I selected this by mistake, I'm not pregnant → `not_pregnant` (see below); *server only:* `prefer_not_to_say` |
-| How long has it been since you gave birth? (MOMNA-1331) | `onboarding.router.postpartum_time_range` | Less than a month ago → `lt_1m`; 1–3 months ago → `m1_3`; 4–6 months ago → `m4_6`; 7–9 months ago → `m7_9`; 10–12 months ago → `m10_12`; More than a year ago → `more_than_year`; *server only:* `prefer_not_to_say` |
-| What would you like Momna to help you with most right now? (MOMNA-1331, only after `more_than_year`) | `onboarding.router.postpartum_main_need` | Recovering after childbirth → `recovery`; Understanding my cycle and everyday wellbeing → `cycle`; Preparing or trying for another pregnancy → `planning`; *server only:* `prefer_not_to_say` |
 | Could you already be pregnant? | `onboarding.router.planning_pregnancy_status` | No → `no`; Yes, the pregnancy has been confirmed → `confirmed`; Possibly, but I'm not sure yet → `maybe`; *server only:* `prefer_not_to_say` |
 | Is there a known reason for these changes? | `onboarding.router.cycle_change_known_cause` | Pregnancy → `pregnancy`; Recent childbirth or breastfeeding → `recent_birth_or_breastfeeding`; Hormonal birth control… → `hormonal`; Surgery or medical treatment → `surgery_or_treatment`; Major stress, weight change or illness → `stress_weight_illness`; A professional has mentioned perimenopause → `doctor_said_perimenopause`; No known reason → `no_known_cause`; I'm not sure → `do_not_know` |
 | Is there a known reason you have not had a period? | `onboarding.router.amenorrhea_known_cause` | Pregnancy → `pregnancy`; Recent childbirth or breastfeeding → `recent_birth_or_breastfeeding`; Hormonal birth control… → `hormonal`; Both ovaries were surgically removed → `ovaries_surgically_removed`; Hysterectomy with ovaries kept, or another treatment → `hysterectomy_or_other_treatment`; A professional has confirmed menopause → `doctor_confirmed_menopause`; No known reason → `no_known_cause`; I'm not sure → `do_not_know` |
@@ -309,11 +307,9 @@ The router's codes are in the field registry (V17) and are checked like any othe
 
 After `POST …/complete`, the proposal is confirmed with `POST /api/v1/flow-instances/{id}/router/confirm`, which starts the period onboarding.
 
-## Screens added by MOMNA-1331 items 8–10
+## Screens added by MOMNA-1331 items 9–10
 
-- **`onboarding.postpartum.time_since_birth_approx`** — «How long has it been since you gave birth?» (original PST_MONTHS_SINCE_BIRTH_RANGE). Asked when the birth date is declined and the router did not ask the time since birth. It uses the same ranges as the router and is required.
-  - «More than 1 year ago» shows «It sounds like more than a year has passed since the birth. Momna can still support you, but another life stage will now be a better fit…» with the button «Find the right stage».
-  - The button returns to the router's «Which option fits you best right now?». The onboarding cannot complete while this answer stands; the step lists it in `changeBeforeComplete`.
+- **`onboarding.postpartum.time_since_birth_approx`** is the design's wheel (Figma 270:8891), not a new screen. After «I do not remember / Prefer not to answer» on «When did you give birth?», the app shows «How long has it been since the birth?» with less than a month and 1–11 months. It may be skipped. The router asks no time since birth: «I gave birth less than a year ago» goes straight to this onboarding (router v2).
 - **`onboarding.pregnancy.lmp`** — «When did your most recent period start?», after «I do not know yet» on the dating screen. Skippable.
 - **`onboarding.postpartum.feeding_breast_milk_now`** — «Is the baby currently receiving breast milk, including pumped?», per baby, after «Tube feeding…» or «The feeding plan is changing». Skippable.
 
@@ -330,7 +326,6 @@ A multi-select step returns `exclusiveOptions`: whole-question answers such as �
 ## Status (26.11.2026)
 
 The rows follow the app's screens as corrected by MOMNA-1331 (design task to Yulia):
-- the two router screens;
 - question 27 after birth;
 - the two duplicated labels;
 - the seven restored options.

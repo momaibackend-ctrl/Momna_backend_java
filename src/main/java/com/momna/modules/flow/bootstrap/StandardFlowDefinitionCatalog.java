@@ -22,7 +22,7 @@ public final class StandardFlowDefinitionCatalog {
     }
 
     private static Spec router() {
-        return spec("lifecycle-router", 1, FlowType.LIFECYCLE_ROUTER, null, "LIFECYCLE_ROUTE", List.of(
+        return spec("lifecycle-router", 2, FlowType.LIFECYCLE_ROUTER, null, "LIFECYCLE_ROUTE", List.of(
             step("display_name", "profile.display_name", false, true),
             step("country", "profile.country_region", false, true),
             step("birth_date", "profile.birth_date", false, true),
@@ -31,10 +31,8 @@ public final class StandardFlowDefinitionCatalog {
                 in("onboarding.router.menarche_status", "more_than_two_years", "prefer_not_to_say")),
             step("pregnancy_status", "onboarding.router.pregnancy_status", false, true,
                 in("onboarding.router.current_situation", "pregnant", "possible_pregnancy")),
-            step("postpartum_time_range", "onboarding.router.postpartum_time_range", false, true,
-                in("onboarding.router.current_situation", "recent_birth")),
-            step("postpartum_main_need", "onboarding.router.postpartum_main_need", false, true,
-                in("onboarding.router.postpartum_time_range", "more_than_year")),
+            // v2 (design, Yulia 26.11.2026): "recent_birth" goes straight to the postpartum onboarding, which asks
+            // the birth date and, without it, the months since birth. The router asks no time range.
             step("planning_pregnancy_status", "onboarding.router.planning_pregnancy_status", false, true,
                 in("onboarding.router.current_situation", "planning")),
             step("cycle_change_known_cause", "onboarding.router.cycle_change_known_cause", false, true,
@@ -153,15 +151,12 @@ public final class StandardFlowDefinitionCatalog {
     }
 
     private static Spec postpartum() {
-        return spec("period-onboarding-postpartum", 5, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
+        return spec("period-onboarding-postpartum", 6, FlowType.PERIOD_ONBOARDING, "POSTPARTUM", "PERIOD_ONBOARDING", List.of(
             step("birth_date", "onboarding.postpartum.birth_date", true, true),
-            // v5 (MOMNA-1331 item 8, original PST_MONTHS_SINCE_BIRTH_RANGE): only without a birth date, and never
-            // again when the router already has the time since birth.
-            step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, false,
-                all(
-                    absent("onboarding.postpartum.birth_date"),
-                    absent("transition:onboarding.router.postpartum_time_range")
-                )),
+            // v6 (design 270-8891): without a birth date, the wheel "How long has it been since the birth?" in
+            // months (less than a month, 1-11 months). It may be skipped.
+            step("time_since_birth_approx", "onboarding.postpartum.time_since_birth_approx", true, true,
+                absent("onboarding.postpartum.birth_date")),
             step("multiples", "onboarding.postpartum.multiples", true, true),
             step("child_status", "onboarding.postpartum.child_status", true, true),
             step("child_count_exact", "onboarding.postpartum.child_count_exact", false, true,

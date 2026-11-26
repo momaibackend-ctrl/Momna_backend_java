@@ -234,3 +234,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-postpartum-time-since-birth-months-v41
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V41__postpartum_time_since_birth_months.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

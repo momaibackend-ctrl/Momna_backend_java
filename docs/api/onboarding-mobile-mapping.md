@@ -177,8 +177,8 @@ Any other value is refused with 422 `INVALID_FIELD_VALUE`. Option codes follow t
 | 13 | Did your care team ask you to keep any birth complications in mind during recovery? | `onboarding.postpartum.complications` | `{"kind":"OBJECT","value":[code,…]}` | Heavy blood loss → `heavy_blood_loss`; High blood pressure or preeclampsia → `high_bp_preeclampsia`; Infection → `infection`; A severe tear or episiotomy → `severe_tear`; An additional surgery or procedure → `additional_surgery`; A long hospital stay → `long_hospital_stay`; Limits on movement or activity → `movement_limits`; Another complication → `another_complication`; None of these → `none`; It was not clearly explained to me → `not_explained`; Prefer not to answer → `prefer_not_to_say` |
 | 14 | Are you still following any medical instructions or monitoring after discharge? | `onboarding.postpartum.current_care` | `{"kind":"OBJECT","value":[code,…]}` | I need to monitor my blood pressure → `monitor_bp`; I need follow-up bloodwork or anemia monitoring → `monitor_bloodwork`; I am caring for an incision, wound, or stitches → `incision_care`; I have movement or lifting restrictions → `movement_limits`; I need regular hospital or clinic visits → `hospital_visits`; I take prescribed medication → `prescribed_meds`; None of these → `none`; I am still in the hospital → `still_in_hospital`; Prefer not to answer → `prefer_not_to_say` |
 | 15 | What is physically hardest right now? | `onboarding.postpartum.physical` | `{"kind":"OBJECT","value":[code,…]}` | Pain after birth → `pain_after_birth`; Stitches or a C-section incision → `incision`; Postpartum bleeding → `bleeding`; Severe weakness or dizziness → `weakness_dizziness`; Back, pelvic, hip, or joint pain → `back_pelvic_joint_pain`; Urinary leakage → `urinary_leakage`; Pelvic pressure or heaviness → `pelvic_pressure`; Constipation or pain with bowel movements → `constipation`; Swelling → `swelling`; Headaches → `headaches`; Nothing is bothering me much → `nothing_much`; Something else → `something_else` |
-| 16 | *(no app screen)* | `onboarding.postpartum.feeding` (conditional) | `{"kind":"OBJECT","value":[code,…]}` |  |
-| 17 | How is your baby currently being fed? | `onboarding.postpartum.feeding_breast_milk_now` (conditional) |  |  |
+| 16 | How is your baby currently being fed? | `onboarding.postpartum.feeding` (conditional: not after a loss) | `{"kind":"OBJECT","value":{"1":code,…}}` (per baby) | Nursing at the breast → `nursing_at_breast`; Pumped breast milk → `pumped_breast_milk`; Combination feeding → `combination_feeding`; Infant formula → `infant_formula`; Tube feeding or another medically supported method → `tube_or_medically_supported`; The feeding plan is changing → `feeding_plan_changing`; Prefer not to answer → `prefer_not_to_say` |
+| 17 | **missing in the app:** Is the baby currently receiving breast milk, including pumped? | `onboarding.postpartum.feeding_breast_milk_now` (conditional: after tube feeding or a changing plan) | `{"kind":"OBJECT","value":{"1":code,…}}` (per baby) | Yes → `yes`; No → `no`; Not sure → `not_sure`; Prefer not to answer → `prefer_not_to_say` |
 | 18 | Are you having any challenges with your breasts, pumping, or feeding? | `onboarding.postpartum.feeding_issues` (conditional) | `{"kind":"OBJECT","value":[code,…]}` | Sore or cracked nipples → `sore_nipples`; Engorgement or very full breasts → `engorgement`; Possible clogged duct or mastitis → `clogged_duct`; I am worried about milk supply → `milk_supply_worry`; Pumping takes a lot of time or energy → `pumping_effort`; My baby has trouble latching or feeding → `latching_trouble`; Feeding works differently for each baby → `differs_per_baby`; I want support without pressure to continue breastfeeding → `support_without_pressure`; None of these → `none`; Prefer not to answer → `prefer_not_to_say` |
 | 19 | What are you currently taking on a regular basis? | `onboarding.postpartum.medications` | `{"kind":"OBJECT","value":[code,…]}` | Pain medication prescribed by my clinician → `pain_meds`; Iron → `iron`; Vitamins or supplements → `vitamins`; Blood pressure medication → `bp_meds`; An antibiotic or another treatment → `antibiotic_treatment`; Mental health medication → `mental_health_meds`; Nothing → `nothing`; Prefer not to answer → `prefer_not_to_say` |
 | 20 | What does postpartum follow-up look like for you? | `onboarding.postpartum.followup` | `{"kind":"ENUM","value":code}` | I have already had a postpartum checkup → `already_had_checkup`; My checkup is scheduled → `scheduled`; I have more frequent follow-up because of recovery needs → `more_frequent`; I have not scheduled a visit yet → `not_scheduled_yet`; I am not sure when I should be seen → `not_sure_when`; I am still in the hospital → `still_in_hospital`; Prefer not to answer → `prefer_not_to_say` |
@@ -309,6 +309,17 @@ The router's codes are in the field registry (V17) and are checked like any othe
 
 After `POST …/complete`, the proposal is confirmed with `POST /api/v1/flow-instances/{id}/router/confirm`, which starts the period onboarding.
 
+## Screens the app still lacks
+
+The server asks these steps, but the app has no screen for them:
+- **`onboarding.postpartum.time_since_birth_approx`** — «How long ago did you give birth?», asked when the birth date is declined («I do not remember / Prefer not to answer»). It is required and cannot be skipped, so without a screen the onboarding stops here. Codes:
+  - `less_than_month`;
+  - `month_1` … `month_11`;
+  - `more_than_year`;
+  - `prefer_not_to_say`.
+- **`onboarding.pregnancy.lmp`** — the last period date, asked after «I do not know yet» on the dating screen. It is skippable, but without it the pregnancy week stays unknown.
+- **`onboarding.postpartum.feeding_breast_milk_now`** — «Is the baby currently receiving breast milk, including pumped?», per baby, only after «Tube feeding…» or «The feeding plan is changing» (Product decision 24.11.2026, MOMNA-561). It is skippable.
+
 ## Exclusive answers
 
 A multi-select step returns `exclusiveOptions`: whole-question answers such as «Nothing is bothering me much», «None of these», «No», «I am not sure yet» and «Prefer not to answer». Such an answer stands alone:
@@ -335,4 +346,3 @@ Still listed by the generator:
 3. Pregnancy: server step `onboarding.pregnancy.lmp` (conditional) has no app screen of its own.
 4. The First Year After Birth: server step `onboarding.postpartum.time_since_birth_approx` (conditional) has no app screen of its own.
 5. The First Year After Birth: server step `onboarding.postpartum.delivery_by_child` (conditional) has no app screen of its own.
-6. The First Year After Birth: server step `onboarding.postpartum.feeding` (conditional) has no app screen of its own.

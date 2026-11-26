@@ -5654,24 +5654,77 @@
           ]
         },
         {
-          "screenId": null,
-          "screenName": null,
-          "title": null,
-          "fieldId": "onboarding.postpartum.feeding",
-          "dataType": "OBJECT",
-          "answer": "OBJECT_LIST",
-          "conditional": true,
-          "appScreen": {
-            "status": "SAME_SCREEN",
-            "note": "«How is your baby currently being fed?» once per baby"
-          }
-        },
-        {
           "screenId": "270:12644",
           "screenName": "[Onboarding - The First Year After Birth] Physical recovery and feeding_9",
           "title": "How is your baby currently being fed?",
+          "fieldId": "onboarding.postpartum.feeding",
+          "dataType": "OBJECT",
+          "answer": "OBJECT_PER_CHILD",
+          "conditional": true,
+          "options": [
+            {
+              "label": "Nursing at the breast",
+              "code": "nursing_at_breast"
+            },
+            {
+              "label": "Pumped breast milk",
+              "code": "pumped_breast_milk"
+            },
+            {
+              "label": "Combination feeding",
+              "code": "combination_feeding"
+            },
+            {
+              "label": "Infant formula",
+              "code": "infant_formula"
+            },
+            {
+              "label": "Tube feeding or another medically supported method",
+              "code": "tube_or_medically_supported"
+            },
+            {
+              "label": "The feeding plan is changing",
+              "code": "feeding_plan_changing"
+            },
+            {
+              "label": "Prefer not to answer",
+              "code": "prefer_not_to_say"
+            }
+          ],
+          "perChild": true,
+          "note": "Once per baby; one baby sends {\"1\": code}. Not asked after a loss."
+        },
+        {
+          "screenId": null,
+          "screenName": null,
+          "title": "Is the baby currently receiving breast milk, including pumped?",
           "fieldId": "onboarding.postpartum.feeding_breast_milk_now",
-          "conditional": true
+          "dataType": "OBJECT",
+          "answer": "OBJECT_PER_CHILD",
+          "conditional": true,
+          "options": [
+            {
+              "label": "Yes",
+              "code": "yes"
+            },
+            {
+              "label": "No",
+              "code": "no"
+            },
+            {
+              "label": "Not sure",
+              "code": "not_sure"
+            },
+            {
+              "label": "Prefer not to answer",
+              "code": "prefer_not_to_say"
+            }
+          ],
+          "perChild": true,
+          "appScreen": {
+            "status": "MISSING",
+            "note": "Product decision 24.11.2026 (MOMNA-561): asked per baby only after «Tube feeding or another medically supported method» or «The feeding plan is changing». The app has no screen yet; skippable (a skipped answer is UNKNOWN)."
+          }
         },
         {
           "screenId": "270:12797",

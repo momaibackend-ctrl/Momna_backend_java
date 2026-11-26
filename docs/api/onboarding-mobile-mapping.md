@@ -128,7 +128,7 @@ Any other value is refused with 422 `INVALID_FIELD_VALUE`. Option codes follow t
 | 1 | What is the easiest way for you to enter how far along you are? | `onboarding.pregnancy.dates_method` | `{"kind":"ENUM","value":code}` | I know gestational age → `gestational_age`; I know EDD → `edd`; I do not know yet → `unknown` |
 | 2 | *(no app screen)* | `onboarding.pregnancy.gestational_weeks` (conditional) | `{"kind":"NUMBER","value":n}` |  |
 | 3 | *(no app screen)* | `onboarding.pregnancy.edd` (conditional) | `{"kind":"DATE","value":"YYYY-MM-DD"}` |  |
-| 4 | *(no app screen)* | `onboarding.pregnancy.lmp` (conditional) | `{"kind":"DATE","value":"YYYY-MM-DD"}` |  |
+| 4 | When did your most recent period start? (MOMNA-1331 item 9) | `onboarding.pregnancy.lmp` (conditional) | `{"kind":"DATE","value":"YYYY-MM-DD"}` |  |
 | 5 | How many babies are you expecting? | `onboarding.pregnancy.multiples` | `{"kind":"ENUM","value":code}` | One baby → `one_baby`; Twins → `twins`; Triplets → `triplets`; More than three → `more_than_three`; I do not know yet → `unknown`; Prefer not to answer → `prefer_not_to_say` |
 | 6 | What feels most important to you right now? | `onboarding.pregnancy.goals` | `{"kind":"OBJECT","value":[code,…]}` | Understand how my baby or babies are developing → `understand_development`; Understand changes in my body → `understand_body_changes`; Manage symptoms → `manage_symptoms`; Prepare for appointments and tests → `prepare_appointments`; Eat in a way that feels manageable and supportive → `eat_manageable`; Stay active safely → `stay_active_safely`; Feel less anxious → `feel_less_anxious`; Prepare for labor and delivery → `prepare_labor`; Prepare for life after birth → `prepare_life_after_birth`; Support my relationship with my partner → `support_partner_relationship` |
 | 7 | What kind of prenatal care do you have right now? | `onboarding.pregnancy.care` | `{"kind":"ENUM","value":code}` | I have regular prenatal appointments → `regular_appointments`; My first appointment is scheduled → `first_scheduled`; I am still choosing an OB-GYN, midwife, or clinic → `choosing_provider`; Prenatal care has not started yet → `not_started_yet`; I am also seeing a maternal-fetal medicine or high-risk specialist → `also_maternal_fetal_specialist`; Prefer not to answer → `prefer_not_to_say` |
@@ -163,7 +163,7 @@ Any other value is refused with 422 `INVALID_FIELD_VALUE`. Option codes follow t
 | # | App screen | fieldId | Answer | Options (app label → code) |
 |---|---|---|---|---|
 | 1 | When did you give birth? | `onboarding.postpartum.birth_date` | `{"kind":"DATE","value":"YYYY-MM-DD"}` |  |
-| 2 | *(no app screen)* | `onboarding.postpartum.time_since_birth_approx` (conditional) | `{"kind":"ENUM","value":code}` | `less_than_month`, `month_1`, `month_2`, `month_3`, `month_4`, `month_5`, `month_6`, `month_7`, `month_8`, `month_9`, `month_10`, `month_11`, `more_than_year`, `prefer_not_to_say` |
+| 2 | How long has it been since you gave birth? (MOMNA-1331 item 8) | `onboarding.postpartum.time_since_birth_approx` (conditional: no birth date, not asked in the router) | `{"kind":"ENUM","value":code}` | Less than 1 month ago → `lt_1m`; 1–3 months ago → `m1_3`; 4–6 months ago → `m4_6`; 7–9 months ago → `m7_9`; 10–12 months ago → `m10_12`; More than 1 year ago → `more_than_year` (back to the router, see below); Prefer not to answer → `prefer_not_to_say` |
 | 3 | How many babies were born? | `onboarding.postpartum.multiples` | `{"kind":"ENUM","value":code}` | One baby → `one_baby`; Twins → `twins`; Triplets → `triplets`; More than three → `more_than_three`; Prefer not to answer → `prefer_not_to_say` |
 | 4 | Which option best describes your situation right now? | `onboarding.postpartum.child_status` | `{"kind":"ENUM","value":code}` | My baby or all of my babies are home with me → `all_home`; One or more babies are still in the hospital or NICU → `some_hospital`; I split my time between home and the hospital → `split_time`; My baby or babies are not with me for another reason → `not_with_me`; The birth ended in the loss of my baby or babies → `loss`; My situation is complicated and I would rather not describe it → `complicated`; Prefer not to answer → `prefer_not_to_say` |
 | 5 | How many babies exactly were born? | `onboarding.postpartum.child_count_exact` (conditional) | `{"kind":"NUMBER","value":n}` |  |
@@ -178,7 +178,7 @@ Any other value is refused with 422 `INVALID_FIELD_VALUE`. Option codes follow t
 | 14 | Are you still following any medical instructions or monitoring after discharge? | `onboarding.postpartum.current_care` | `{"kind":"OBJECT","value":[code,…]}` | I need to monitor my blood pressure → `monitor_bp`; I need follow-up bloodwork or anemia monitoring → `monitor_bloodwork`; I am caring for an incision, wound, or stitches → `incision_care`; I have movement or lifting restrictions → `movement_limits`; I need regular hospital or clinic visits → `hospital_visits`; I take prescribed medication → `prescribed_meds`; None of these → `none`; I am still in the hospital → `still_in_hospital`; Prefer not to answer → `prefer_not_to_say` |
 | 15 | What is physically hardest right now? | `onboarding.postpartum.physical` | `{"kind":"OBJECT","value":[code,…]}` | Pain after birth → `pain_after_birth`; Stitches or a C-section incision → `incision`; Postpartum bleeding → `bleeding`; Severe weakness or dizziness → `weakness_dizziness`; Back, pelvic, hip, or joint pain → `back_pelvic_joint_pain`; Urinary leakage → `urinary_leakage`; Pelvic pressure or heaviness → `pelvic_pressure`; Constipation or pain with bowel movements → `constipation`; Swelling → `swelling`; Headaches → `headaches`; Nothing is bothering me much → `nothing_much`; Something else → `something_else` |
 | 16 | How is your baby currently being fed? | `onboarding.postpartum.feeding` (conditional: not after a loss) | `{"kind":"OBJECT","value":{"1":code,…}}` (per baby) | Nursing at the breast → `nursing_at_breast`; Pumped breast milk → `pumped_breast_milk`; Combination feeding → `combination_feeding`; Infant formula → `infant_formula`; Tube feeding or another medically supported method → `tube_or_medically_supported`; The feeding plan is changing → `feeding_plan_changing`; Prefer not to answer → `prefer_not_to_say` |
-| 17 | **missing in the app:** Is the baby currently receiving breast milk, including pumped? | `onboarding.postpartum.feeding_breast_milk_now` (conditional: after tube feeding or a changing plan) | `{"kind":"OBJECT","value":{"1":code,…}}` (per baby) | Yes → `yes`; No → `no`; Not sure → `not_sure`; Prefer not to answer → `prefer_not_to_say` |
+| 17 | Is the baby currently receiving breast milk, including pumped? (MOMNA-1331 item 10) | `onboarding.postpartum.feeding_breast_milk_now` (conditional: after tube feeding or a changing plan) | `{"kind":"OBJECT","value":{"1":code,…}}` (per baby) | Yes → `yes`; No → `no`; Not sure → `not_sure`; Prefer not to answer → `prefer_not_to_say` |
 | 18 | Are you having any challenges with your breasts, pumping, or feeding? | `onboarding.postpartum.feeding_issues` (conditional) | `{"kind":"OBJECT","value":[code,…]}` | Sore or cracked nipples → `sore_nipples`; Engorgement or very full breasts → `engorgement`; Possible clogged duct or mastitis → `clogged_duct`; I am worried about milk supply → `milk_supply_worry`; Pumping takes a lot of time or energy → `pumping_effort`; My baby has trouble latching or feeding → `latching_trouble`; Feeding works differently for each baby → `differs_per_baby`; I want support without pressure to continue breastfeeding → `support_without_pressure`; None of these → `none`; Prefer not to answer → `prefer_not_to_say` |
 | 19 | What are you currently taking on a regular basis? | `onboarding.postpartum.medications` | `{"kind":"OBJECT","value":[code,…]}` | Pain medication prescribed by my clinician → `pain_meds`; Iron → `iron`; Vitamins or supplements → `vitamins`; Blood pressure medication → `bp_meds`; An antibiotic or another treatment → `antibiotic_treatment`; Mental health medication → `mental_health_meds`; Nothing → `nothing`; Prefer not to answer → `prefer_not_to_say` |
 | 20 | What does postpartum follow-up look like for you? | `onboarding.postpartum.followup` | `{"kind":"ENUM","value":code}` | I have already had a postpartum checkup → `already_had_checkup`; My checkup is scheduled → `scheduled`; I have more frequent follow-up because of recovery needs → `more_frequent`; I have not scheduled a visit yet → `not_scheduled_yet`; I am not sure when I should be seen → `not_sure_when`; I am still in the hospital → `still_in_hospital`; Prefer not to answer → `prefer_not_to_say` |
@@ -309,16 +309,13 @@ The router's codes are in the field registry (V17) and are checked like any othe
 
 After `POST …/complete`, the proposal is confirmed with `POST /api/v1/flow-instances/{id}/router/confirm`, which starts the period onboarding.
 
-## Screens the app still lacks
+## Screens added by MOMNA-1331 items 8–10
 
-The server asks these steps, but the app has no screen for them:
-- **`onboarding.postpartum.time_since_birth_approx`** — «How long ago did you give birth?», asked when the birth date is declined («I do not remember / Prefer not to answer»). It is required and cannot be skipped, so without a screen the onboarding stops here. Codes:
-  - `less_than_month`;
-  - `month_1` … `month_11`;
-  - `more_than_year`;
-  - `prefer_not_to_say`.
-- **`onboarding.pregnancy.lmp`** — the last period date, asked after «I do not know yet» on the dating screen. It is skippable, but without it the pregnancy week stays unknown.
-- **`onboarding.postpartum.feeding_breast_milk_now`** — «Is the baby currently receiving breast milk, including pumped?», per baby, only after «Tube feeding…» or «The feeding plan is changing» (Product decision 24.11.2026, MOMNA-561). It is skippable.
+- **`onboarding.postpartum.time_since_birth_approx`** — «How long has it been since you gave birth?» (original PST_MONTHS_SINCE_BIRTH_RANGE). Asked when the birth date is declined and the router did not ask the time since birth. It uses the same ranges as the router and is required.
+  - «More than 1 year ago» shows «It sounds like more than a year has passed since the birth. Momna can still support you, but another life stage will now be a better fit…» with the button «Find the right stage».
+  - The button returns to the router's «Which option fits you best right now?». The onboarding cannot complete while this answer stands; the step lists it in `changeBeforeComplete`.
+- **`onboarding.pregnancy.lmp`** — «When did your most recent period start?», after «I do not know yet» on the dating screen. Skippable.
+- **`onboarding.postpartum.feeding_breast_milk_now`** — «Is the baby currently receiving breast milk, including pumped?», per baby, after «Tube feeding…» or «The feeding plan is changing». Skippable.
 
 ## Exclusive answers
 
@@ -340,9 +337,7 @@ The rows follow the app's screens as corrected by MOMNA-1331 (design task to Yul
 
 Until the app's content is regenerated from the corrected Figma, do not wire the perimenopause and menopause symptom screens from the old export: its duplicated labels would save the wrong symptom.
 
-Still listed by the generator:
+Still listed by the generator (each is a bottom sheet or a per-baby repeat of a screen above, see «Notes for the app»):
 1. Pregnancy: server step `onboarding.pregnancy.gestational_weeks` (conditional) has no app screen of its own.
 2. Pregnancy: server step `onboarding.pregnancy.edd` (conditional) has no app screen of its own.
-3. Pregnancy: server step `onboarding.pregnancy.lmp` (conditional) has no app screen of its own.
-4. The First Year After Birth: server step `onboarding.postpartum.time_since_birth_approx` (conditional) has no app screen of its own.
-5. The First Year After Birth: server step `onboarding.postpartum.delivery_by_child` (conditional) has no app screen of its own.
+3. The First Year After Birth: server step `onboarding.postpartum.delivery_by_child` (conditional) has no app screen of its own.

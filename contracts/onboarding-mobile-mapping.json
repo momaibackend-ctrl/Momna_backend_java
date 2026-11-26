@@ -3885,7 +3885,7 @@
         {
           "screenId": null,
           "screenName": null,
-          "title": null,
+          "title": "When did your most recent period start?",
           "fieldId": "onboarding.pregnancy.lmp",
           "dataType": "DATE",
           "answer": "DATE",
@@ -3894,10 +3894,8 @@
             "minDaysFromNow": -308,
             "maxDaysFromNow": -14
           },
-          "appScreen": {
-            "status": "MISSING",
-            "note": "Asked after «I do not know yet» on the dating screen; the app has no last-period calendar yet. Skippable."
-          }
+          "note": "After «I do not know yet» on the dating screen; skippable.",
+          "pending": "MOMNA-1331 item 9"
         },
         {
           "screenId": "220:15493",
@@ -5189,31 +5187,46 @@
         {
           "screenId": null,
           "screenName": null,
-          "title": null,
+          "title": "How long has it been since you gave birth?",
           "fieldId": "onboarding.postpartum.time_since_birth_approx",
           "dataType": "ENUM",
           "answer": "ENUM",
           "conditional": true,
-          "codes": [
-            "less_than_month",
-            "month_1",
-            "month_2",
-            "month_3",
-            "month_4",
-            "month_5",
-            "month_6",
-            "month_7",
-            "month_8",
-            "month_9",
-            "month_10",
-            "month_11",
-            "more_than_year",
-            "prefer_not_to_say"
+          "options": [
+            {
+              "label": "Less than 1 month ago",
+              "code": "lt_1m"
+            },
+            {
+              "label": "1–3 months ago",
+              "code": "m1_3"
+            },
+            {
+              "label": "4–6 months ago",
+              "code": "m4_6"
+            },
+            {
+              "label": "7–9 months ago",
+              "code": "m7_9"
+            },
+            {
+              "label": "10–12 months ago",
+              "code": "m10_12"
+            },
+            {
+              "label": "More than 1 year ago",
+              "code": "more_than_year"
+            },
+            {
+              "label": "Prefer not to answer",
+              "code": "prefer_not_to_say"
+            }
           ],
-          "appScreen": {
-            "status": "MISSING",
-            "note": "Required and not skippable when the birth date is declined («I do not remember / Prefer not to answer»); the app has no screen yet."
-          }
+          "changeBeforeComplete": [
+            "more_than_year"
+          ],
+          "note": "Only when the birth date is declined and the router did not ask the time since birth. «More than 1 year ago» shows the message «It sounds like more than a year has passed since the birth…» with «Find the right stage», which returns to the router's «Which option fits you best right now?»; the onboarding cannot complete while it stands.",
+          "pending": "MOMNA-1331 item 8"
         },
         {
           "screenId": "276:21692",
@@ -5721,10 +5734,8 @@
             }
           ],
           "perChild": true,
-          "appScreen": {
-            "status": "MISSING",
-            "note": "Product decision 24.11.2026 (MOMNA-561): asked per baby only after «Tube feeding or another medically supported method» or «The feeding plan is changing». The app has no screen yet; skippable (a skipped answer is UNKNOWN)."
-          }
+          "note": "Per baby, only after «Tube feeding or another medically supported method» or «The feeding plan is changing»; skippable (UNKNOWN).",
+          "pending": "MOMNA-1331 item 10"
         },
         {
           "screenId": "270:12797",

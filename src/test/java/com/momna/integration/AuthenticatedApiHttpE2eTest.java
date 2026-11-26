@@ -690,6 +690,69 @@ class AuthenticatedApiHttpE2eTest {
         assertTrue(checked>1500,"options checked: "+checked);
     }
 
+    /**
+     * MOMNA-1331 item 8 (original PST_MONTHS_SINCE_BIRTH_RANGE): without a birth date the postpartum onboarding
+     * asks the time since birth as a range; «More than 1 year ago» cannot complete it (the app returns to the
+     * router), a range within the first year can.
+     */
+    @Test
+    void withoutABirthDateThePostpartumOnboardingAsksARangeAndMoreThanAYearSendsBack() throws Exception {
+        String email="postpartum-range-"+UUID.randomUUID()+"@example.test";
+        DELIVERED_CODE.set(null);
+        var challenge=post("/api/v1/auth/email/challenges",
+            json.createObjectNode().put("email",email).toString(),null);
+        assertEquals(202,challenge.statusCode(),challenge.body());
+        var login=post("/api/v1/auth/email/complete",json.createObjectNode().put("email",email)
+            .put("challengeId",json.readTree(challenge.body()).path("challengeId").asText())
+            .put("code",DELIVERED_CODE.get()).toString(),null);
+        assertEquals(200,login.statusCode(),login.body());
+        String token=json.readTree(login.body()).path("accessCredential").asText();
+        var started=postWithKey("/api/v1/flow-instances",json.createObjectNode().put("flowType","PERIOD_ONBOARDING")
+            .put("period","POSTPARTUM").toString(),token,"range-start-"+UUID.randomUUID());
+        assertEquals(200,started.statusCode(),started.body());
+        var state=json.readTree(started.body());
+        String root="/api/v1/flow-instances/"+state.path("instanceId").asText();
+        int version=state.path("definitionVersion").asInt();
+        assertEquals("onboarding.postpartum.birth_date",state.path("currentStep").path("fieldId").asText());
+
+        var skipped=postWithKey(root+"/steps/"+state.path("currentStep").path("stepId").asText()+"/skip",
+            json.createObjectNode().put("expectedDefinitionVersion",version)
+                .put("expectedRevision",state.path("revision").asLong()).toString(),token,"range-skip-"+UUID.randomUUID());
+        assertEquals(200,skipped.statusCode(),skipped.body());
+        state=json.readTree(skipped.body());
+        var step=state.path("currentStep");
+        assertEquals("onboarding.postpartum.time_since_birth_approx",step.path("fieldId").asText(),state.toString());
+        assertEquals("[\"lt_1m\",\"m1_3\",\"m4_6\",\"m7_9\",\"m10_12\",\"more_than_year\",\"prefer_not_to_say\"]",
+            step.path("options").toString());
+        assertEquals("[\"more_than_year\"]",step.path("changeBeforeComplete").toString());
+
+        var codes=java.util.Map.of("onboarding.postpartum.time_since_birth_approx","more_than_year");
+        for (int n=0; state.path("currentStep").isObject() && n<60; n++) {
+            state=routerAnswer(token,root,version,state,codes,"SUBMIT");
+        }
+        var refused=postWithKey(root+"/complete",json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).toString(),token,"range-refused-"+UUID.randomUUID());
+        assertEquals(409,refused.statusCode(),refused.body());
+        assertEquals("FLOW_INVALID_TRANSITION",json.readTree(refused.body()).path("code").asText());
+
+        var change=json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).put("mode","CHANGE");
+        change.putObject("value").put("kind","ENUM").put("value","m1_3");
+        var changed=client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+root
+                +"/answers/onboarding.postpartum.time_since_birth_approx"))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .header("Idempotency-Key","range-change-"+UUID.randomUUID())
+            .PUT(HttpRequest.BodyPublishers.ofString(change.toString())).build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,changed.statusCode(),changed.body());
+        state=json.readTree(changed.body());
+        for (int n=0; state.path("currentStep").isObject() && n<60; n++) {
+            state=routerAnswer(token,root,version,state,java.util.Map.of(),"SUBMIT");
+        }
+        var completed=postWithKey(root+"/complete",json.createObjectNode().put("expectedDefinitionVersion",version)
+            .put("expectedRevision",state.path("revision").asLong()).toString(),token,"range-done-"+UUID.randomUUID());
+        assertEquals(200,completed.statusCode(),completed.body());
+    }
+
     /** Answers the router's current step, with the given code for the named fields. */
     private com.fasterxml.jackson.databind.JsonNode routerAnswer(String token, String root, int version,
             com.fasterxml.jackson.databind.JsonNode state, java.util.Map<String,String> codes, String mode)

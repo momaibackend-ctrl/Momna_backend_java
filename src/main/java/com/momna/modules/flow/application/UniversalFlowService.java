@@ -243,10 +243,16 @@ public class UniversalFlowService {
             .filter(x -> x.getAnswerStatus() == FlowAnswerStatus.ANSWERED)
             .map(FlowAnswerEntity::getFieldId)
             .collect(java.util.stream.Collectors.toSet());
+        // A required step the user may skip is resolved by its skip ("I do not remember" for the birth date).
+        var skipped = active.stream()
+            .filter(x -> x.getAnswerStatus() == FlowAnswerStatus.SKIPPED)
+            .map(FlowAnswerEntity::getFieldId)
+            .collect(java.util.stream.Collectors.toSet());
 
         var missing = activeSteps(definition, instanceId).stream()
             .filter(FlowDefinitionModel.Step::required)
             .filter(x -> !answered.contains(x.fieldId()))
+            .filter(x -> !(x.skippable() && skipped.contains(x.fieldId())))
             .map(FlowDefinitionModel.Step::fieldId)
             .toList();
         if (!missing.isEmpty()) {
@@ -416,8 +422,8 @@ public class UniversalFlowService {
         if (step == null) return null;
         var spec = spec(step.fieldId());
         return new StepView(step.stepId(), step.fieldId(), step.required(), step.skippable(), spec.dataType(),
-            spec.options(), spec.requiredKeys(), spec.valuesByKey(), spec.exclusiveOptions(), spec.perChild(),
-            spec.maxLength());
+            spec.options(), spec.requiredKeys(), spec.valuesByKey(), spec.exclusiveOptions(), spec.changeBeforeComplete(),
+            spec.perChild(), spec.maxLength());
     }
 
     /**
@@ -434,6 +440,8 @@ public class UniversalFlowService {
         List<String> requiredKeys,
         Map<String, List<String>> valuesByKey,
         List<String> exclusiveOptions,
+        /** Answers that send the user back before the flow can complete ("by mistake", "more than a year"). */
+        List<String> changeBeforeComplete,
         boolean perChild,
         Integer maxLength
     ) {}
@@ -515,6 +523,9 @@ public class UniversalFlowService {
                 if (currentStep.requiredKeys() != null) step.put("requiredKeys", currentStep.requiredKeys());
                 if (currentStep.valuesByKey() != null) step.put("valuesByKey", currentStep.valuesByKey());
                 if (currentStep.exclusiveOptions() != null) step.put("exclusiveOptions", currentStep.exclusiveOptions());
+                if (currentStep.changeBeforeComplete() != null) {
+                    step.put("changeBeforeComplete", currentStep.changeBeforeComplete());
+                }
                 step.put("perChild", currentStep.perChild());
                 if (currentStep.maxLength() != null) step.put("maxLength", currentStep.maxLength());
                 map.put("currentStep", step);
@@ -545,6 +556,7 @@ public class UniversalFlowService {
                 step.get("requiredKeys") instanceof Collection<?> r ? r.stream().map(String::valueOf).toList() : null,
                 step.get("valuesByKey") instanceof Map<?, ?> byKey ? valuesByKey(byKey) : null,
                 step.get("exclusiveOptions") instanceof Collection<?> x ? x.stream().map(String::valueOf).toList() : null,
+                step.get("changeBeforeComplete") instanceof Collection<?> c ? c.stream().map(String::valueOf).toList() : null,
                 Boolean.TRUE.equals(step.get("perChild")),
                 step.get("maxLength") instanceof Number n ? n.intValue() : null
             );

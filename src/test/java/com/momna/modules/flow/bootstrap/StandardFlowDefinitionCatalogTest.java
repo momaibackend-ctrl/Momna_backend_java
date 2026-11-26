@@ -29,13 +29,13 @@ class StandardFlowDefinitionCatalogTest {
     }
 
     @Test
-    void postpartumVersionFourKeepsTheMandatoryFallbackTimeAnchor() {
+    void postpartumVersionFiveKeepsTheMandatoryFallbackTimeAnchor() {
         var postpartum = StandardFlowDefinitionCatalog.all().stream()
             .filter(x -> x.key().equals("period-onboarding-postpartum"))
             .findFirst()
             .orElseThrow();
 
-        assertEquals(4, postpartum.version());
+        assertEquals(5, postpartum.version());
 
         var steps = (java.util.List<?>) postpartum.definitionJson().get("steps");
         var fallback = steps.stream()
@@ -121,5 +121,23 @@ class StandardFlowDefinitionCatalogTest {
             "onboarding.router.current_situation", "recent_birth",
             "onboarding.router.postpartum_time_range", "m10_12"));
         assertEquals(com.momna.modules.lifecycle.domain.LifecyclePeriod.POSTPARTUM, firstYear.period());
+    }
+
+    /** MOMNA-1331 item 8: the time-since-birth range is asked only without a birth date and a router answer. */
+    @Test
+    void theTimeSinceBirthIsAskedOnlyWhenNothingElseTellsIt() {
+        var spec = StandardFlowDefinitionCatalog.all().stream()
+            .filter(x -> x.key().equals("period-onboarding-postpartum")).findFirst().orElseThrow();
+        var model = com.momna.modules.flow.application.FlowDefinitionModel.from(
+            new com.momna.modules.flow.infrastructure.FlowDefinitionEntity(spec.key(), spec.version(), spec.type(), null,
+                spec.period(), null, spec.definitionJson(), 1, java.time.Instant.parse("2026-11-26T00:00:00Z")));
+        var condition = model.conditions().get("onboarding.postpartum.time_since_birth_approx");
+        java.util.function.Function<java.util.Map<String, java.util.Map<String, Object>>, Boolean> asked =
+            values -> com.momna.modules.flow.application.FlowConditionEvaluator.matches(condition, values);
+        assertTrue(asked.apply(java.util.Map.of()), "no birth date, no router answer");
+        assertFalse(asked.apply(java.util.Map.of("onboarding.postpartum.birth_date",
+            java.util.Map.of("kind", "DATE", "value", "2026-10-01"))));
+        assertFalse(asked.apply(java.util.Map.of("transition:onboarding.router.postpartum_time_range",
+            java.util.Map.of("kind", "ENUM", "value", "m1_3"))), "the router already has it");
     }
 }

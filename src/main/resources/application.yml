@@ -42,3 +42,14 @@ momna:
     enabled: ${MOMNA_REDIS_ENABLED:false}
     url: ${REDIS_URL:}
     prefix: ${MOMNA_REDIS_PREFIX:momna}
+
+  # My Day generation (MOMNA-849). Off until a provider is configured; off, My Day answers 503.
+  # The API key comes from the environment only and is never logged.
+  ai:
+    provider:
+      base-url: ${MOMNA_AI_BASE_URL:}
+      api-key: ${MOMNA_AI_API_KEY:}
+      timeout: ${MOMNA_AI_TIMEOUT:15s}
+    myday:
+      enabled: ${MOMNA_AI_MYDAY_ENABLED:false}
+      model: ${MOMNA_AI_MYDAY_MODEL:gpt-4.1-mini}

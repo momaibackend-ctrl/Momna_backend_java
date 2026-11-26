@@ -22,6 +22,7 @@ public class CanonicalAiGateway implements Gateway {
     private final ProviderRegistry providers;
     private final ExpiringCache cache;
     private final CostLedger costLedger;
+    private final Map<AiOutputSchemaKind, OutputValidator> validators;
 
     public CanonicalAiGateway(
         ContextAccess contextAccess,
@@ -32,6 +33,26 @@ public class CanonicalAiGateway implements Gateway {
         ExpiringCache cache,
         CostLedger costLedger
     ) {
+        this(contextAccess, policyGuard, prompts, models, providers, cache, costLedger, List.of());
+    }
+
+    public CanonicalAiGateway(
+        ContextAccess contextAccess,
+        InvocationPolicyGuard policyGuard,
+        PromptRegistry prompts,
+        ModelRegistry models,
+        ProviderRegistry providers,
+        ExpiringCache cache,
+        CostLedger costLedger,
+        Collection<OutputValidator> validators
+    ) {
+        var byKind = new EnumMap<AiOutputSchemaKind, OutputValidator>(AiOutputSchemaKind.class);
+        for (var validator : validators) {
+            if (byKind.put(validator.kind(), validator) != null) {
+                throw new IllegalArgumentException("Duplicate AI output validator");
+            }
+        }
+        this.validators = Map.copyOf(byKind);
         this.contextAccess = contextAccess;
         this.policyGuard = policyGuard;
         this.prompts = prompts;
@@ -203,6 +224,11 @@ public class CanonicalAiGateway implements Gateway {
             case NON_EMPTY_TEXT -> text != null && !text.isBlank();
             case SAFETY_CLASSIFICATION_V1 ->
                 text != null && SAFETY_OUTPUT.matcher(text.trim()).matches();
+            case MY_DAY_CARDS_V1 -> {
+                var validator = validators.get(prompt.outputSchemaKind());
+                if (validator == null) fail(AiErrorCode.OUTPUT_VALIDATOR_NOT_FOUND, "No validator for output schema");
+                yield text != null && validator.valid(text);
+            }
         };
     }
 

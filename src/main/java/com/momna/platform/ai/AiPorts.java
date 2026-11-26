@@ -35,6 +35,12 @@ public final class AiPorts {
         void record(String subjectUserId, String purpose, String requestId, String candidateRef, TokenUsage usage, Cost cost, String windowKey);
     }
 
+    /** Checks a provider answer against a registered output schema that the gateway cannot check itself. */
+    public interface OutputValidator {
+        AiOutputSchemaKind kind();
+        boolean valid(String text);
+    }
+
     public interface Gateway {
         Response execute(Request request);
     }

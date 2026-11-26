@@ -234,3 +234,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: momna-my-day-template-cache-and-ai-cost-ledger-v40
+      author: migration
+      changes:
+        - sqlFile:
+            path: db/liquibase/sql/V40__my_day_template_cache_and_ai_cost_ledger.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

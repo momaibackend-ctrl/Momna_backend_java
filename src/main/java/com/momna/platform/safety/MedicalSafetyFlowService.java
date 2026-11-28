@@ -100,8 +100,8 @@ public class MedicalSafetyFlowService {
                     if (state.question() && trigger.sessionId().equals(state.getSessionId())
                         && Objects.equals(state.getSourceItem(), change.itemCode())
                         && !state.getFactAnswers().containsValue("YES")) {
-                        state.update(resolver.evaluateMedical(route, catalog, state.getFactAnswers(), Map.of(), true),
-                            now, route.cooldownHours());
+                        pause(state, resolver.evaluateMedical(route, catalog, state.getFactAnswers(), Map.of(), true),
+                            now);
                     }
                     states.save(state);
                 });
@@ -131,8 +131,8 @@ public class MedicalSafetyFlowService {
                 .orElseGet(() -> new MedicalSafetyRouteStateEntity(userId, route.routeId(), now));
             if (!record.mayStart(candidate.sourceItem(), trigger.sessionId(), now)) continue;
             record.begin(trigger.sessionId(), candidate.sourceItem(), now);
-            record.update(resolver.evaluateMedical(route, catalog, record.getFactAnswers(),
-                sharedFacts(userId, trigger.sessionId(), route.routeId()), false), now, route.cooldownHours());
+            pause(record, resolver.evaluateMedical(route, catalog, record.getFactAnswers(),
+                sharedFacts(userId, trigger.sessionId(), route.routeId()), false), now);
             states.saveAndFlush(record);
         }
         return steps(userId, trigger.sessionId());
@@ -184,7 +184,7 @@ public class MedicalSafetyFlowService {
         }
         var now = clock.instant();
         record.answer(factCode, value, now);
-        record.update(current(record, userId, sessionId), now, route.cooldownHours());
+        pause(record, current(record, userId, sessionId), now);
         states.saveAndFlush(record);
         return steps(userId, sessionId);
     }
@@ -204,7 +204,7 @@ public class MedicalSafetyFlowService {
         revisions.save(new MedicalSafetyFactRevisionEntity(userId, routeId, sessionId, factCode, old, value, now));
         record.reopenForCorrection(now);
         record.answer(factCode, value, now);
-        record.update(current(record, userId, sessionId), now, route.cooldownHours());
+        pause(record, current(record, userId, sessionId), now);
         states.saveAndFlush(record);
         return steps(userId, sessionId);
     }
@@ -242,7 +242,7 @@ public class MedicalSafetyFlowService {
                 default -> selected.contains(factCode) ? "YES" : "NO";
             }, now);
         }
-        record.update(current(record, userId, sessionId), now, route.cooldownHours());
+        pause(record, current(record, userId, sessionId), now);
         states.saveAndFlush(record);
         return steps(userId, sessionId);
     }
@@ -258,7 +258,7 @@ public class MedicalSafetyFlowService {
         requirePressure(systolic, diastolic, unknown);
         var now = clock.instant();
         record.recordBloodPressure(systolic, diastolic, unknown, now);
-        record.update(current(record, userId, sessionId), now, route.cooldownHours());
+        pause(record, current(record, userId, sessionId), now);
         states.saveAndFlush(record);
         return steps(userId, sessionId);
     }
@@ -276,11 +276,15 @@ public class MedicalSafetyFlowService {
                     record.answer(code, "ABSENT", now);
                 }
             }
-            record.update(resolver.evaluateMedical(route, catalog, record.getFactAnswers(), shared, true),
-                now, route.cooldownHours());
+            pause(record, resolver.evaluateMedical(route, catalog, record.getFactAnswers(), shared, true), now);
             states.saveAndFlush(record);
         }
         return steps(userId, sessionId);
+    }
+
+    /** Records a step; a completed step sets the route's pause (L13, with the v2.3 harm-thoughts pauses). */
+    private void pause(MedicalSafetyRouteStateEntity record, MedicalStep step, java.time.Instant now) {
+        record.update(step, now, catalog.cooldownHours(catalog.route(record.getRouteId()), step));
     }
 
     private MedicalStep current(MedicalSafetyRouteStateEntity record, String userId, String sessionId) {
@@ -451,6 +455,23 @@ public class MedicalSafetyFlowService {
         return finish(record, period, false, now);
     }
 
+    /**
+     * «Not now» on a route a global entry started or joined (L10): the remaining questions are ABSENT, never NO,
+     * and the route ends with what it found. On R18, «Not now» on the harm question is «not answered» (v2.3).
+     */
+    @Transactional
+    public GlobalStep skipRoute(String userId, String routeId) {
+        var record = globalOwned(userId, routeId);
+        if (record.complete()) return new GlobalStep(current(record, userId, record.getSessionId()), record.getSessionId());
+        var route = catalog.route(routeId);
+        var shared = sharedFacts(userId, record.getSessionId(), routeId);
+        var now = clock.instant();
+        for (var code : route.questions()) {
+            if (!record.getFactAnswers().containsKey(code) && !shared.containsKey(code)) record.answer(code, "ABSENT", now);
+        }
+        return finish(record, record.getLifecyclePeriod(), true, now);
+    }
+
     /** Answers the current question of a route a global entry started or joined. */
     @Transactional
     public GlobalStep answerRoute(String userId, String routeId, String factCode, String value) {
@@ -533,15 +554,22 @@ public class MedicalSafetyFlowService {
         var step = evaluate(record, sharedFacts(record.getUserId(), record.getSessionId(), route.routeId()),
             skip || route.questions().isEmpty());
         boolean er0 = record.getSourceItem() != null && record.getSourceItem().startsWith(ER0);
-        record.update(step, now, er0 && record.getSessionId() == null ? 0 : route.cooldownHours());
+        record.update(step, now, er0 && record.getSessionId() == null ? 0 : catalog.cooldownHours(route, step));
         states.saveAndFlush(record);
         return new GlobalStep(step, record.getSessionId());
     }
 
+    /**
+     * The caller's own route state. Route states are keyed by (user, route), so another user's route is never
+     * visible: an unknown route code, or a route this user has not started, is 404 SAFETY_ROUTE_NOT_FOUND.
+     */
     private MedicalSafetyRouteStateEntity globalOwned(String userId, String routeId) {
-        route(routeId);
+        if (routeId == null || catalog.routes().stream().noneMatch(r -> r.routeId().equals(routeId))) {
+            throw new MedicalSafetyException("SAFETY_ROUTE_NOT_FOUND", "Safety route not found");
+        }
         var record = states.findByUserIdAndRouteId(userId, routeId)
-            .orElseThrow(() -> new MedicalSafetyException("SAFETY_ROUTE_NOT_CURRENT", "Safety route not found"));
+            .filter(r -> userId.equals(r.getUserId()))
+            .orElseThrow(() -> new MedicalSafetyException("SAFETY_ROUTE_NOT_FOUND", "Safety route not found"));
         var source = record.getSourceItem();
         boolean global = source != null && (source.startsWith(ER0) || source.equals(WB1) || source.startsWith(CALENDAR));
         if (!global && record.getSessionId() == null) {

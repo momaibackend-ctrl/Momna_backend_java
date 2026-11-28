@@ -1,5 +1,5 @@
 {
-  "catalogVersion": "medical-safety-v2.2",
+  "catalogVersion": "medical-safety-v2.3",
   "screens": [
     {
       "code": "Q",
@@ -304,6 +304,39 @@
         "footnote": {
           "ru": "MOMNA не проводит скрининг депрессии и не заменяет оценку специалиста.",
           "enUs": "MOMNA does not screen for depression and does not replace assessment by a professional."
+        }
+      }
+    },
+    {
+      "code": "PM1-H",
+      "fields": {
+        "overline": {
+          "ru": "Эмоциональное здоровье",
+          "enUs": "Emotional wellbeing"
+        },
+        "title": {
+          "ru": "Не нужно оставаться с этим одной",
+          "enUs": "You don't have to manage this alone"
+        },
+        "body": {
+          "ru": "Подавленность, тревога и трудности после родов заслуживают поддержки. Можно обратиться за помощью уже сейчас — не обязательно ждать две недели.",
+          "enUs": "Low mood, anxiety and difficulties after birth deserve support. You can ask for help now — you don't have to wait two weeks."
+        },
+        "primary": {
+          "ru": "Понятно",
+          "enUs": "Got it"
+        },
+        "secondary": {
+          "ru": "Что обсудить с врачом",
+          "enUs": "What to discuss with a clinician"
+        },
+        "footnote": {
+          "ru": "MOMNA не проводит скрининг депрессии и не заменяет оценку специалиста.",
+          "enUs": "MOMNA does not screen for depression and does not replace assessment by a professional."
+        },
+        "urgentHelpLink": {
+          "ru": "Сейчас вам небезопасно? Как получить срочную помощь",
+          "enUs": "Not feeling safe right now? How to get urgent help"
         }
       }
     },

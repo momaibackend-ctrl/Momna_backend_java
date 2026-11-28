@@ -1,5 +1,5 @@
 {
-  "catalogVersion": "medical-safety-v2.2",
+  "catalogVersion": "medical-safety-v2.3",
   "source": "MOMNA_Unified_Medical_Safety_Catalog_v2.2_RU_EN.md §8 (MOMNA-1145)",
   "entry": { "ru": "Мне сейчас плохо", "enUs": "I feel very unwell now" },
   "call": { "ru": "Позвонить в экстренную службу", "enUs": "Call emergency services" },

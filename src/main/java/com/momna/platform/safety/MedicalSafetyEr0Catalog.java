@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /** The ER0 "I feel very unwell now" screen of catalog v2.2 §8: its texts and the signs shown per period. */
 @Component
 public class MedicalSafetyEr0Catalog {
-    private static final String RESOURCE = "/safety/medical-safety-er0-v2.2.json";
+    private static final String RESOURCE = "/safety/medical-safety-er0-v2.3.json";
 
     public record Text(String ru, String enUs) {}
 

@@ -109,6 +109,12 @@ public class MedicalSafetyApplicationService {
             () -> flow.answerRoute(userId, routeId, factCode, answer));
     }
 
+    /** «Not now» on a route a global entry started (L10). */
+    @Transactional
+    public StepView skip(String userId, String routeId, String key) {
+        return idempotent(userId, "route-skip", key, routeId, () -> flow.skipRoute(userId, routeId));
+    }
+
     @Transactional
     public StepView bloodPressure(String userId, String routeId, Integer systolic, Integer diastolic, boolean unknown,
         String key) {

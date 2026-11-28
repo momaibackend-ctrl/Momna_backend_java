@@ -433,6 +433,97 @@ class MyDayHttpE2eTest {
         assertEquals("Please discuss this symptom with a healthcare professional.", note.path("recommendation").asText());
     }
 
+    /** WB1 «It's been hard lately» for a fresh postpartum user, returning the R18 harm question. */
+    private User wb1HardLately(String label) throws Exception {
+        var user = user(LifecyclePeriod.POSTPARTUM, label);
+        var zone = java.time.ZoneId.of(userProfiles.findById(user.userId()).orElseThrow().getTimezone());
+        completedOnboarding(user, "POSTPARTUM", "period-onboarding-postpartum", 6, java.util.Map.of(
+            "onboarding.postpartum.birth_date", java.time.LocalDate.now(zone).minusDays(30).toString()));
+        var hard = postWithKey("/api/v1/medical-safety/wb1",
+            json.createObjectNode().put("answer", "HARD_LATELY").toString(), user, "wb1-" + UUID.randomUUID());
+        assertEquals(200, hard.statusCode(), hard.body());
+        assertEquals("F_HARM_THOUGHTS", json.readTree(hard.body()).path("step").path("nextFactCode").asText());
+        return user;
+    }
+
+    private Instant r18PausedUntil(User user) {
+        return jdbc.queryForObject("SELECT cooldown_until FROM momna.medical_safety_route_states "
+            + "WHERE user_id = ? AND route_id = 'R18'", java.sql.Timestamp.class, user.userId()).toInstant();
+    }
+
+    /**
+     * Catalog v2.3 (MOMNA-1146, Product 28.11.2026): «Not sure» on the harm question continues; with nothing
+     * higher it ends on PM1-H (PM1 plus the urgent-help link), R18 pauses 7 days, and My Day gets the support
+     * signal with the PM1 doctor line.
+     */
+    @Test
+    void notSureOnTheHarmQuestionEndsOnThePm1VariantAndReachesMyDay() throws Exception {
+        var user = wb1HardLately("safety-harm-unsure");
+        var step = json.readTree(postWithKey("/api/v1/medical-safety/routes/R18/answers", json.createObjectNode()
+            .put("factCode", "F_HARM_THOUGHTS").put("answer", "UNSURE").toString(), user, "r18-" + UUID.randomUUID())
+            .body()).path("step");
+        assertEquals("F_LOW_MOOD_2W", step.path("nextFactCode").asText(), step.toString());
+        for (int n = 0; step.path("nextFactCode").isTextual() && !step.path("nextFactCode").asText().isEmpty() && n < 5; n++) {
+            var answered = postWithKey("/api/v1/medical-safety/routes/R18/answers", json.createObjectNode()
+                .put("factCode", step.path("nextFactCode").asText()).put("answer", "NO").toString(), user,
+                "r18-" + UUID.randomUUID());
+            assertEquals(200, answered.statusCode(), answered.body());
+            step = json.readTree(answered.body()).path("step");
+        }
+        assertEquals("PROMPT", step.path("disposition").asText(), step.toString());
+        assertEquals("PM1-H", step.path("screenCode").asText());
+        var pause = Duration.between(Instant.now(), r18PausedUntil(user)).toHours();
+        assertTrue(pause >= 166 && pause <= 168, "R18 pauses 7 days: " + pause);
+
+        var catalog = json.readTree(get("/api/v1/medical-safety/catalog", user.token()).body());
+        var variant = java.util.stream.StreamSupport.stream(catalog.path("localizedContent").path("screens").spliterator(), false)
+            .filter(s -> "PM1-H".equals(s.path("code").asText())).findFirst().orElseThrow();
+        assertEquals("Not feeling safe right now? How to get urgent help",
+            variant.path("fields").path("urgentHelpLink").path("enUs").asText());
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        assertTrue(call.templateKey().overlayKeys().contains("post_mood_heavy"), call.templateKey().overlayKeys().toString());
+        var note = json.readTree(created.body()).path("healthNote");
+        assertEquals("PROMPT", note.path("level").asText(), note.toString());
+        assertEquals("Please discuss this symptom with a healthcare professional.", note.path("recommendation").asText());
+    }
+
+    /**
+     * Catalog v2.3: «Not now» on the harm question is «not answered» — H1, a 3-day pause, and nothing for My Day.
+     */
+    @Test
+    void notNowOnTheHarmQuestionIsNotAnsweredAndMyDayGetsNothing() throws Exception {
+        var user = wb1HardLately("safety-harm-not-now");
+        // Another user's route is never visible: the stranger gets 404, and the owner's R18 stays open.
+        var stranger = user(LifecyclePeriod.POSTPARTUM, "safety-harm-stranger");
+        for (var path : List.of("/api/v1/medical-safety/routes/R18/skip", "/api/v1/medical-safety/routes/R99/skip")) {
+            var foreign = postWithKey(path, "{}", stranger, "foreign-" + UUID.randomUUID());
+            assertEquals(404, foreign.statusCode(), path + " " + foreign.body());
+            assertEquals("SAFETY_ROUTE_NOT_FOUND", json.readTree(foreign.body()).path("code").asText());
+        }
+        assertEquals("QUESTION", jdbc.queryForObject("SELECT state FROM momna.medical_safety_route_states "
+            + "WHERE user_id = ? AND route_id = 'R18'", String.class, user.userId()));
+        var key = "r18-skip-" + UUID.randomUUID();
+        var skipped = postWithKey("/api/v1/medical-safety/routes/R18/skip", "{}", user, key);
+        assertEquals(200, skipped.statusCode(), skipped.body());
+        var step = json.readTree(skipped.body()).path("step");
+        assertEquals("NOT_ANSWERED", step.path("disposition").asText(), step.toString());
+        assertEquals("H1", step.path("screenCode").asText());
+        assertEquals(skipped.body(), postWithKey("/api/v1/medical-safety/routes/R18/skip", "{}", user, key).body(),
+            "an Idempotency-Key replay returns the stored response");
+        var pause = Duration.between(Instant.now(), r18PausedUntil(user)).toHours();
+        assertTrue(pause >= 70 && pause <= 72, "R18 pauses 3 days: " + pause);
+
+        var created = post("/api/v1/my-day/generate", user);
+        assertEquals(201, created.statusCode(), created.body());
+        var call = SOURCE_CALLS.stream().filter(c -> user.userId().equals(c.userId())).reduce((a, b) -> b).orElseThrow();
+        assertFalse(call.templateKey().overlayKeys().contains("post_mood_heavy"), call.templateKey().overlayKeys().toString());
+        assertTrue(json.readTree(created.body()).path("healthNote").isNull()
+            || json.readTree(created.body()).path("healthNote").isMissingNode(), created.body());
+    }
+
     /** A calendar signal (MOMNA-1145 §12) decides without daily questions and only where it applies. */
     @Test
     void aCalendarSignalDecidesInItsPeriodOnly() throws Exception {
@@ -450,7 +541,7 @@ class MyDayHttpE2eTest {
         assertEquals("CLINICAL_RELEASE_NOT_APPROVED", catalog.path("releaseStatus").asText(), catalog.toString());
         assertEquals(28, catalog.path("routes").size());
         assertFalse(catalog.toString().contains("crossChecks"));
-        assertEquals(22, catalog.path("localizedContent").path("screens").size(), catalog.path("localizedContent").toString());
+        assertEquals(23, catalog.path("localizedContent").path("screens").size(), catalog.path("localizedContent").toString());
     }
 
     /**

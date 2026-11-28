@@ -1358,6 +1358,39 @@
           ]
         },
         {
+          "name": "POST /api/v1/medical-safety/routes/{routeId}/skip rejects unauthenticated caller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "java-security-36s"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/medical-safety/routes/R18/skip",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unauthenticated request is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('does not expose credentials', function () { var text=pm.response.text(); ['accessHash','refreshHash','providerSubject','refreshCredential'].forEach(function(key){pm.expect(text).not.to.include(key);}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "POST /api/v1/medical-safety/calendar/signals rejects unauthenticated caller",
           "request": {
             "method": "POST",

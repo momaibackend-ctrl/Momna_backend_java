@@ -1864,14 +1864,14 @@ class AuthenticatedApiHttpE2eTest {
         assertTrue(safety.path("blocking").asBoolean(),blocked.toString());
         assertEquals("CLARIFICATION_REQUIRED",safety.path("state").asText());
         assertEquals("UNKNOWN",safety.path("severity").asText(),"an open question is not yet a decision");
-        assertEquals("medical-safety-v2.2:medical-safety-rules-v2.2",safety.path("decisionVersion").asText());
+        assertEquals("medical-safety-v2.3:medical-safety-rules-v2.3",safety.path("decisionVersion").asText());
         assertEquals("[\"ANSWER_SAFETY\"]",safety.path("allowedActions").toString());
         assertEquals(expectedRoutes(blocked),routeIds(blocked));
         var r1=route(blocked,"R1");
         assertEquals("MENARCHE_HEADACHE",r1.path("routeCode").asText());
         assertEquals("QUESTION",r1.path("state").asText());
         assertEquals("F_THUNDERCLAP_HEADACHE",r1.path("nextFactCode").asText());
-        assertEquals("medical-safety-v2.2",r1.path("catalogVersion").asText());
+        assertEquals("medical-safety-v2.3",r1.path("catalogVersion").asText());
         var actions=blocked.path("allowedActions").toString();
         assertTrue(actions.contains("ANSWER_SAFETY"),actions);
         assertTrue(actions.contains("EDIT_ANSWERS"),actions);

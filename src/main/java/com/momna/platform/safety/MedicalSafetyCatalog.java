@@ -9,9 +9,10 @@ import org.springframework.stereotype.Component;
 /** Versioned product catalog; clinical-release approval is deliberately separate. */
 @Component
 public final class MedicalSafetyCatalog {
-    public static final String VERSION = "medical-safety-v2.2";
-    public static final String RULE_VERSION = "medical-safety-rules-v2.2";
-    private static final String RESOURCE = "/safety/medical-safety-catalog-v2.2.json";
+    /** v2.3 (Product decision 28.11.2026): «Not now» and «Not sure» on F_HARM_THOUGHTS in R18 (L10, L11, L13). */
+    public static final String VERSION = "medical-safety-v2.3";
+    public static final String RULE_VERSION = "medical-safety-rules-v2.3";
+    private static final String RESOURCE = "/safety/medical-safety-catalog-v2.3.json";
 
     private final Map<String, Route> routes;
     private final Map<String, Fact> facts;
@@ -26,6 +27,7 @@ public final class MedicalSafetyCatalog {
     private final Set<String> bpCombinationSigns;
     private final int severeSystolic, severeDiastolic, elevatedSystolic, elevatedDiastolic;
     private final Set<String> systemicRoutes, systemicFacts;
+    private final HarmThoughtsOutcomes harmOutcomes;
     public enum PressureBand { UNKNOWN, BELOW_THRESHOLD, ELEVATED, SEVERE }
 
     public MedicalSafetyCatalog(ObjectMapper mapper) {
@@ -57,6 +59,16 @@ public final class MedicalSafetyCatalog {
             this.systemicFacts = Set.copyOf(strings(qm.path("factCodes")));
             if (elevatedSystolic >= severeSystolic || elevatedDiastolic >= severeDiastolic
                 || systemicFacts.size() != 5) throw new IllegalStateException("Invalid structured safety policy");
+            var harm = rules.path("harmThoughtsOutcomes");
+            this.harmOutcomes = new HarmThoughtsOutcomes(harm.path("routeId").asText(), harm.path("factCode").asText(),
+                new Outcome(harm.path("notAnswered").path("disposition").asText(),
+                    harm.path("notAnswered").path("screen").asText(), harm.path("notAnswered").path("cooldownHours").asInt()),
+                new Outcome(harm.path("unsure").path("disposition").asText(),
+                    harm.path("unsure").path("screen").asText(), harm.path("unsure").path("cooldownHours").asInt()));
+            if (harmOutcomes.routeId().isBlank() || harmOutcomes.factCode().isBlank()
+                || harmOutcomes.notAnswered().cooldownHours() <= 0 || harmOutcomes.unsure().cooldownHours() <= 0) {
+                throw new IllegalStateException("Missing harm-thoughts outcome policy");
+            }
             var routeMap = new LinkedHashMap<String, Route>();
             for (JsonNode entry : root.path("routes")) {
                 var route = new Route(
@@ -95,19 +107,19 @@ public final class MedicalSafetyCatalog {
             this.routes = Collections.unmodifiableMap(routeMap);
             this.facts = Collections.unmodifiableMap(factMap);
             try (var content = MedicalSafetyCatalog.class.getResourceAsStream(
-                "/safety/medical-safety-content-v2.2.json")) {
+                "/safety/medical-safety-content-v2.3.json")) {
                 if (content == null) throw new IllegalStateException("Safety screen content missing");
                 this.localizedContent = mapper.readTree(content);
-                if (this.localizedContent.path("screens").size() != 22
+                if (this.localizedContent.path("screens").size() != 23
                     || this.localizedContent.path("combinations").size() != 6) {
                     throw new IllegalStateException("Incomplete Safety localized content");
                 }
             }
             try (var content = MedicalSafetyCatalog.class.getResourceAsStream(
-                "/safety/medical-safety-public-screens-v2.2.json")) {
+                "/safety/medical-safety-public-screens-v2.3.json")) {
                 if (content == null) throw new IllegalStateException("Public Safety screens missing");
                 this.publicScreenContent = mapper.readTree(content);
-                if (publicScreenContent.path("screens").size() != 22) {
+                if (publicScreenContent.path("screens").size() != 23) {
                     throw new IllegalStateException("Incomplete safe public Safety screens");
                 }
             }
@@ -123,6 +135,33 @@ public final class MedicalSafetyCatalog {
     }
 
     public Set<String> conditionUndefinedFacts() { return conditionalFacts; }
+
+    /** One outcome of the harm-thoughts policy: its disposition, screen and route pause. */
+    public record Outcome(String disposition, String screen, int cooldownHours) {}
+
+    /**
+     * v2.3, Product decision 28.11.2026: on R18, F_HARM_THOUGHTS answered «Not now» (ABSENT) ends as «not
+     * answered» with H1 and a 3-day pause; «Not sure» (UNSURE) with nothing higher ends on the PM1 variant with the
+     * urgent-help link and a 7-day pause.
+     */
+    public record HarmThoughtsOutcomes(String routeId, String factCode, Outcome notAnswered, Outcome unsure) {}
+
+    public HarmThoughtsOutcomes harmThoughtsOutcomes() { return harmOutcomes; }
+
+    /**
+     * The pause (L13) a completed step sets on its route. The route's own pause, except the two harm-thoughts
+     * outcomes of v2.3, which have their own.
+     */
+    public int cooldownHours(Route route, MedicalStep step) {
+        if (route.routeId().equals(harmOutcomes.routeId()) && "COMPLETE".equals(step.state())) {
+            if (harmOutcomes.notAnswered().disposition().equals(step.disposition())
+                && harmOutcomes.notAnswered().screen().equals(step.screenCode())) {
+                return harmOutcomes.notAnswered().cooldownHours();
+            }
+            if (harmOutcomes.unsure().screen().equals(step.screenCode())) return harmOutcomes.unsure().cooldownHours();
+        }
+        return route.cooldownHours();
+    }
     public Set<String> postpartumBleedingEmergencyFacts() { return hemorrhageFacts; }
     public String postpartumBleedingRoute() { return hemorrhageRoute; }
     public Set<String> postpartumInfectionRoutes() { return infectionRoutes; }

@@ -29,7 +29,7 @@ class MedicalSafetyPropertyTest {
     private static final List<String> PERIODS = List.of("MENARCHE", "CYCLE", "PLANNING", "PREGNANCY", "POSTPARTUM",
         "PERIMENOPAUSE", "MENOPAUSE");
     private static final Set<String> DISPOSITIONS = Set.of("EMERGENCY", "SAFETY_ASSESSMENT", "URGENT", "PROMPT",
-        "ROUTINE", "UNKNOWN", "NOT_REPORTED");
+        "ROUTINE", "UNKNOWN", "NOT_REPORTED", "NOT_ANSWERED");
 
     record Run(MedicalStep last, Map<String, String> answers, int asked) {}
 
@@ -90,6 +90,16 @@ class MedicalSafetyPropertyTest {
         assertEquals("UNKNOWN".equals(run.last().disposition()),
             "UNKNOWN".equals(CheckinMedicalSafety.severity(run.last())),
             "a completed route projects to UNKNOWN severity exactly when its outcome is UNKNOWN");
+        // v2.3: on R18 a harm question left «Not sure» or «Not now» is never "nothing found", and only a skipped
+        // harm question ends as "not answered".
+        var harm = run.answers().get("F_HARM_THOUGHTS");
+        if (routeId.equals("R18") && ("UNSURE".equals(harm) || "ABSENT".equals(harm))) {
+            assertNotEquals("NOT_REPORTED", run.last().disposition(), routeId + " " + run.answers());
+        }
+        if ("NOT_ANSWERED".equals(run.last().disposition())) {
+            assertEquals("R18", routeId);
+            assertEquals("ABSENT", harm, run.answers().toString());
+        }
     }
 
     @Property(tries = 1500)

@@ -13,12 +13,12 @@ import org.junit.jupiter.api.Test;
 
 class CheckinMedicalSafetyTest {
     private static MedicalStep complete(String routeId, String code, String disposition, String action) {
-        return new MedicalStep(routeId, code, "medical-safety-v2.2", "medical-safety-rules-v2.2", "COMPLETE",
+        return new MedicalStep(routeId, code, "medical-safety-v2.3", "medical-safety-rules-v2.3", "COMPLETE",
             disposition, "S", action, null, "CLINICAL_RELEASE_PENDING");
     }
 
     private static MedicalStep question(String routeId, String code) {
-        return new MedicalStep(routeId, code, "medical-safety-v2.2", "medical-safety-rules-v2.2", "QUESTION",
+        return new MedicalStep(routeId, code, "medical-safety-v2.3", "medical-safety-rules-v2.3", "QUESTION",
             "PENDING", "Q", "ANSWER_FACT", "F_X", "CLINICAL_RELEASE_PENDING");
     }
 
@@ -64,7 +64,7 @@ class CheckinMedicalSafetyTest {
         assertEquals(CheckinSafetyState.RESOLVED, resolved.state());
         assertEquals("POSTPARTUM_BLEEDING", resolved.routeCode());
         assertEquals("HIGH", resolved.severity());
-        assertEquals("medical-safety-v2.2:medical-safety-rules-v2.2", resolved.decisionVersion());
+        assertEquals("medical-safety-v2.3:medical-safety-rules-v2.3", resolved.decisionVersion());
         assertEquals(List.of("ACKNOWLEDGE"), resolved.allowedActions());
         assertEquals(List.of("R11", "R12", "R13"), resolved.clarification().get("routeIds"));
         assertFalse(resolved.blocking());

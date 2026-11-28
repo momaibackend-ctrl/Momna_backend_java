@@ -52,6 +52,7 @@ paths:
                 answer: { type: string, enum: [YES, NO, UNSURE, ABSENT] }
       responses:
         '200': { $ref: '#/components/responses/Step' }
+        '404': { description: 'SAFETY_ROUTE_NOT_FOUND: an unknown route, or one this user has not started (another user''s route is never visible)' }
         '409': { description: 'SAFETY_FACT_NOT_CURRENT, SAFETY_ROUTE_NOT_CURRENT, SAFETY_ROUTE_COMPLETED or IDEMPOTENCY_CONFLICT' }
         '422': { description: SAFETY_VALUE_INVALID }
   /api/v1/medical-safety/routes/{routeId}/skip:
@@ -63,7 +64,7 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200': { $ref: '#/components/responses/Step' }
-        '404': { description: SAFETY_ROUTE_NOT_FOUND }
+        '404': { description: 'SAFETY_ROUTE_NOT_FOUND: an unknown route, or one this user has not started (another user''s route is never visible)' }
         '409': { description: 'SAFETY_ROUTE_NOT_CURRENT or IDEMPOTENCY_CONFLICT' }
   /api/v1/medical-safety/routes/{routeId}/blood-pressure:
     post:
@@ -84,6 +85,7 @@ paths:
                 unknown: { type: boolean }
       responses:
         '200': { $ref: '#/components/responses/Step' }
+        '404': { description: 'SAFETY_ROUTE_NOT_FOUND: an unknown route, or one this user has not started' }
         '409': { description: 'SAFETY_FACT_NOT_CURRENT or SAFETY_ROUTE_NOT_CURRENT' }
         '422': { description: SAFETY_VALUE_INVALID }
   /api/v1/medical-safety/calendar/signals:

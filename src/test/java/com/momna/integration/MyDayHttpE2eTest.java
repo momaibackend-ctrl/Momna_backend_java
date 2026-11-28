@@ -496,6 +496,15 @@ class MyDayHttpE2eTest {
     @Test
     void notNowOnTheHarmQuestionIsNotAnsweredAndMyDayGetsNothing() throws Exception {
         var user = wb1HardLately("safety-harm-not-now");
+        // Another user's route is never visible: the stranger gets 404, and the owner's R18 stays open.
+        var stranger = user(LifecyclePeriod.POSTPARTUM, "safety-harm-stranger");
+        for (var path : List.of("/api/v1/medical-safety/routes/R18/skip", "/api/v1/medical-safety/routes/R99/skip")) {
+            var foreign = postWithKey(path, "{}", stranger, "foreign-" + UUID.randomUUID());
+            assertEquals(404, foreign.statusCode(), path + " " + foreign.body());
+            assertEquals("SAFETY_ROUTE_NOT_FOUND", json.readTree(foreign.body()).path("code").asText());
+        }
+        assertEquals("QUESTION", jdbc.queryForObject("SELECT state FROM momna.medical_safety_route_states "
+            + "WHERE user_id = ? AND route_id = 'R18'", String.class, user.userId()));
         var key = "r18-skip-" + UUID.randomUUID();
         var skipped = postWithKey("/api/v1/medical-safety/routes/R18/skip", "{}", user, key);
         assertEquals(200, skipped.statusCode(), skipped.body());

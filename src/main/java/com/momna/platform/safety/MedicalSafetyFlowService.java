@@ -559,10 +559,17 @@ public class MedicalSafetyFlowService {
         return new GlobalStep(step, record.getSessionId());
     }
 
+    /**
+     * The caller's own route state. Route states are keyed by (user, route), so another user's route is never
+     * visible: an unknown route code, or a route this user has not started, is 404 SAFETY_ROUTE_NOT_FOUND.
+     */
     private MedicalSafetyRouteStateEntity globalOwned(String userId, String routeId) {
-        route(routeId);
+        if (routeId == null || catalog.routes().stream().noneMatch(r -> r.routeId().equals(routeId))) {
+            throw new MedicalSafetyException("SAFETY_ROUTE_NOT_FOUND", "Safety route not found");
+        }
         var record = states.findByUserIdAndRouteId(userId, routeId)
-            .orElseThrow(() -> new MedicalSafetyException("SAFETY_ROUTE_NOT_CURRENT", "Safety route not found"));
+            .filter(r -> userId.equals(r.getUserId()))
+            .orElseThrow(() -> new MedicalSafetyException("SAFETY_ROUTE_NOT_FOUND", "Safety route not found"));
         var source = record.getSourceItem();
         boolean global = source != null && (source.startsWith(ER0) || source.equals(WB1) || source.startsWith(CALENDAR));
         if (!global && record.getSessionId() == null) {

@@ -54,6 +54,23 @@ class MedicalSafetyHarmThoughtsTest {
     }
 
     @Test
+    void anotherUsersOrAnUnknownRouteIsNotFoundAndTheOwnersRouteIsUntouched() {
+        hardLately();
+        for (var call : List.<Runnable>of(
+            () -> flow.skipRoute("intruder", "R18"),
+            () -> flow.answerRoute("intruder", "R18", "F_HARM_THOUGHTS", "NO"),
+            () -> flow.skipRoute(USER, "R99"),
+            () -> flow.skipRoute(USER, "R25"))) {
+            var failure = assertThrows(MedicalSafetyException.class, call::run);
+            assertEquals("SAFETY_ROUTE_NOT_FOUND", failure.code());
+        }
+        var owner = store.row(USER, "R18");
+        assertTrue(owner.question(), "the owner's R18 is still open");
+        assertTrue(owner.getFactAnswers().isEmpty());
+        assertNull(owner.getCooldownUntil());
+    }
+
+    @Test
     void notSureOnTheHarmQuestionContinuesAndEndsOnThePm1VariantWithASevenDayPause() {
         hardLately();
         var start = clock.instant();

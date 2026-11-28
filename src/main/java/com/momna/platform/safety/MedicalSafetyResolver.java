@@ -176,6 +176,14 @@ public class MedicalSafetyResolver {
                 screen.equals("OB1") ? "CONTACT_MATERNITY" : "ACKNOWLEDGE", null,
                 conditionUndefined ? "CONDITION_UNDEFINED" : "CLINICAL_RELEASE_PENDING");
         }
+        // v2.3 (Product decision 28.11.2026): «Not sure» on the harm question ends, when nothing higher is found,
+        // on the PM1 variant with the urgent-help link, never on "nothing found".
+        var harm = catalog.harmThoughtsOutcomes();
+        boolean harmRoute = route.routeId().equals(harm.routeId());
+        if (harmRoute && "UNSURE".equals(known.get(harm.factCode()))) {
+            return step(route, "COMPLETE", harm.unsure().disposition(), harm.unsure().screen(), "ACKNOWLEDGE",
+                null, "CLINICAL_RELEASE_PENDING");
+        }
         if (prompt) {
             var screen = route.routeId().equals("R18") ? "PM1"
                 : route.routeId().equals("R24") ? "MP1"
@@ -188,6 +196,11 @@ public class MedicalSafetyResolver {
             "CLINICAL_RELEASE_PENDING");
         if (unsure) return step(route, "COMPLETE", "UNKNOWN", "N", "REVIEW_ANSWER",
             null, "INFORMATION_INSUFFICIENT");
+        // v2.3: «Not now» on the harm question is "not answered", not "nothing found" (§7.2 needs every sign NO).
+        if (harmRoute && "ABSENT".equals(known.get(harm.factCode()))) {
+            return step(route, "COMPLETE", harm.notAnswered().disposition(), harm.notAnswered().screen(), "OPEN_ER0",
+                null, "CLINICAL_RELEASE_PENDING");
+        }
         return step(route, "COMPLETE", "NOT_REPORTED", "H1", "OPEN_ER0", null,
             "CLINICAL_RELEASE_PENDING");
     }

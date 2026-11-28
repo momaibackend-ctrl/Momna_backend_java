@@ -1,5 +1,5 @@
 {
-  "catalogVersion": "medical-safety-v2.2",
+  "catalogVersion": "medical-safety-v2.3",
   "releaseStatus": "CLINICAL_RELEASE_NOT_APPROVED",
   "screens": [
     {
@@ -372,6 +372,15 @@
       "code": "WB1",
       "fields": {},
       "localizedSource": []
+    },
+    {
+      "code": "PM1-H",
+      "fields": {},
+      "localizedSource": [
+        "PM1 with the same texts and buttons, plus a text link at the bottom (R18, «Not sure» on F_HARM_THOUGHTS, nothing higher found).",
+        "RU: «Сейчас вам небезопасно? Как получить срочную помощь» — ведёт туда же, куда кнопка PM2 «Как получить срочную помощь».",
+        "EN: “Not feeling safe right now? How to get urgent help” — opens the same destination as PM2 “How to get urgent help”."
+      ]
     }
   ],
   "combinations": [

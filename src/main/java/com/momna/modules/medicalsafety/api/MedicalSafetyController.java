@@ -49,6 +49,13 @@ public class MedicalSafetyController {
         return safety.answer(actor(auth).userId(), routeId, request.factCode(), request.answer(), key);
     }
 
+    /** «Not now»: ends the route; unanswered questions stay unanswered (L10). */
+    @PostMapping("/routes/{routeId}/skip")
+    public StepView skip(Authentication auth, @PathVariable String routeId,
+        @RequestHeader("Idempotency-Key") String key) {
+        return safety.skip(actor(auth).userId(), routeId, key);
+    }
+
     @PostMapping("/routes/{routeId}/blood-pressure")
     public StepView bloodPressure(Authentication auth, @PathVariable String routeId,
         @RequestHeader("Idempotency-Key") String key, @RequestBody BloodPressure request) {
@@ -75,7 +82,7 @@ public class MedicalSafetyController {
         return safety.answerWellbeing(actor(auth).userId(), request.answer(), key);
     }
 
-    /** The public v2.2 catalog for online rendering: no rules, notes or mixed-stage texts. */
+    /** The public v2.3 catalog for online rendering: no rules, notes or mixed-stage texts. */
     @GetMapping("/catalog")
     public CatalogView catalog(Authentication auth) {
         var period = safety.lifecyclePeriod(actor(auth).userId());

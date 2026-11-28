@@ -99,6 +99,22 @@ same key and request replays the stored response. The lifecycle period is always
   period's health overlay; R18 from WB1 is `post_mood_heavy`.
 - `GET /catalog` returns the public catalog for online rendering, with no rules or editorial notes.
 
+## Catalog v2.3 (Product decision 28.11.2026, MOMNA-1146)
+
+The catalog is now `medical-safety-v2.3` / `medical-safety-rules-v2.3` (resources `safety/*-v2.3.json`). It changes only the R18 harm question `F_HARM_THOUGHTS`, whatever the entry (PP2, PP18, WB1):
+
+| Answer | Outcome | Screen | My Day | R18 pause |
+|---|---|---|---|---|
+| «Not now» (skip, L10) | `NOT_ANSWERED` (severity NONE) | H1, no N | nothing | 3 days |
+| «Not sure» (L11), nothing higher | `PROMPT` (MEDIUM) | `PM1-H`: PM1 plus the link «Not feeling safe right now? How to get urgent help» | `post_mood_heavy` and the PM1 doctor line | 7 days |
+| Every answer NO | `NOT_REPORTED` | H1 | nothing | 14 days |
+| YES | `SAFETY_ASSESSMENT` | PM2 | as before | as before |
+
+- A higher outcome (PM2, URGENT, EMERGENCY) always wins.
+- PM1 itself is unchanged.
+- The policy is data (`policies.harmThoughtsOutcomes` in the catalog JSON).
+- **«Not now» outside a Check-in.** `POST /api/v1/medical-safety/routes/{routeId}/skip` gives «Not now» on a route that WB1 or ER0 started. It needs an `Idempotency-Key`. The remaining questions are ABSENT, never NO.
+
 ## Not in this change
 
 - The clinical release gates listed in MOMNA-1145 and MOMNA-1146: thresholds, pauses, the gestational week at

@@ -67,7 +67,7 @@ class MedicalSafetyCatalogTest {
         assertFalse(screens.contains("localizedSource"));
         assertFalse(screens.contains("postpartumBody"));
         assertFalse(screens.contains("Календарь (§5.7)"));
-        assertEquals(22, catalog.publicScreens("POSTPARTUM").path("screens").size());
+        assertEquals(23, catalog.publicScreens("POSTPARTUM").path("screens").size(), "v2.3 adds the PM1-H variant");
         assertEquals(1, catalog.questionGroups().size());
     }
 

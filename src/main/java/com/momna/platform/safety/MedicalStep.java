@@ -26,7 +26,7 @@ public record MedicalStep(String routeId, String routeCode, String catalogVersio
     /**
      * The platform severity of this step, which My Day reads: EMERGENCY and the PM2 safety assessment are
      * CRITICAL, URGENT is HIGH, PROMPT is MEDIUM, UNKNOWN and a question still open are UNKNOWN, ROUTINE is
-     * LOW, nothing found is NONE.
+     * LOW, nothing found and a harm question left unanswered (v2.3) are NONE.
      */
     public String severity() {
         if (question()) return "UNKNOWN";
@@ -35,7 +35,7 @@ public record MedicalStep(String routeId, String routeCode, String catalogVersio
             case "URGENT" -> "HIGH";
             case "PROMPT" -> "MEDIUM";
             case "ROUTINE" -> "LOW";
-            case "NOT_REPORTED" -> "NONE";
+            case "NOT_REPORTED", "NOT_ANSWERED" -> "NONE";
             default -> "UNKNOWN";
         };
     }

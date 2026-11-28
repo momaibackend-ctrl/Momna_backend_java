@@ -1,6 +1,6 @@
 {
-  "catalogVersion": "medical-safety-v2.2",
-  "ruleVersion": "medical-safety-rules-v2.2",
+  "catalogVersion": "medical-safety-v2.3",
+  "ruleVersion": "medical-safety-rules-v2.3",
   "releaseStatus": "CLINICAL_RELEASE_NOT_APPROVED",
   "facts": [
     {
@@ -1057,6 +1057,21 @@
         "F_PRESYNCOPE",
         "F_EXTREME_WEAKNESS"
       ]
+    },
+    "harmThoughtsOutcomes": {
+      "source": "Product decision 28.11.2026 (MOMNA-1146 comment 71c7e2c0): L10, L11 and L13 for R18",
+      "routeId": "R18",
+      "factCode": "F_HARM_THOUGHTS",
+      "notAnswered": {
+        "disposition": "NOT_ANSWERED",
+        "screen": "H1",
+        "cooldownHours": 72
+      },
+      "unsure": {
+        "disposition": "PROMPT",
+        "screen": "PM1-H",
+        "cooldownHours": 168
+      }
     }
   }
 }

@@ -54,6 +54,17 @@ paths:
         '200': { $ref: '#/components/responses/Step' }
         '409': { description: 'SAFETY_FACT_NOT_CURRENT, SAFETY_ROUTE_NOT_CURRENT, SAFETY_ROUTE_COMPLETED or IDEMPOTENCY_CONFLICT' }
         '422': { description: SAFETY_VALUE_INVALID }
+  /api/v1/medical-safety/routes/{routeId}/skip:
+    post:
+      operationId: skipGlobalSafetyRoute
+      description: '«Not now» on a route a global entry started or joined (catalog L10). The remaining questions stay unanswered (ABSENT, never NO) and the route ends with what it found. On R18, «Not now» on the harm question ends as NOT_ANSWERED with H1 (catalog v2.3). A completed route returns its outcome.'
+      parameters:
+        - $ref: '#/components/parameters/RouteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { $ref: '#/components/responses/Step' }
+        '404': { description: SAFETY_ROUTE_NOT_FOUND }
+        '409': { description: 'SAFETY_ROUTE_NOT_CURRENT or IDEMPOTENCY_CONFLICT' }
   /api/v1/medical-safety/routes/{routeId}/blood-pressure:
     post:
       operationId: recordGlobalSafetyBloodPressure
